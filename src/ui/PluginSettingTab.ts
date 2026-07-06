@@ -1,4 +1,4 @@
-import { App, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
+import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 
@@ -10,7 +10,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
   constructor(
     app: App,
-    private readonly plugin: any, // Plugin 인스턴스
+    private readonly plugin: Plugin,
     private readonly config: ConfigPort,
   ) {
     super(app, plugin);

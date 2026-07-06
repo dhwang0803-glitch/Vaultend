@@ -31,7 +31,10 @@ export class OpenAIAdapter implements AIProviderPort {
       temperature: request.temperature,
     };
 
-    const response = await this.makeRequest('/chat/completions', body);
+    const response = await this.makeRequest('/chat/completions', body) as {
+      choices: Array<{ message: { content: string }; finish_reason: 'stop' | 'length' | 'content_filter' }>;
+      usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    };
 
     return {
       content: response.choices[0].message.content,
@@ -70,7 +73,7 @@ export class OpenAIAdapter implements AIProviderPort {
     };
   }
 
-  private async makeRequest(endpoint: string, body: unknown): Promise<any> {
+  private async makeRequest(endpoint: string, body: unknown): Promise<unknown> {
     const params: RequestUrlParam = {
       url: `${OpenAIAdapter.BASE_URL}${endpoint}`,
       method: 'POST',

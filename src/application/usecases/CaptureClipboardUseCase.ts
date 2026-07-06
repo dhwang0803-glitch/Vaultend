@@ -1,5 +1,5 @@
 import { ClipboardPort } from '../ports/ClipboardPort';
-import { SaveNoteUseCase, SaveNoteRequest } from './SaveNoteUseCase';
+import { SaveNoteUseCase } from './SaveNoteUseCase';
 import { ConfigPort } from '../ports/ConfigPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ClockPort } from '../ports/ClockPort';

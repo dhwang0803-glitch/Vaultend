@@ -61,7 +61,7 @@ describe('ObsidianVaultAdapter', () => {
 
   describe('readNote', () => {
     it('존재하는 파일을 Note 모델로 반환한다', async () => {
-      const file = addFile(app, 'folder/note.md');
+      addFile(app, 'folder/note.md');
       app.vault.read.mockResolvedValue('# Hello\n\nWorld');
       app.metadataCache.getFileCache.mockReturnValue({
         frontmatter: { tags: ['test'] },
@@ -127,7 +127,7 @@ describe('ObsidianVaultAdapter', () => {
     });
 
     it('링크를 resolve하여 파싱한다', async () => {
-      const file = addFile(app, 'note.md');
+      addFile(app, 'note.md');
       app.vault.read.mockResolvedValue('content');
       app.metadataCache.getFileCache.mockReturnValue({
         frontmatter: {},
