@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# .githooks/post-checkout  —  installed by AI_Native_Kit
+#
+# 새 브랜치 체크아웃 시 자동으로:
+#   1. {브랜치명}/agents/ 가 없으면 _agent_templates/ 에서 복사
+#   2. {브랜치명}/ 표준 폴더 구조 스캐폴딩 (없는 폴더만 생성)
+#   3. {브랜치명}/CLAUDE.md 가 없으면 _claude_templates/ 에서 복사
+#
+# 브랜치명별 폴더 구조는 아래 case 문에서 정의한다. 프로젝트 컨벤션에 맞게
+# 브랜치 케이스를 추가하라 (예: API_Server, Frontend). 미정의 브랜치는 공통
+# 구조(src/scripts/tests/config/docs)를 받는다.
+#
+# 설치(보통 `ai-native-kit init`이 자동 설정):
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/post-checkout
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+BRANCH_CHECKOUT=$3
+
+# 파일 단위 checkout은 무시
+[ "$BRANCH_CHECKOUT" != "1" ] && exit 0
+
+# 새 브랜치 생성(checkout -b / switch -c)만 처리: 새 브랜치는 소스와 같은 커밋에서
+# 시작하므로 PREV==NEW. 기존 브랜치로의 전환(커밋이 다름)은 스캐폴딩 불필요.
+# (같은 커밋의 기존 브랜치로 전환하는 드문 경우엔 통과하지만, 아래 폴더 생성이
+#  idempotent하므로 — 이미 있으면 건드리지 않음 — 무해하다.)
+[ "$PREV_HEAD" != "$NEW_HEAD" ] && exit 0
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+[ -z "$BRANCH" ] && exit 0
+
+# 보호/특수 브랜치는 작업 디렉터리 컨벤션 없음 → 스킵
+[ "$BRANCH" = "main" ] && exit 0
+[ "$BRANCH" = "development" ] && exit 0
+[ "$BRANCH" = "docs" ] && exit 0
+
+# 슬래시 포함 브랜치(fix/xxx, feature/xxx)는 작업 디렉터리 규칙 없음 → 스킵
+[[ "$BRANCH" == */* ]] && exit 0
+
+# 브랜치명이 곧 작업 디렉터리명
+WORK_DIR="$BRANCH"
+
+AGENT_TEMPLATES_DIR="_agent_templates"
+CLAUDE_TEMPLATES_DIR="_claude_templates"
+
+# ─── 1. agents/ 자동 생성 ────────────────────────────────────────────────────
+if [ -d "$AGENT_TEMPLATES_DIR" ]; then
+    AGENTS_DIR="${WORK_DIR}/agents"
+    if [ ! -d "$AGENTS_DIR" ]; then
+        mkdir -p "$AGENTS_DIR"
+        cp "$AGENT_TEMPLATES_DIR"/*.md "$AGENTS_DIR/"
+        echo ""
+        echo "[agents] ${AGENTS_DIR}/ 생성 완료 — 브랜치 특성에 맞게 커스터마이징하세요"
+        echo ""
+    fi
+fi
+
+# ─── 2. 표준 폴더 구조 스캐폴딩 ──────────────────────────────────────────────
+CREATED=()
+_mkdir() {
+    local dir="${WORK_DIR}/$1"
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir"
+        touch "${dir}/.gitkeep"
+        CREATED+=("$1/")
+    fi
+}
+
+case "$BRANCH" in
+    # ── 프로젝트별 브랜치 케이스를 여기에 추가하세요 (예시) ──
+    # API_Server)
+    #     _mkdir app/routers; _mkdir app/services; _mkdir app/models
+    #     _mkdir tests; _mkdir config ;;
+    # Frontend)
+    #     _mkdir src/components; _mkdir src/pages; _mkdir src/services
+    #     _mkdir public; _mkdir tests ;;
+    *)
+        # 공통 구조 (Clean Architecture 모듈/일반 파이프라인)
+        _mkdir src
+        _mkdir scripts
+        _mkdir tests
+        _mkdir config
+        _mkdir docs
+        ;;
+esac
+
+if [ ${#CREATED[@]} -gt 0 ]; then
+    echo ""
+    echo "[scaffold] ${WORK_DIR}/ 표준 폴더 구조 생성:"
+    for d in "${CREATED[@]}"; do echo "  + ${WORK_DIR}/${d}"; done
+    echo "[scaffold] .gitkeep 추가됨 — git add 후 커밋하세요"
+    echo ""
+fi
+
+# ─── 3. 브랜치별 CLAUDE.md 자동 생성 ─────────────────────────────────────────
+if [ -d "$CLAUDE_TEMPLATES_DIR" ]; then
+    _CLAUDE_TARGET="${WORK_DIR}/CLAUDE.md"
+    if [ ! -f "$_CLAUDE_TARGET" ]; then
+        _specific="${CLAUDE_TEMPLATES_DIR}/CLAUDE_${BRANCH}.md"
+        _default="${CLAUDE_TEMPLATES_DIR}/CLAUDE_DEFAULT.md"
+        if [ -f "$_specific" ]; then
+            cp "$_specific" "$_CLAUDE_TARGET"
+            echo "[claude] ${_CLAUDE_TARGET} 생성 (브랜치 전용 템플릿)"
+        elif [ -f "$_default" ]; then
+            cp "$_default" "$_CLAUDE_TARGET"
+            echo "[claude] ${_CLAUDE_TARGET} 생성 (기본 템플릿) — TODO 항목을 수정하세요"
+        fi
+    fi
+fi

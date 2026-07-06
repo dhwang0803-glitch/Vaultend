@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit  —  installed by AI_Native_Kit
+#
+# 커밋 전 자동 검증 루프 (Evaluation-Driven Improvement):
+#   1. 보안 점검 — 하드코딩 자격증명, os.getenv() 기본값에 인프라 정보
+#   2. 린트 — 변경된 파일에 대해 린터 실행
+#   3. 테스트 — 변경된 모듈의 테스트 실행 (선택)
+#
+# 실패 시 커밋 차단. 하네스의 검증 루프를 강제로 내장하여
+# "문서에만 규칙을 두고 실행하지 않는" 상황을 방지한다.
+#
+# 우회: git commit --no-verify (권장하지 않음)
+# 설정: ai-native-kit.toml의 [stack] 섹션에서 lint/test 명령 지정
+
+set -e
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED_FILES" ] && exit 0
+
+ERRORS=0
+
+# ─── 1. 보안 점검 ───────────────────────────────────────────────────────────
+echo "[pre-commit] 보안 점검..."
+
+# 하드코딩된 자격증명 탐지
+SECURITY_HITS=$(git diff --cached -U0 | grep -iE '^\+.*(password|secret|api_key|token|private_key)\s*=\s*["\x27][^"\x27]{4,}' | grep -v '^\+\+\+' || true)
+if [ -n "$SECURITY_HITS" ]; then
+    echo ""
+    echo "  [FAIL] 하드코딩된 자격증명 탐지:"
+    echo "$SECURITY_HITS" | head -10
+    echo ""
+    echo "  → os.getenv() / process.env 를 사용하세요."
+    ERRORS=$((ERRORS + 1))
+fi
+
+# os.getenv() 기본값에 실제 인프라 정보 (IP 주소, DB 이름 등)
+GETENV_HITS=$(git diff --cached -U0 | grep -E '^\+.*os\.getenv\(.+,\s*["\x27]' | grep -vE '(localhost|127\.0\.0\.1|5432|8080|3000|8000|true|false|DEBUG|INFO)' | grep -v '^\+\+\+' || true)
+if [ -n "$GETENV_HITS" ]; then
+    echo ""
+    echo "  [WARN] os.getenv() 기본값에 인프라 정보 의심:"
+    echo "$GETENV_HITS" | head -5
+    echo ""
+    echo "  → 기본값 없이 os.getenv('KEY') 를 사용하세요."
+    echo "  → 표준 포트(5432, 8080 등)와 localhost는 허용됩니다."
+fi
+
+# .env 파일이 스테이징에 포함됐는지 (.env, .env.local, .env.production 등 포함, .env.example 제외)
+ENV_FILES=$(echo "$STAGED_FILES" | grep -E '(^|/)(\.env(\..*)?|.*\.pem|.*\.key|credentials\.json)$' | grep -v '\.env\.example' || true)
+if [ -n "$ENV_FILES" ]; then
+    echo ""
+    echo "  [FAIL] 비밀 파일이 커밋에 포함됨:"
+    echo "$ENV_FILES"
+    echo ""
+    echo "  → git reset HEAD <파일> 로 스테이징에서 제거하세요."
+    ERRORS=$((ERRORS + 1))
+fi
+
+if [ $ERRORS -eq 0 ]; then
+    echo "  [OK] 보안 점검 통과"
+fi
+
+# ─── 2. 린트 ────────────────────────────────────────────────────────────────
+# Python 파일 린트
+# ai-native-kit.toml의 stack.python.lint 설정을 우선 사용하고, 미설정 시 ruff 폴백
+PY_FILES=$(echo "$STAGED_FILES" | grep '\.py$' || true)
+if [ -n "$PY_FILES" ]; then
+    PY_LINT_CMD="ruff check"
+    PY_LINT_BIN="${PY_LINT_CMD%% *}"
+
+    if [ -n "$PY_LINT_BIN" ] && [ "$PY_LINT_BIN" != "ruff check" ] && command -v "$PY_LINT_BIN" >/dev/null 2>&1; then
+        echo "[pre-commit] Python 린트 ($PY_LINT_CMD)..."
+        if ! echo "$PY_FILES" | xargs $PY_LINT_CMD 2>/dev/null; then
+            echo "  [FAIL] $PY_LINT_CMD 실패"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "  [OK] Python 린트 통과"
+        fi
+    elif command -v ruff >/dev/null 2>&1; then
+        echo "[pre-commit] Python 린트 (ruff)..."
+        if ! echo "$PY_FILES" | xargs ruff check --no-fix 2>/dev/null; then
+            echo "  [FAIL] ruff check 실패 — 커밋 전 수정 필요"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "  [OK] Python 린트 통과"
+        fi
+    fi
+fi
+
+# JavaScript/TypeScript 파일 린트
+JS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(js|ts|jsx|tsx)$' || true)
+if [ -n "$JS_FILES" ]; then
+    if [ -f "node_modules/.bin/eslint" ]; then
+        echo "[pre-commit] JS/TS 린트 (eslint)..."
+        if ! echo "$JS_FILES" | xargs npx eslint --no-error-on-unmatched-pattern 2>/dev/null; then
+            echo "  [FAIL] eslint 실패 — 커밋 전 수정 필요"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "  [OK] JS/TS 린트 통과"
+        fi
+    fi
+fi
+
+# ─── 3. 결과 ────────────────────────────────────────────────────────────────
+echo ""
+if [ $ERRORS -gt 0 ]; then
+    echo "[pre-commit] $ERRORS 건 실패 — 커밋 차단"
+    echo "[pre-commit] 수정 후 다시 시도하세요. (우회: git commit --no-verify)"
+    exit 1
+fi
+
+echo "[pre-commit] 모든 점검 통과"
+exit 0

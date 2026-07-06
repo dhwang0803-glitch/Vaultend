@@ -1,0 +1,20 @@
+[project]
+name = "Obsidian Knowledge Maintenance Plugin"
+main_branch = "main"
+dev_branch_prefix = "feat/"
+
+[languages]
+primary = "typescript"
+secondary = []
+
+[commands]
+test = "npm run test"
+lint = "npm run lint"
+build = "npm run build"
+format = "npm run lint:fix"
+
+[style]
+max_line_length = 100
+
+[architecture]
+preset = "clean"

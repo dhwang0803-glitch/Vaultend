@@ -1,0 +1,10 @@
+{
+  "id": "knowledge-maintenance",
+  "name": "Knowledge Maintenance",
+  "version": "0.1.0",
+  "minAppVersion": "1.7.2",
+  "description": "AI-powered knowledge maintenance engine — auto-classify, tag, link, and maintain your vault",
+  "author": "dhwang0803",
+  "authorUrl": "https://github.com/dhwang0803",
+  "isDesktopOnly": false
+}

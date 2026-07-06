@@ -1,0 +1,133 @@
+import { App, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
+import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
+
+/**
+ * 플러그인 설정 탭 — AI 공급자, Inbox 폴더, 프라이버시 규칙 등을 설정한다.
+ */
+export class PluginSettingTab extends ObsidianSettingTab {
+  private settings: PluginSettings | null = null;
+
+  constructor(
+    app: App,
+    private readonly plugin: any, // Plugin 인스턴스
+    private readonly config: ConfigPort,
+  ) {
+    super(app, plugin);
+  }
+
+  async display(): Promise<void> {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    this.settings = await this.config.getSettings();
+
+    containerEl.createEl('h2', { text: 'Knowledge Maintenance 설정' });
+
+    // --- AI 공급자 설정 ---
+    containerEl.createEl('h3', { text: 'AI 공급자' });
+
+    new Setting(containerEl)
+      .setName('AI 공급자')
+      .setDesc('사용할 AI 서비스를 선택합니다.')
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('openai', 'OpenAI')
+          .addOption('gemini', 'Google Gemini')
+          .setValue(this.settings!.aiProvider)
+          .onChange(async (value) => {
+            await this.config.updateSettings({
+              aiProvider: value as 'openai' | 'gemini',
+            });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('API 키')
+      .setDesc('AI 공급자의 API 키를 입력합니다.')
+      .addText(text => {
+        text
+          .setPlaceholder('sk-...')
+          .setValue(this.settings!.aiApiKey)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ aiApiKey: value });
+          });
+        text.inputEl.type = 'password';
+      });
+
+    new Setting(containerEl)
+      .setName('모델')
+      .setDesc('사용할 AI 모델을 입력합니다.')
+      .addText(text => {
+        text
+          .setPlaceholder('gpt-4o')
+          .setValue(this.settings!.aiModel)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ aiModel: value });
+          });
+      });
+
+    // --- Inbox 설정 ---
+    containerEl.createEl('h3', { text: 'Inbox' });
+
+    new Setting(containerEl)
+      .setName('Inbox 폴더')
+      .setDesc('미처리 노트가 수집되는 폴더 경로')
+      .addText(text => {
+        text
+          .setPlaceholder('Inbox')
+          .setValue(this.settings!.inboxFolder)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ inboxFolder: value });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('자동 적용')
+      .setDesc('Inbox 처리 결과를 자동으로 적용합니다.')
+      .addToggle(toggle => {
+        toggle
+          .setValue(this.settings!.autoApplyInbox)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ autoApplyInbox: value });
+          });
+      });
+
+    // --- 유지보수 설정 ---
+    containerEl.createEl('h3', { text: '유지보수' });
+
+    new Setting(containerEl)
+      .setName('자동 유지보수')
+      .setDesc('주기적으로 Vault 유지보수를 실행합니다.')
+      .addToggle(toggle => {
+        toggle
+          .setValue(this.settings!.maintenanceEnabled)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ maintenanceEnabled: value });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('유지보수 주기 (분)')
+      .setDesc('자동 유지보수 실행 간격')
+      .addText(text => {
+        text
+          .setPlaceholder('60')
+          .setValue(String(this.settings!.maintenanceIntervalMinutes))
+          .onChange(async (value) => {
+            const parsed = parseInt(value, 10);
+            if (!isNaN(parsed) && parsed > 0) {
+              await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
+            }
+          });
+      });
+
+    // --- 프라이버시 ---
+    containerEl.createEl('h3', { text: '프라이버시' });
+    containerEl.createEl('p', {
+      text: '아래 규칙에 해당하는 노트는 AI에게 전송되지 않습니다.',
+      cls: 'setting-item-description',
+    });
+
+    // 프라이버시 규칙 목록은 별도 컴포넌트로 렌더링 (구현 예정)
+  }
+}
