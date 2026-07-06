@@ -174,7 +174,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),
       isInbox: false,
-      isProcessed: frontmatter['km-processed'] === true,
+      isProcessed: frontmatter['processed'] === true,
       category: frontmatter.category as string | undefined,
     };
   }

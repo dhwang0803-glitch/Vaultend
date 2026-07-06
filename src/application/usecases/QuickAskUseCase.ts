@@ -128,17 +128,7 @@ export class QuickAskUseCase {
     return links;
   }
 
-  private formatAnswer(question: string, answer: string, tags: ReadonlyArray<TagName>): string {
-    const tagLine = tags.length > 0 ? `tags: [${tags.join(', ')}]` : '';
-    const frontmatter = [
-      '---',
-      `source: quick-ask`,
-      `question: "${question.replace(/"/g, '\\"')}"`,
-      `created: ${new Date().toISOString()}`,
-      tagLine,
-      '---',
-    ].filter(Boolean).join('\n');
-
-    return `${frontmatter}\n\n## Question\n\n${question}\n\n## Answer\n\n${answer}`;
+  private formatAnswer(question: string, answer: string, _tags: ReadonlyArray<TagName>): string {
+    return `## Question\n\n${question}\n\n## Answer\n\n${answer}`;
   }
 }
