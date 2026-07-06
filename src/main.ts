@@ -360,7 +360,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private scheduleMaintenanceIfEnabled(): void {
-    // 섹션 12에서 상세 설명
+    if (!this.settings.maintenanceEnabled) return;
+
+    const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
+    this.maintenanceInterval = window.setInterval(async () => {
+      try {
+        await this.runMaintenanceUseCase.execute();
+      } catch (err) {
+        console.error('Knowledge Maintenance: scheduled maintenance failed', err);
+      }
+    }, ms);
+    this.registerInterval(this.maintenanceInterval);
   }
 
   private async runCatchUp(): Promise<void> {
