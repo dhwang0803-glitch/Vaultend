@@ -1,5 +1,6 @@
 import { App, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
+import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 
 /**
  * 플러그인 설정 탭 — AI 공급자, Inbox 폴더, 프라이버시 규칙 등을 설정한다.
@@ -128,6 +129,89 @@ export class PluginSettingTab extends ObsidianSettingTab {
       cls: 'setting-item-description',
     });
 
-    // 프라이버시 규칙 목록은 별도 컴포넌트로 렌더링 (구현 예정)
+    const rulesContainer = containerEl.createDiv();
+    this.renderPrivacyRules(rulesContainer);
+  }
+
+  private renderPrivacyRules(container: HTMLElement): void {
+    container.empty();
+    const rules = [...(this.settings?.privacyRules ?? [])] as PrivacyRule[];
+
+    for (let i = 0; i < rules.length; i++) {
+      this.renderPrivacyRule(container, rules, i);
+    }
+
+    new Setting(container)
+      .addButton(btn => {
+        btn.setButtonText('규칙 추가').setCta().onClick(async () => {
+          const newRule: PrivacyRule = {
+            id: crypto.randomUUID(),
+            name: '',
+            type: 'folder-exclude',
+            pattern: '',
+            enabled: true,
+          };
+          rules.push(newRule);
+          await this.config.updateSettings({ privacyRules: rules });
+          this.settings = await this.config.getSettings();
+          this.renderPrivacyRules(container);
+        });
+      });
+  }
+
+  private renderPrivacyRule(container: HTMLElement, rules: PrivacyRule[], index: number): void {
+    const rule = rules[index];
+    const placeholders: Record<PrivacyRuleType, string> = {
+      'folder-exclude': 'Private/',
+      'tag-exclude': '#secret',
+      'frontmatter-exclude': 'confidential',
+      'content-redact': 'password|token',
+    };
+
+    const setting = new Setting(container)
+      .addText(text => {
+        text.setPlaceholder('규칙 이름').setValue(rule.name).onChange(async (value) => {
+          rules[index] = { ...rules[index], name: value };
+          await this.config.updateSettings({ privacyRules: rules });
+        });
+      })
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('folder-exclude', '폴더 제외')
+          .addOption('tag-exclude', '태그 제외')
+          .addOption('frontmatter-exclude', 'Frontmatter 제외')
+          .addOption('content-redact', '내용 마스킹')
+          .setValue(rule.type)
+          .onChange(async (value) => {
+            rules[index] = { ...rules[index], type: value as PrivacyRuleType };
+            await this.config.updateSettings({ privacyRules: rules });
+          });
+      })
+      .addText(text => {
+        text.setPlaceholder(placeholders[rule.type]).setValue(rule.pattern).onChange(async (value) => {
+          rules[index] = { ...rules[index], pattern: value };
+          await this.config.updateSettings({ privacyRules: rules });
+        });
+      })
+      .addToggle(toggle => {
+        toggle.setValue(rule.enabled).onChange(async (value) => {
+          rules[index] = { ...rules[index], enabled: value };
+          await this.config.updateSettings({ privacyRules: rules });
+        });
+      })
+      .addExtraButton(btn => {
+        btn.setIcon('trash').setTooltip('삭제').onClick(async () => {
+          rules.splice(index, 1);
+          await this.config.updateSettings({ privacyRules: rules });
+          this.settings = await this.config.getSettings();
+          this.renderPrivacyRules(container);
+        });
+      });
+
+    if (!rule.name) {
+      setting.setName(`규칙 ${index + 1}`);
+    } else {
+      setting.setName(rule.name);
+    }
   }
 }
