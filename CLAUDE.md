@@ -5,7 +5,7 @@
 
 ## 프로젝트 개요
 
-TODO: 이 프로젝트가 무엇을 하는지 2~3문장으로 서술하세요.
+**Noluma** — Obsidian vault를 위한 Knowledge Maintenance Engine 플러그인. 원샷 AI 질의·자동 저장(Quick Ask), inbox 자동 정리(AI 분류/태깅/이동), vault 유지보수 자동화(고아 노트/중복/깨진 링크 탐지)를 제공한다. TypeScript + Clean Architecture, Obsidian Plugin API 기반. 상세 PRD: `docs/specs/prd.md`
 
 ---
 
