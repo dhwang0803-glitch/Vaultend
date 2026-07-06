@@ -2,6 +2,7 @@ import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
          ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
+import { PromptTemplates } from './PromptTemplates';
 
 /**
  * Google Gemini API 어댑터.
@@ -77,8 +78,7 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
-    // OpenAIAdapter와 동일한 프롬프트 전략 사용
-    const prompt = this.buildClassificationPrompt(request);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? []);
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: '당신은 노트 분류 및 태깅 전문가입니다. JSON 형식으로만 응답하세요.',
@@ -95,29 +95,6 @@ export class GeminiAdapter implements AIProviderPort {
       confidence: parsed.confidence ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
     };
-  }
-
-  private buildClassificationPrompt(request: ClassificationRequest): string {
-    // OpenAIAdapter와 동일 — 향후 PromptTemplates.ts로 통합 추출
-    const tagsContext = request.existingTags
-      ? `\n기존 태그 목록: ${request.existingTags.join(', ')}`
-      : '';
-
-    return `다음 노트를 분석하여 JSON으로 응답하세요.${tagsContext}
-
-노트 내용:
----
-${request.text}
----
-
-응답 형식:
-{
-  "category": "카테고리명",
-  "tags": ["#태그1", "#태그2"],
-  "folder": "추천 폴더 경로 (선택)",
-  "summary": "한 줄 요약",
-  "confidence": 0.0~1.0
-}`;
   }
 
   private mapFinishReason(reason?: string): 'stop' | 'length' | 'content_filter' {

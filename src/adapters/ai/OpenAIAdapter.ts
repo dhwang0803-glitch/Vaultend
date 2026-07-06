@@ -2,6 +2,7 @@ import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
          ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
+import { PromptTemplates } from './PromptTemplates';
 
 /**
  * OpenAI API 어댑터.
@@ -48,7 +49,7 @@ export class OpenAIAdapter implements AIProviderPort {
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
-    const prompt = this.buildClassificationPrompt(request);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? []);
 
     const completionResponse = await this.callCompletion({
       prompt,
@@ -57,7 +58,6 @@ export class OpenAIAdapter implements AIProviderPort {
       temperature: 0.3,
     });
 
-    // JSON 파싱
     const parsed = JSON.parse(completionResponse.content);
 
     return {
@@ -100,28 +100,6 @@ export class OpenAIAdapter implements AIProviderPort {
       }
       throw new AIProviderError('OpenAI', 0, err instanceof Error ? err.message : String(err));
     }
-  }
-
-  private buildClassificationPrompt(request: ClassificationRequest): string {
-    const tagsContext = request.existingTags
-      ? `\n기존 태그 목록: ${request.existingTags.join(', ')}`
-      : '';
-
-    return `다음 노트를 분석하여 JSON으로 응답하세요.${tagsContext}
-
-노트 내용:
----
-${request.text}
----
-
-응답 형식:
-{
-  "category": "카테고리명",
-  "tags": ["#태그1", "#태그2"],
-  "folder": "추천 폴더 경로 (선택)",
-  "summary": "한 줄 요약",
-  "confidence": 0.0~1.0
-}`;
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {
