@@ -10,3 +10,4 @@ export type { SaveNoteRequest } from './SaveNoteUseCase';
 export { CaptureClipboardUseCase } from './CaptureClipboardUseCase';
 export { GetHistoryUseCase } from './GetHistoryUseCase';
 export type { HistoryFilter } from './GetHistoryUseCase';
+export { ApplyMaintenanceActionUseCase } from './ApplyMaintenanceActionUseCase';

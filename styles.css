@@ -72,3 +72,36 @@
 .log-description {
   color: var(--text-normal);
 }
+
+/* Maintenance Result View */
+.maintenance-result-summary {
+  padding: 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.maintenance-result-summary p {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  font-weight: var(--font-semibold);
+}
+
+.maintenance-result-scanning {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.maintenance-result-error {
+  color: var(--text-error);
+}
+
+.maintenance-result-clean {
+  color: var(--text-success);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+.maintenance-result-applied {
+  opacity: 0.5;
+  text-decoration: line-through;
+}

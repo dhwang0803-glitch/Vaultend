@@ -34,3 +34,12 @@ export type {
   HistoryEntry,
   HistoryAction,
 } from './HistoryEntry';
+export type {
+  MaintenanceAction,
+  DeleteOrphan,
+  RemoveBrokenLink,
+  CreateMissingNote,
+  ApplyMissingTags,
+  DismissIssue,
+  MaintenanceIssueType,
+} from './MaintenanceAction';

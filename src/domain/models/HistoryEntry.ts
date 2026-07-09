@@ -20,7 +20,10 @@ export type HistoryAction =
   | 'tag-add'
   | 'tag-remove'
   | 'link-add'
+  | 'link-remove'
   | 'move'
   | 'classify'
+  | 'delete'
+  | 'dismiss'
   | 'quick-ask-save'
   | 'clipboard-capture';
