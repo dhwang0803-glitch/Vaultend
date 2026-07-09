@@ -4,14 +4,10 @@ import { AIProviderPort, CompletionRequest, CompletionResponse,
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 
-/**
- * Google Gemini API 어댑터.
- *
- * Gemini는 OpenAI와 다른 API 구조를 가지므로 별도 어댑터로 구현한다.
- * requestUrl()을 사용하여 모바일 호환성을 보장한다.
- */
 export class GeminiAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+  private static readonly MAX_RETRIES = 3;
+  private static readonly RETRY_BASE_MS = 2000;
 
   constructor(
     private readonly apiKey: string,
@@ -43,38 +39,24 @@ export class GeminiAdapter implements AIProviderPort {
       body: JSON.stringify(body),
     };
 
-    try {
-      const response = await requestUrl(params);
+    const response = await this.requestWithRetry(params);
+    const result = response.json;
+    const content = result.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const usage = result.usageMetadata ?? {};
 
-      if (response.status === 429) {
-        throw new RateLimitError(60_000);
-      }
-
-      if (response.status !== 200) {
-        throw new AIProviderError('Gemini', response.status, JSON.stringify(response.json));
-      }
-
-      const result = response.json;
-      const content = result.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const usage = result.usageMetadata ?? {};
-
-      return {
-        content,
-        tokenUsage: {
-          promptTokens: usage.promptTokenCount ?? 0,
-          completionTokens: usage.candidatesTokenCount ?? 0,
-          totalTokens: usage.totalTokenCount ?? 0,
-          estimatedCostUsd: this.estimateCost(
-            usage.promptTokenCount ?? 0,
-            usage.candidatesTokenCount ?? 0,
-          ),
-        },
-        finishReason: this.mapFinishReason(result.candidates?.[0]?.finishReason),
-      };
-    } catch (err) {
-      if (err instanceof RateLimitError || err instanceof AIProviderError) throw err;
-      throw new AIProviderError('Gemini', 0, err instanceof Error ? err.message : String(err));
-    }
+    return {
+      content,
+      tokenUsage: {
+        promptTokens: usage.promptTokenCount ?? 0,
+        completionTokens: usage.candidatesTokenCount ?? 0,
+        totalTokens: usage.totalTokenCount ?? 0,
+        estimatedCostUsd: this.estimateCost(
+          usage.promptTokenCount ?? 0,
+          usage.candidatesTokenCount ?? 0,
+        ),
+      },
+      finishReason: this.mapFinishReason(result.candidates?.[0]?.finishReason),
+    };
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
@@ -97,6 +79,62 @@ export class GeminiAdapter implements AIProviderPort {
     };
   }
 
+  private async requestWithRetry(params: RequestUrlParam) {
+    let lastError: unknown;
+    let lastRetryAfterMs = 60_000;
+    for (let attempt = 0; attempt <= GeminiAdapter.MAX_RETRIES; attempt++) {
+      try {
+        const response = await requestUrl(params);
+        if (response.status === 200) return response;
+
+        if (response.status === 429 || response.status === 503) {
+          lastRetryAfterMs = this.parseRetryAfter(response.headers);
+          lastError = new AIProviderError('Gemini', response.status, 'retryable');
+        } else {
+          throw new AIProviderError('Gemini', response.status, JSON.stringify(response.json));
+        }
+      } catch (err) {
+        if (err instanceof AIProviderError && !this.isRetryable(err)) throw err;
+
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!this.isRetryableMessage(msg) && !(err instanceof AIProviderError)) {
+          throw new AIProviderError('Gemini', 0, msg);
+        }
+      }
+
+      if (attempt < GeminiAdapter.MAX_RETRIES) {
+        const backoff = GeminiAdapter.RETRY_BASE_MS * Math.pow(2, attempt);
+        const delay = Math.max(backoff, lastRetryAfterMs);
+        await this.sleep(delay);
+      }
+    }
+
+    const msg = lastError instanceof Error ? lastError.message : String(lastError);
+    if (msg.includes('429')) throw new RateLimitError(lastRetryAfterMs);
+    throw new AIProviderError('Gemini', 0, `${GeminiAdapter.MAX_RETRIES}회 재시도 후 실패: ${msg}`);
+  }
+
+  private parseRetryAfter(headers: Record<string, string>): number {
+    const value = headers['retry-after'] ?? headers['Retry-After'];
+    if (!value) return 60_000;
+    const seconds = parseFloat(value);
+    if (isNaN(seconds) || seconds <= 0) return 60_000;
+    return Math.ceil(seconds * 1000);
+  }
+
+  private isRetryable(err: AIProviderError): boolean {
+    return err.statusCode === 429 || err.statusCode === 503;
+  }
+
+  private isRetryableMessage(msg: string): boolean {
+    return msg.includes('429') || msg.includes('503');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   private stripCodeBlock(text: string): string {
     const trimmed = text.trim();
     const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i);
@@ -113,7 +151,6 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {
-    // Gemini 1.5 Flash 기준 대략적 비용
     const promptCost = (promptTokens / 1_000_000) * 0.075;
     const completionCost = (completionTokens / 1_000_000) * 0.30;
     return promptCost + completionCost;

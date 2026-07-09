@@ -128,7 +128,12 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   private async ensureFolderExists(folderPath: string): Promise<void> {
     const existing = this.app.vault.getAbstractFileByPath(folderPath);
     if (!existing) {
-      await this.app.vault.createFolder(folderPath);
+      try {
+        await this.app.vault.createFolder(folderPath);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('Folder already exists')) throw err;
+      }
     }
   }
 

@@ -45,6 +45,7 @@ import {
   DEFAULT_AI_TEMPERATURE,
   DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   DEFAULT_MAX_CONTEXT_CHUNKS,
+  DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
 } from './constants';
 
 /**
@@ -60,6 +61,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   autoApplyInbox: false,
   defaultSaveFolder: DEFAULT_SAVE_FOLDER,
   defaultSaveTarget: 'new-note',
+  quickAskSaveMode: 'timestamp',
+  dailyNoteSizeLimitKB: DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
   maxContextChunks: DEFAULT_MAX_CONTEXT_CHUNKS,
   dailyNoteFormat: DEFAULT_DAILY_NOTE_FORMAT,
   dailyNoteFolder: DEFAULT_DAILY_NOTE_FOLDER,
@@ -260,9 +263,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'quick-ask',
       name: 'Quick Ask',
       callback: () => {
-        const saveTarget: SaveTarget = this.settings.defaultSaveTarget === 'daily-note'
+        const saveTarget: SaveTarget = this.settings.quickAskSaveMode === 'daily-note'
           ? { kind: 'daily-note', position: 'bottom' }
-          : { kind: 'new-note', title: createNoteTitle('Quick Ask') };
+          : { kind: 'new-note', title: createNoteTitle(this.generateTimestampTitle('Quick Ask')) };
 
         new QuickAskModal(this.app, this.quickAskUseCase, saveTarget).open();
       },
@@ -395,6 +398,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       }
     }, ms);
     this.registerInterval(this.maintenanceInterval);
+  }
+
+  private generateTimestampTitle(prefix: string): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const mi = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    return `${prefix} ${y}-${mo}-${d} ${h}${mi}${s}`;
   }
 
   private async runCatchUp(): Promise<void> {

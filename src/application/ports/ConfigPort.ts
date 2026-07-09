@@ -34,6 +34,8 @@ export interface PluginSettings {
   // Quick Ask 설정
   readonly defaultSaveFolder: string;
   readonly defaultSaveTarget: 'new-note' | 'daily-note';
+  readonly quickAskSaveMode: 'timestamp' | 'daily-note';
+  readonly dailyNoteSizeLimitKB: number;
   readonly maxContextChunks: number;
 
   // Daily Note 설정

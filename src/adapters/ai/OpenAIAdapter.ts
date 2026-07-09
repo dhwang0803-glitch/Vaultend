@@ -4,14 +4,10 @@ import { AIProviderPort, CompletionRequest, CompletionResponse,
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 
-/**
- * OpenAI API 어댑터.
- *
- * 주의: Obsidian 모바일 호환성을 위해 반드시 requestUrl()을 사용한다.
- * fetch()나 request()는 모바일에서 동작하지 않을 수 있다.
- */
 export class OpenAIAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://api.openai.com/v1';
+  private static readonly MAX_RETRIES = 3;
+  private static readonly RETRY_BASE_MS = 2000;
 
   constructor(
     private readonly apiKey: string,
@@ -90,29 +86,66 @@ export class OpenAIAdapter implements AIProviderPort {
       body: JSON.stringify(body),
     };
 
-    try {
-      const response = await requestUrl(params);
+    return this.requestWithRetry(params);
+  }
 
-      if (response.status === 429) {
-        const retryAfter = parseInt(response.headers['retry-after'] ?? '60', 10) * 1000;
-        throw new RateLimitError(retryAfter);
+  private async requestWithRetry(params: RequestUrlParam) {
+    let lastError: unknown;
+    let lastRetryAfterMs = 60_000;
+    for (let attempt = 0; attempt <= OpenAIAdapter.MAX_RETRIES; attempt++) {
+      try {
+        const response = await requestUrl(params);
+        if (response.status === 200) return response.json;
+
+        if (response.status === 429 || response.status === 503) {
+          lastRetryAfterMs = this.parseRetryAfter(response.headers);
+          lastError = new AIProviderError('OpenAI', response.status, 'retryable');
+        } else {
+          throw new AIProviderError('OpenAI', response.status, JSON.stringify(response.json));
+        }
+      } catch (err) {
+        if (err instanceof AIProviderError && !this.isRetryable(err)) throw err;
+
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!this.isRetryableMessage(msg) && !(err instanceof AIProviderError)) {
+          throw new AIProviderError('OpenAI', 0, msg);
+        }
       }
 
-      if (response.status !== 200) {
-        throw new AIProviderError('OpenAI', response.status, JSON.stringify(response.json));
+      if (attempt < OpenAIAdapter.MAX_RETRIES) {
+        const backoff = OpenAIAdapter.RETRY_BASE_MS * Math.pow(2, attempt);
+        const delay = Math.max(backoff, lastRetryAfterMs);
+        await this.sleep(delay);
       }
-
-      return response.json;
-    } catch (err) {
-      if (err instanceof RateLimitError || err instanceof AIProviderError) {
-        throw err;
-      }
-      throw new AIProviderError('OpenAI', 0, err instanceof Error ? err.message : String(err));
     }
+
+    const msg = lastError instanceof Error ? lastError.message : String(lastError);
+    if (msg.includes('429')) throw new RateLimitError(lastRetryAfterMs);
+    throw new AIProviderError('OpenAI', 0, `${OpenAIAdapter.MAX_RETRIES}회 재시도 후 실패: ${msg}`);
+  }
+
+  private parseRetryAfter(headers: Record<string, string>): number {
+    const value = headers['retry-after'] ?? headers['Retry-After'];
+    if (!value) return 60_000;
+    const seconds = parseFloat(value);
+    if (isNaN(seconds) || seconds <= 0) return 60_000;
+    return Math.ceil(seconds * 1000);
+  }
+
+  private isRetryable(err: AIProviderError): boolean {
+    return err.statusCode === 429 || err.statusCode === 503;
+  }
+
+  private isRetryableMessage(msg: string): boolean {
+    return msg.includes('429') || msg.includes('503');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {
-    // GPT-4o 기준 대략적 비용 (모델별 분기 필요)
     const promptCost = (promptTokens / 1_000_000) * 2.50;
     const completionCost = (completionTokens / 1_000_000) * 10.00;
     return promptCost + completionCost;

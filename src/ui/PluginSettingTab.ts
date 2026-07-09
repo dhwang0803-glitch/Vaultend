@@ -93,6 +93,39 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    // --- Quick Ask 설정 ---
+    containerEl.createEl('h3', { text: 'Quick Ask' });
+
+    new Setting(containerEl)
+      .setName('저장 모드')
+      .setDesc('Quick Ask 답변의 저장 방식을 선택합니다.')
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('timestamp', '타임스탬프 파일명 (질문마다 별도 파일)')
+          .addOption('daily-note', 'Daily Note (하루치를 하나의 파일에 추가)')
+          .setValue(this.settings!.quickAskSaveMode)
+          .onChange(async (value) => {
+            await this.config.updateSettings({
+              quickAskSaveMode: value as 'timestamp' | 'daily-note',
+            });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('Daily Note 용량 제한 (KB)')
+      .setDesc('Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.')
+      .addText(text => {
+        text
+          .setPlaceholder('200')
+          .setValue(String(this.settings!.dailyNoteSizeLimitKB))
+          .onChange(async (value) => {
+            const parsed = parseInt(value, 10);
+            if (!isNaN(parsed) && parsed > 0) {
+              await this.config.updateSettings({ dailyNoteSizeLimitKB: parsed });
+            }
+          });
+      });
+
     // --- 유지보수 설정 ---
     containerEl.createEl('h3', { text: '유지보수' });
 

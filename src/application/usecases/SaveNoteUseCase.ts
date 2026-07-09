@@ -70,11 +70,14 @@ export class SaveNoteUseCase {
   private async appendToDailyNote(request: SaveNoteRequest): Promise<NotePath> {
     const settings = await this.config.getSettings();
     const today = this.clock.now();
-    const dailyNotePath = this.resolveDailyNotePath(settings.dailyNoteFormat, settings.dailyNoteFolder, today);
+    const sizeLimitBytes = (settings.dailyNoteSizeLimitKB ?? 200) * 1024;
+    const basePath = this.resolveDailyNotePath(settings.dailyNoteFormat, settings.dailyNoteFolder, today);
+
+    const newContentBytes = new TextEncoder().encode(request.content).length;
+    const dailyNotePath = await this.findAvailableDailyNote(basePath, sizeLimitBytes, newContentBytes);
 
     const existingNote = await this.vault.readNote(dailyNotePath);
     if (!existingNote) {
-      // Daily Note 생성
       const template = settings.dailyNoteTemplate
         ? await this.vault.readNote(createNotePath(settings.dailyNoteTemplate))
         : null;
@@ -89,6 +92,33 @@ export class SaveNoteUseCase {
     }
 
     return dailyNotePath;
+  }
+
+  private async findAvailableDailyNote(
+    basePath: NotePath,
+    sizeLimitBytes: number,
+    newContentBytes: number,
+  ): Promise<NotePath> {
+    const pathStr = basePath as string;
+    const ext = '.md';
+    const stem = pathStr.slice(0, -ext.length);
+    const encoder = new TextEncoder();
+
+    let candidate = basePath;
+    let part = 1;
+
+    for (;;) {
+      const note = await this.vault.readNote(candidate);
+      if (!note) return candidate;
+
+      const existingBytes = encoder.encode(note.content).length;
+      if (existingBytes + newContentBytes <= sizeLimitBytes) {
+        return candidate;
+      }
+
+      part++;
+      candidate = createNotePath(`${stem}-${part}${ext}`);
+    }
   }
 
   private buildFrontmatter(tags?: ReadonlyArray<TagName>): string {
