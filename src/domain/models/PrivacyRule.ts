@@ -43,3 +43,24 @@ export function isNoteAllowedByRules(
   }
   return true;
 }
+
+/**
+ * content-redact 규칙에 매칭되는 패턴을 [REDACTED]로 치환한다.
+ * AI 전송 직전에 호출하여 민감 정보를 마스킹한다.
+ */
+export function applyContentRedaction(
+  text: string,
+  rules: ReadonlyArray<PrivacyRule>,
+): string {
+  let result = text;
+  for (const rule of rules) {
+    if (!rule.enabled || rule.type !== 'content-redact') continue;
+    try {
+      const regex = new RegExp(rule.pattern, 'gi');
+      result = result.replace(regex, '[REDACTED]');
+    } catch {
+      console.warn(`[Knowledge Maintenance] content-redact 패턴 오류, 건너뜀: "${rule.pattern}"`);
+    }
+  }
+  return result;
+}

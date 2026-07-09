@@ -1,8 +1,9 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import { ConfigPort } from '../application/ports/ConfigPort';
+import { INBOX_STATUS_VIEW_TYPE } from '../constants';
 
-export const INBOX_STATUS_VIEW_TYPE = 'knowledge-maintenance-inbox-status';
+export { INBOX_STATUS_VIEW_TYPE };
 
 /**
  * Inbox 상태 사이드바 뷰 — Inbox 폴더의 처리 현황을 표시한다.

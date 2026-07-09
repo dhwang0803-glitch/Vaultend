@@ -10,6 +10,7 @@ export interface NoteMetadata {
   readonly aliases: ReadonlyArray<string>;
   readonly links: ReadonlyArray<NotePath>;
   readonly backlinks: ReadonlyArray<NotePath>;
+  readonly frontmatterKeys: ReadonlyArray<string>;
   readonly createdAt: Timestamp;
   readonly modifiedAt: Timestamp;
   readonly isInbox: boolean;

@@ -1,6 +1,9 @@
 import { SaveTarget } from '../../domain/models/SaveTarget';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { TagName } from '../../domain/values/TagName';
+import { HeadingPath } from '../../domain/values/HeadingPath';
+import { Timestamp } from '../../domain/values/Timestamp';
+import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
@@ -53,7 +56,7 @@ export class SaveNoteUseCase {
     const target = request.target as Extract<SaveTarget, { kind: 'append-to-note' }>;
     const existingContent = await this.vault.readNote(target.targetPath);
     if (!existingContent) {
-      throw new Error(`대상 노트를 찾을 수 없습니다: ${target.targetPath}`);
+      throw new NoteNotFoundError(target.targetPath as string);
     }
 
     const newContent = target.headingPath
@@ -67,7 +70,7 @@ export class SaveNoteUseCase {
   private async appendToDailyNote(request: SaveNoteRequest): Promise<NotePath> {
     const settings = await this.config.getSettings();
     const today = this.clock.now();
-    const dailyNotePath = this.resolveDailyNotePath(settings.dailyNoteFormat, today);
+    const dailyNotePath = this.resolveDailyNotePath(settings.dailyNoteFormat, settings.dailyNoteFolder, today);
 
     const existingNote = await this.vault.readNote(dailyNotePath);
     if (!existingNote) {
@@ -98,19 +101,62 @@ export class SaveNoteUseCase {
     return lines.join('\n');
   }
 
-  private insertUnderHeading(content: string, heading: any, text: string, position: string): string {
-    throw new Error('구현 예정');
+  private insertUnderHeading(content: string, heading: HeadingPath, text: string, position: 'top' | 'bottom'): string {
+    const headingStr = heading as string;
+    const lines = content.split('\n');
+    const headingPattern = new RegExp(`^#{1,6}\\s+${headingStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+
+    let headingLineIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (headingPattern.test(lines[i])) {
+        headingLineIdx = i;
+        break;
+      }
+    }
+
+    if (headingLineIdx === -1) {
+      return `${content}\n\n## ${headingStr}\n\n${text}`;
+    }
+
+    const headingLevel = (lines[headingLineIdx].match(/^(#+)/) ?? ['', '#'])[1].length;
+    let sectionEnd = lines.length;
+    for (let i = headingLineIdx + 1; i < lines.length; i++) {
+      const m = lines[i].match(/^(#{1,6})\s/);
+      if (m && m[1].length <= headingLevel) {
+        sectionEnd = i;
+        break;
+      }
+    }
+
+    if (position === 'top') {
+      lines.splice(headingLineIdx + 1, 0, '', text);
+    } else {
+      lines.splice(sectionEnd, 0, '', text);
+    }
+
+    return lines.join('\n');
   }
 
-  private appendToEnd(content: string, text: string, position: string): string {
+  private appendToEnd(content: string, text: string, position: 'top' | 'bottom'): string {
     return position === 'top' ? `${text}\n\n${content}` : `${content}\n\n${text}`;
   }
 
-  private resolveDailyNotePath(format: string, timestamp: any): NotePath {
-    throw new Error('구현 예정');
+  private resolveDailyNotePath(format: string, folder: string, timestamp: Timestamp): NotePath {
+    const dateStr = this.formatDate(timestamp, format);
+    const prefix = folder ? `${folder}/` : '';
+    return createNotePath(`${prefix}${dateStr}.md`);
   }
 
-  private formatDate(timestamp: any): string {
-    throw new Error('구현 예정');
+  private formatDate(timestamp: Timestamp, format?: string): string {
+    const date = new Date(timestamp as number);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    const pattern = format ?? 'YYYY-MM-DD';
+    return pattern
+      .replace('YYYY', String(y))
+      .replace('MM', m)
+      .replace('DD', d);
   }
 }

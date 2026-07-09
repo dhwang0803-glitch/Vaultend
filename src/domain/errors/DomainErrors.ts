@@ -46,3 +46,10 @@ export class RateLimitError extends Error {
     this.name = 'RateLimitError';
   }
 }
+
+export class HistoryEntryNotFoundError extends Error {
+  constructor(readonly entryId: string) {
+    super(`되돌릴 이력 항목을 찾을 수 없습니다: ${entryId}`);
+    this.name = 'HistoryEntryNotFoundError';
+  }
+}

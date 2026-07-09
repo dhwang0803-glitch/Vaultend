@@ -1,4 +1,4 @@
-import { App, Modal, Setting, TextAreaComponent, ButtonComponent, Notice } from 'obsidian';
+import { App, Modal, TextAreaComponent, ButtonComponent, Notice } from 'obsidian';
 import { QuickAskUseCase } from '../application/usecases/QuickAskUseCase';
 import { QuickAskRequest, QuickAskResult } from '../domain/models/QuickAskModels';
 import { SaveTarget } from '../domain/models/SaveTarget';

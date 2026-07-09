@@ -1,11 +1,12 @@
 import { ClipboardPort } from '../ports/ClipboardPort';
-import { SaveNoteUseCase, SaveNoteRequest } from './SaveNoteUseCase';
+import { SaveNoteUseCase } from './SaveNoteUseCase';
 import { ConfigPort } from '../ports/ConfigPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ClockPort } from '../ports/ClockPort';
 import { NotePath } from '../../domain/values/NotePath';
 import { createNoteTitle } from '../../domain/values/NoteTitle';
 import { createNotePath } from '../../domain/values/NotePath';
+import { InvalidNoteContentError } from '../../domain/errors/DomainErrors';
 
 export class CaptureClipboardUseCase {
   constructor(
@@ -29,7 +30,7 @@ export class CaptureClipboardUseCase {
     const clipboardText = await this.clipboard.read();
 
     if (!clipboardText || clipboardText.trim().length === 0) {
-      throw new Error('클립보드가 비어 있습니다');
+      throw new InvalidNoteContentError('클립보드가 비어 있습니다');
     }
 
     const settings = await this.config.getSettings();

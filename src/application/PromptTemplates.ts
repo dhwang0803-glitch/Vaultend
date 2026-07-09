@@ -1,4 +1,4 @@
-import { NoteChunk } from '../../domain/models/NoteChunk';
+import { NoteChunk } from '../domain/models/NoteChunk';
 
 /**
  * AI 호출에 사용되는 프롬프트 템플릿 모음.
@@ -7,6 +7,8 @@ import { NoteChunk } from '../../domain/models/NoteChunk';
  * 플러그인 내부 프롬프트는 일관된 형식을 유지한다.
  */
 export const PromptTemplates = {
+
+  classificationSystemPrompt: '당신은 노트 분류 및 태깅 전문가입니다. JSON 형식으로만 응답하세요.',
 
   /**
    * Quick Ask 프롬프트 — 질문에 대해 Vault 컨텍스트 기반 응답 생성

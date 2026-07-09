@@ -1,7 +1,8 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
+import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants';
 
-export const MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log';
+export { MAINTENANCE_LOG_VIEW_TYPE };
 
 /**
  * 유지보수 로그 사이드바 뷰 — 플러그인의 활동 이력을 표시한다.

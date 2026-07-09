@@ -1,0 +1,74 @@
+/* Knowledge Maintenance Plugin Styles */
+
+.knowledge-maintenance-quick-ask .quick-ask-input textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-buttons {
+  margin: 8px 0;
+  display: flex;
+  gap: 8px;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-result {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-answer {
+  margin-bottom: 8px;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-answer p {
+  line-height: 1.6;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-meta {
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+}
+
+/* Inbox Status View */
+.inbox-stats {
+  padding: 8px 0;
+}
+
+.inbox-stats p {
+  margin: 4px 0;
+  font-size: var(--font-ui-small);
+}
+
+/* Maintenance Log View */
+.knowledge-maintenance-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.knowledge-maintenance-log-list {
+  list-style: none;
+  padding: 0;
+}
+
+.knowledge-maintenance-log-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.log-timestamp {
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+}
+
+.log-action {
+  font-weight: var(--font-semibold);
+  color: var(--text-accent);
+}
+
+.log-description {
+  color: var(--text-normal);
+}

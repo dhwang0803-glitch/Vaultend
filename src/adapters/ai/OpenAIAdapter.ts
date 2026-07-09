@@ -2,6 +2,7 @@ import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
          ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
+import { PromptTemplates } from '../../application/PromptTemplates';
 
 /**
  * OpenAI API 어댑터.
@@ -30,7 +31,10 @@ export class OpenAIAdapter implements AIProviderPort {
       temperature: request.temperature,
     };
 
-    const response = await this.makeRequest('/chat/completions', body);
+    const response = await this.makeRequest('/chat/completions', body) as {
+      choices: Array<{ message: { content: string }; finish_reason: 'stop' | 'length' | 'content_filter' }>;
+      usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    };
 
     return {
       content: response.choices[0].message.content,
@@ -48,16 +52,15 @@ export class OpenAIAdapter implements AIProviderPort {
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
-    const prompt = this.buildClassificationPrompt(request);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? []);
 
     const completionResponse = await this.callCompletion({
       prompt,
-      systemPrompt: '당신은 노트 분류 및 태깅 전문가입니다. JSON 형식으로만 응답하세요.',
+      systemPrompt: PromptTemplates.classificationSystemPrompt,
       maxTokens: 500,
       temperature: 0.3,
     });
 
-    // JSON 파싱
     const parsed = JSON.parse(completionResponse.content);
 
     return {
@@ -70,7 +73,7 @@ export class OpenAIAdapter implements AIProviderPort {
     };
   }
 
-  private async makeRequest(endpoint: string, body: unknown): Promise<any> {
+  private async makeRequest(endpoint: string, body: unknown): Promise<unknown> {
     const params: RequestUrlParam = {
       url: `${OpenAIAdapter.BASE_URL}${endpoint}`,
       method: 'POST',
@@ -100,28 +103,6 @@ export class OpenAIAdapter implements AIProviderPort {
       }
       throw new AIProviderError('OpenAI', 0, err instanceof Error ? err.message : String(err));
     }
-  }
-
-  private buildClassificationPrompt(request: ClassificationRequest): string {
-    const tagsContext = request.existingTags
-      ? `\n기존 태그 목록: ${request.existingTags.join(', ')}`
-      : '';
-
-    return `다음 노트를 분석하여 JSON으로 응답하세요.${tagsContext}
-
-노트 내용:
----
-${request.text}
----
-
-응답 형식:
-{
-  "category": "카테고리명",
-  "tags": ["#태그1", "#태그2"],
-  "folder": "추천 폴더 경로 (선택)",
-  "summary": "한 줄 요약",
-  "confidence": 0.0~1.0
-}`;
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {

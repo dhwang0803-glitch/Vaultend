@@ -1,10 +1,16 @@
-import { App, TFile, TFolder, Vault, MetadataCache } from 'obsidian';
-import { VaultAccessPort, VaultEvent, VaultEventHandler } from '../../application/ports/VaultAccessPort';
+import { App, TFile, CachedMetadata } from 'obsidian';
+import { VaultAccessPort, VaultEventHandler } from '../../application/ports/VaultAccessPort';
 import { Note, createNote } from '../../domain/models/Note';
+import { NoteMetadata } from '../../domain/models/NoteMetadata';
+import { NoteChunk } from '../../domain/models/NoteChunk';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createNoteId } from '../../domain/values/NoteId';
 import { createNoteTitle } from '../../domain/values/NoteTitle';
 import { createTimestamp } from '../../domain/values/Timestamp';
+import { createTagName } from '../../domain/values/TagName';
+import { createChunkText } from '../../domain/values/ChunkText';
+import { createHeadingPath } from '../../domain/values/HeadingPath';
+import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 
 /**
  * Obsidian Vault API를 VaultAccessPort 인터페이스로 래핑한다.
@@ -69,7 +75,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   async updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path as string);
     if (!(file instanceof TFile)) {
-      throw new Error(`노트를 찾을 수 없습니다: ${path}`);
+      throw new NoteNotFoundError(path as string);
     }
 
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
@@ -126,13 +132,96 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     }
   }
 
-  private parseMetadata(file: TFile, cache: any): any {
-    // MetadataCache에서 태그, 링크, 프론트매터 파싱
-    throw new Error('구현 예정');
+  private parseMetadata(file: TFile, cache: CachedMetadata | null): NoteMetadata {
+    const frontmatter = cache?.frontmatter ?? {};
+    const rawTags: string[] = [];
+
+    if (cache?.tags) {
+      for (const t of cache.tags) rawTags.push(t.tag);
+    }
+    if (Array.isArray(frontmatter.tags)) {
+      for (const t of frontmatter.tags) {
+        const tag = String(t);
+        rawTags.push(tag.startsWith('#') ? tag : `#${tag}`);
+      }
+    }
+
+    const uniqueTags = [...new Set(rawTags)];
+
+    const links: NotePath[] = [];
+    if (cache?.links) {
+      for (const link of cache.links) {
+        const resolved = this.app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+        if (resolved) links.push(createNotePath(resolved.path));
+      }
+    }
+
+    const backlinks: NotePath[] = [];
+    const resolvedLinks = this.app.metadataCache.resolvedLinks;
+    for (const sourcePath of Object.keys(resolvedLinks)) {
+      if (resolvedLinks[sourcePath]?.[file.path]) {
+        backlinks.push(createNotePath(sourcePath));
+      }
+    }
+
+    return {
+      tags: uniqueTags.map(t => {
+        try { return createTagName(t); }
+        catch {
+          console.warn(`[Knowledge Maintenance] 비정상 태그 감지, #untagged로 대체: "${t}"`);
+          return createTagName('#untagged');
+        }
+      }),
+      aliases: Array.isArray(frontmatter.aliases) ? frontmatter.aliases.map(String) : [],
+      links,
+      backlinks,
+      frontmatterKeys: Object.keys(frontmatter).filter(k => k !== 'position'),
+      createdAt: createTimestamp(file.stat.ctime),
+      modifiedAt: createTimestamp(file.stat.mtime),
+      isInbox: false,
+      isProcessed: frontmatter['processed'] === true,
+      category: frontmatter.category as string | undefined,
+    };
   }
 
-  private splitIntoChunks(content: string): any[] {
-    // 헤딩 기준으로 노트를 청크로 분할
-    throw new Error('구현 예정');
+  private splitIntoChunks(content: string): NoteChunk[] {
+    const lines = content.split('\n');
+    const chunks: NoteChunk[] = [];
+    let currentHeading = '';
+    let currentLines: string[] = [];
+    let startLine = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(/^(#{1,6})\s+(.+)/);
+      if (match) {
+        if (currentLines.length > 0) {
+          chunks.push({
+            headingPath: createHeadingPath(currentHeading || '(root)'),
+            text: createChunkText(currentLines.join('\n').trim()),
+            startLine,
+            endLine: i - 1,
+          });
+        }
+        currentHeading = match[2].trim();
+        currentLines = [lines[i]];
+        startLine = i;
+      } else {
+        currentLines.push(lines[i]);
+      }
+    }
+
+    if (currentLines.length > 0) {
+      const text = currentLines.join('\n').trim();
+      if (text) {
+        chunks.push({
+          headingPath: createHeadingPath(currentHeading || '(root)'),
+          text: createChunkText(text),
+          startLine,
+          endLine: lines.length - 1,
+        });
+      }
+    }
+
+    return chunks;
   }
 }

@@ -40,7 +40,6 @@ export { OrganizeNoteUseCase } from './usecases/OrganizeNoteUseCase';
 export { RunInboxProcessUseCase } from './usecases/RunInboxProcessUseCase';
 export type { InboxProcessResult } from './usecases/RunInboxProcessUseCase';
 export { RunMaintenanceUseCase } from './usecases/RunMaintenanceUseCase';
-export { SearchNotesUseCase } from './usecases/SearchNotesUseCase';
 export { SaveNoteUseCase } from './usecases/SaveNoteUseCase';
 export type { SaveNoteRequest } from './usecases/SaveNoteUseCase';
 export { CaptureClipboardUseCase } from './usecases/CaptureClipboardUseCase';

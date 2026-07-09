@@ -11,7 +11,7 @@ export interface OrganizeResult {
   readonly classifiedCategory: string;
   readonly addedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
-  readonly suggestedMoveTarget?: NotePath;
+  readonly suggestedMoveTarget?: string;
   readonly summary: string;
 }
 
