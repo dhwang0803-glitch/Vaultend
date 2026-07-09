@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
 import { PluginSettings } from './application/ports/ConfigPort';
 
 // Adapters
@@ -248,11 +248,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: async () => {
         try {
           const path = await this.captureClipboardUseCase.execute();
-          // Notice는 Obsidian API이므로 UI 계층에서 사용 가능
-          const { Notice } = await import('obsidian');
           new Notice(`클립보드 내용을 저장했습니다: ${path}`);
         } catch (err) {
-          const { Notice } = await import('obsidian');
           new Notice(`클립보드 캡처 실패: ${err instanceof Error ? err.message : String(err)}`);
         }
       },
@@ -269,11 +266,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.organizeNoteUseCase
           .execute(createNotePath(activeFile.path), false)
           .then(result => {
-            const { Notice } = require('obsidian');
             new Notice(`분류: ${result.classifiedCategory} | 태그: ${result.addedTags.join(', ')}`);
           })
           .catch(err => {
-            const { Notice } = require('obsidian');
             new Notice(`노트 정리 실패: ${err.message}`);
           });
       },
@@ -283,7 +278,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: '유지보수 실행',
       callback: async () => {
-        const { Notice } = await import('obsidian');
         new Notice('유지보수 스캔을 시작합니다...');
         try {
           const plan = await this.runMaintenanceUseCase.execute();
@@ -302,7 +296,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-inbox-process',
       name: 'Inbox 처리',
       callback: async () => {
-        const { Notice } = await import('obsidian');
         new Notice('Inbox 처리를 시작합니다...');
         try {
           const result = await this.runInboxProcessUseCase.execute();
@@ -359,12 +352,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         clearTimeout(debounceTimer);
       }
 
-      debounceTimer = setTimeout(async () => {
+      debounceTimer = setTimeout(() => {
         debounceTimer = null;
         const count = pendingPaths.size;
         pendingPaths.clear();
 
-        const { Notice } = await import('obsidian');
         new Notice(`Inbox: ${count}개 파일 변경 감지`);
       }, INBOX_DEBOUNCE_MS);
     });
