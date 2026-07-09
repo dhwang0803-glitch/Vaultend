@@ -1,4 +1,4 @@
-import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { PluginSettings } from './application/ports/ConfigPort';
 
 // Adapters
@@ -18,10 +18,12 @@ import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseC
 import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
+import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
+import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 
@@ -90,6 +92,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private saveNoteUseCase!: SaveNoteUseCase;
   private captureClipboardUseCase!: CaptureClipboardUseCase;
   private getHistoryUseCase!: GetHistoryUseCase;
+  private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
 
   // 이벤트 해제 함수
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -215,12 +218,35 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     );
 
     this.getHistoryUseCase = new GetHistoryUseCase(this.historyAdapter);
+
+    this.applyMaintenanceActionUseCase = new ApplyMaintenanceActionUseCase(
+      this.vaultAdapter, this.historyAdapter, this.clockAdapter,
+    );
   }
 
   private registerViews(): void {
     this.registerView(
       MAINTENANCE_LOG_VIEW_TYPE,
       (leaf: WorkspaceLeaf) => new MaintenanceLogView(leaf, this.getHistoryUseCase),
+    );
+
+    this.registerView(
+      MAINTENANCE_RESULT_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new MaintenanceResultView(
+        leaf,
+        this.runMaintenanceUseCase,
+        this.applyMaintenanceActionUseCase,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
+        (pathA: string, pathB: string) => {
+          const fileA = this.app.vault.getAbstractFileByPath(pathA);
+          const fileB = this.app.vault.getAbstractFileByPath(pathB);
+          if (fileA instanceof TFile) this.app.workspace.getLeaf(false).openFile(fileA);
+          if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
+        },
+      ),
     );
 
     this.registerView(
@@ -278,16 +304,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: '유지보수 실행',
       callback: async () => {
-        new Notice('유지보수 스캔을 시작합니다...');
-        try {
-          const plan = await this.runMaintenanceUseCase.execute();
-          new Notice(
-            `유지보수 완료: 고아 노트 ${plan.orphanNotes.length}개, ` +
-            `중복 후보 ${plan.duplicateCandidates.length}쌍, ` +
-            `깨진 링크 ${plan.brokenLinks.length}개`,
-          );
-        } catch (err) {
-          new Notice(`유지보수 실패: ${err instanceof Error ? err.message : String(err)}`);
+        await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as MaintenanceResultView;
+          await view.triggerScan();
         }
       },
     });

@@ -4,6 +4,7 @@
 
 /** 사이드바 뷰 타입 ID */
 export const MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log';
+export const MAINTENANCE_RESULT_VIEW_TYPE = 'knowledge-maintenance-result';
 export const INBOX_STATUS_VIEW_TYPE = 'knowledge-maintenance-inbox-status';
 
 /** 플러그인 내부 데이터 폴더 경로 */
