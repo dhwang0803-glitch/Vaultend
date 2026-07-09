@@ -86,7 +86,7 @@ export class GeminiAdapter implements AIProviderPort {
       temperature: 0.3,
     });
 
-    const parsed = JSON.parse(completionResponse.content);
+    const parsed = JSON.parse(this.stripCodeBlock(completionResponse.content));
     return {
       category: parsed.category ?? '미분류',
       suggestedTags: parsed.tags ?? [],
@@ -95,6 +95,12 @@ export class GeminiAdapter implements AIProviderPort {
       confidence: parsed.confidence ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
     };
+  }
+
+  private stripCodeBlock(text: string): string {
+    const trimmed = text.trim();
+    const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+    return match ? match[1].trim() : trimmed;
   }
 
   private mapFinishReason(reason?: string): 'stop' | 'length' | 'content_filter' {
