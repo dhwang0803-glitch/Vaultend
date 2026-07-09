@@ -398,7 +398,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async runCatchUp(): Promise<void> {
-    // 앱 시작 시 미처리 Inbox 노트 처리
+    if (!this.settings.autoApplyInbox) return;
+
     try {
       await this.runInboxProcessUseCase.execute();
     } catch (err) {
