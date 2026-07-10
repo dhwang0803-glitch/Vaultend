@@ -68,6 +68,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   dailyNoteFolder: DEFAULT_DAILY_NOTE_FOLDER,
   maintenanceEnabled: false,
   maintenanceIntervalMinutes: DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
+  maintenanceExcludeFolders: [DEFAULT_SAVE_FOLDER],
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,

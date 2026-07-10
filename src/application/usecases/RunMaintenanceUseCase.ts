@@ -26,19 +26,24 @@ export class RunMaintenanceUseCase {
    */
   async execute(): Promise<MaintenancePlan> {
     const allNotes = await this.vault.listNotes();
+    const settings = await this.config.getSettings();
+    const excludeFolders = settings.maintenanceExcludeFolders ?? [];
+    const filteredNotes = excludeFolders.length > 0
+      ? allNotes.filter(np => !excludeFolders.some(folder => (np as string).startsWith(folder + '/')))
+      : allNotes;
     const now = this.clock.now();
 
     // 고아 노트 탐지
-    const orphanNotes = await this.findOrphanNotes(allNotes);
+    const orphanNotes = await this.findOrphanNotes(filteredNotes);
 
     // 중복 후보 탐지
-    const duplicateCandidates = await this.findDuplicates(allNotes);
+    const duplicateCandidates = await this.findDuplicates(filteredNotes);
 
     // 깨진 링크 탐지
-    const brokenLinks = await this.findBrokenLinks(allNotes);
+    const brokenLinks = await this.findBrokenLinks(filteredNotes);
 
     // 누락 태그 제안
-    const missingTags = await this.suggestMissingTags(allNotes);
+    const missingTags = await this.suggestMissingTags(filteredNotes);
 
     return {
       orphanNotes,

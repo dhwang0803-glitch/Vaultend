@@ -155,6 +155,20 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName('스캔 제외 폴더')
+      .setDesc('유지보수 스캔에서 제외할 폴더 (쉼표로 구분)')
+      .addText(text => {
+        const folders = this.settings!.maintenanceExcludeFolders ?? [];
+        text
+          .setPlaceholder('QuickAsk, Templates')
+          .setValue(folders.join(', '))
+          .onChange(async (value) => {
+            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            await this.config.updateSettings({ maintenanceExcludeFolders: parsed });
+          });
+      });
+
     // --- 프라이버시 ---
     containerEl.createEl('h3', { text: '프라이버시' });
     containerEl.createEl('p', {
