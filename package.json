@@ -1,6 +1,6 @@
 {
   "name": "obsidian-knowledge-maintenance",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Knowledge Maintenance Engine for Obsidian — auto-classify, tag, link, and maintain your vault with AI",
   "main": "main.js",
   "scripts": {
