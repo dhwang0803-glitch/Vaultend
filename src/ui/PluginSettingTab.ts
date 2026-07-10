@@ -164,7 +164,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .setPlaceholder('QuickAsk, Templates')
           .setValue(folders.join(', '))
           .onChange(async (value) => {
-            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            const parsed = value.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(s => s.length > 0);
             await this.config.updateSettings({ maintenanceExcludeFolders: parsed });
           });
       });

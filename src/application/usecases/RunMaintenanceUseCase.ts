@@ -27,7 +27,8 @@ export class RunMaintenanceUseCase {
   async execute(): Promise<MaintenancePlan> {
     const allNotes = await this.vault.listNotes();
     const settings = await this.config.getSettings();
-    const excludeFolders = settings.maintenanceExcludeFolders ?? [];
+    const excludeFolders = (settings.maintenanceExcludeFolders ?? [])
+      .map(f => f.replace(/\/+$/, ''));
     const filteredNotes = excludeFolders.length > 0
       ? allNotes.filter(np => !excludeFolders.some(folder => (np as string).startsWith(folder + '/')))
       : allNotes;
@@ -39,8 +40,8 @@ export class RunMaintenanceUseCase {
     // 중복 후보 탐지
     const duplicateCandidates = await this.findDuplicates(filteredNotes);
 
-    // 깨진 링크 탐지
-    const brokenLinks = await this.findBrokenLinks(filteredNotes);
+    // 깨진 링크 탐지 — allNotes를 전달하여 제외 폴더 노트도 존재 확인에 사용
+    const brokenLinks = await this.findBrokenLinks(filteredNotes, allNotes);
 
     // 누락 태그 제안
     const missingTags = await this.suggestMissingTags(filteredNotes);
@@ -114,17 +115,20 @@ export class RunMaintenanceUseCase {
     return basename.toLowerCase().split(/[\s\-_]+/).filter(t => t.length > 0);
   }
 
-  private async findBrokenLinks(allNotes: ReadonlyArray<NotePath>): Promise<BrokenLink[]> {
+  private async findBrokenLinks(
+    scanNotes: ReadonlyArray<NotePath>,
+    allVaultNotes: ReadonlyArray<NotePath>,
+  ): Promise<BrokenLink[]> {
     const wikiLinkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
     const broken: BrokenLink[] = [];
 
     const basenameSet = new Set<string>();
-    for (const np of allNotes) {
+    for (const np of allVaultNotes) {
       const base = (np as string).split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
       if (base) basenameSet.add(base);
     }
 
-    for (const notePath of allNotes) {
+    for (const notePath of scanNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
 
