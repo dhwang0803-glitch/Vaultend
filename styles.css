@@ -105,3 +105,19 @@
   opacity: 0.5;
   text-decoration: line-through;
 }
+
+.maintenance-batch-controls {
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 4px;
+}
+
+.maintenance-batch-controls .setting-item-name {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.maintenance-batch-checkbox {
+  margin-right: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}

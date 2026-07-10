@@ -8,6 +8,14 @@ import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
 
+interface BatchEntry {
+  checkbox: HTMLInputElement;
+  action: MaintenanceAction;
+  setting: Setting;
+  issueType: MaintenanceIssueType;
+  identifier: string;
+}
+
 export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
@@ -135,10 +143,21 @@ export class MaintenanceResultView extends ItemView {
     if (filtered.length === 0) return;
     container.createEl('h5', { text: `누락 태그 (${filtered.length})` });
 
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries, '선택 태그 적용');
+
     for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(item.notePath))
         .setDesc(`${item.suggestedTags.join(', ')} 추가 제안`);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
+        setting: settingEl,
+        issueType: 'missing-tags',
+        identifier: item.notePath as string,
+      });
 
       settingEl.addButton(btn => btn
         .setButtonText('태그 적용')
@@ -158,10 +177,21 @@ export class MaintenanceResultView extends ItemView {
     if (filtered.length === 0) return;
     container.createEl('h5', { text: `깨진 링크 (${filtered.length})` });
 
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries, '선택 링크 제거');
+
     for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(`${this.basename(item.sourcePath)}:${item.lineNumber}`)
         .setDesc(`[[${item.targetLink}]]`);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
+        setting: settingEl,
+        issueType: 'broken-link',
+        identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
+      });
 
       settingEl.addButton(btn => btn
         .setButtonText('링크 제거')
@@ -188,10 +218,21 @@ export class MaintenanceResultView extends ItemView {
     if (filtered.length === 0) return;
     container.createEl('h5', { text: `고아 노트 (${filtered.length})` });
 
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries, '선택 삭제', true);
+
     for (const notePath of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(notePath))
         .setDesc(notePath as string);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'delete-orphan', notePath },
+        setting: settingEl,
+        issueType: 'orphan',
+        identifier: notePath as string,
+      });
 
       settingEl.addButton(btn => btn
         .setButtonText('열기')
@@ -216,11 +257,22 @@ export class MaintenanceResultView extends ItemView {
     if (filtered.length === 0) return;
     container.createEl('h5', { text: `중복 후보 (${filtered.length})` });
 
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries);
+
     for (const pair of filtered) {
       const score = Math.round(pair.similarityScore * 100);
       const settingEl = new Setting(container)
         .setName(`${this.basename(pair.noteA)} ↔ ${this.basename(pair.noteB)}`)
         .setDesc(`유사도 ${score}%`);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'dismiss', issueType: 'duplicate', identifier: `${pair.noteA as string}|${pair.noteB as string}` },
+        setting: settingEl,
+        issueType: 'duplicate',
+        identifier: `${pair.noteA as string}|${pair.noteB as string}`,
+      });
 
       settingEl.addButton(btn => btn
         .setButtonText('나란히 열기')
@@ -229,6 +281,43 @@ export class MaintenanceResultView extends ItemView {
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
     }
+  }
+
+  private renderBatchControls(
+    container: HTMLElement,
+    entries: BatchEntry[],
+    primaryLabel?: string,
+    primaryWarning = false,
+  ): void {
+    const batchSetting = new Setting(container)
+      .setClass('maintenance-batch-controls')
+      .setName('전체 선택');
+
+    batchSetting.addToggle(toggle => toggle
+      .setTooltip('전체 선택 / 해제')
+      .onChange(checked => entries.forEach(e => { e.checkbox.checked = checked; })),
+    );
+
+    if (primaryLabel) {
+      batchSetting.addButton(btn => {
+        btn.setButtonText(primaryLabel)
+          .onClick(() => this.executeBatch(entries));
+        if (primaryWarning) btn.setWarning();
+      });
+    }
+
+    batchSetting.addButton(btn => btn
+      .setButtonText('선택 무시')
+      .onClick(() => this.dismissBatch(entries)),
+    );
+  }
+
+  private prependCheckbox(setting: Setting): HTMLInputElement {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'maintenance-batch-checkbox';
+    setting.settingEl.prepend(checkbox);
+    return checkbox;
   }
 
   private addDismissButton(setting: Setting, issueType: string, identifier: string): void {
@@ -253,11 +342,63 @@ export class MaintenanceResultView extends ItemView {
       await this.applyAction.execute(action);
       setting.settingEl.addClass('maintenance-result-applied');
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+      const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
+      if (cb) cb.remove();
       setting.setDesc('적용됨');
       new Notice('액션을 적용했습니다');
     } catch (err) {
       new Notice(`적용 실패: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  private async executeBatch(entries: BatchEntry[]): Promise<void> {
+    const selected = entries.filter(e => e.checkbox.checked);
+    if (selected.length === 0) {
+      new Notice('선택된 항목이 없습니다');
+      return;
+    }
+    let success = 0;
+    let failed = 0;
+    const applied = new Set<BatchEntry>();
+    for (const entry of selected) {
+      try {
+        await this.applyAction.execute(entry.action);
+        entry.setting.settingEl.addClass('maintenance-result-applied');
+        entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+        entry.checkbox.remove();
+        entry.setting.setDesc('적용됨');
+        applied.add(entry);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (applied.has(entries[i])) entries.splice(i, 1);
+    }
+    const msg = failed > 0 ? `${success}건 적용, ${failed}건 실패` : `${success}건 적용 완료`;
+    new Notice(msg);
+  }
+
+  private async dismissBatch(entries: BatchEntry[]): Promise<void> {
+    const selected = entries.filter(e => e.checkbox.checked);
+    if (selected.length === 0) {
+      new Notice('선택된 항목이 없습니다');
+      return;
+    }
+    for (const entry of selected) {
+      await this.applyAction.execute({
+        kind: 'dismiss',
+        issueType: entry.issueType,
+        identifier: entry.identifier,
+      });
+      this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
+      entry.setting.settingEl.remove();
+    }
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (selected.includes(entries[i])) entries.splice(i, 1);
+    }
+    new Notice(`${selected.length}건 무시 처리`);
   }
 
   private basename(path: NotePath): string {

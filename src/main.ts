@@ -31,7 +31,7 @@ import { PluginSettingTab } from './ui/PluginSettingTab';
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
 import { VaultEvent } from './application/ports/VaultAccessPort';
-import { createNotePath } from './domain/values/NotePath';
+import { NotePath, createNotePath } from './domain/values/NotePath';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
@@ -263,10 +263,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'quick-ask',
       name: 'Quick Ask',
       callback: () => {
-        const saveTarget: SaveTarget = this.settings.quickAskSaveMode === 'daily-note'
-          ? { kind: 'daily-note', position: 'bottom' }
-          : { kind: 'new-note', title: createNoteTitle(this.generateTimestampTitle('Quick Ask')) };
-
+        let saveTarget: SaveTarget;
+        if (this.settings.quickAskSaveMode === 'daily-note') {
+          saveTarget = { kind: 'daily-note', position: 'bottom' };
+        } else {
+          const { dateFolder, title } = this.generateTimestampParts('Quick Ask');
+          const folder = `${this.settings.defaultSaveFolder}/${dateFolder}`;
+          saveTarget = {
+            kind: 'new-note',
+            title: createNoteTitle(title),
+            folder: folder as unknown as NotePath,
+          };
+        }
         new QuickAskModal(this.app, this.quickAskUseCase, saveTarget).open();
       },
     });
@@ -400,7 +408,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerInterval(this.maintenanceInterval);
   }
 
-  private generateTimestampTitle(prefix: string): string {
+  private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {
     const now = new Date();
     const y = now.getFullYear();
     const mo = String(now.getMonth() + 1).padStart(2, '0');
@@ -408,7 +416,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const h = String(now.getHours()).padStart(2, '0');
     const mi = String(now.getMinutes()).padStart(2, '0');
     const s = String(now.getSeconds()).padStart(2, '0');
-    return `${prefix} ${y}-${mo}-${d} ${h}${mi}${s}`;
+    return {
+      dateFolder: `${y}-${mo}-${d}`,
+      title: `${prefix} ${h}${mi}${s}`,
+    };
   }
 
   private async runCatchUp(): Promise<void> {
