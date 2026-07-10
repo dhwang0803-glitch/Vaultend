@@ -1,5 +1,22 @@
 /* Knowledge Maintenance Plugin Styles */
 
+/* Quick Ask Modal — 넓은 모달 + 마크다운 렌더링 */
+.modal.mod-confirm-dialog:has(.knowledge-maintenance-quick-ask),
+.modal:has(.knowledge-maintenance-quick-ask) {
+  width: 700px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-maintenance-quick-ask {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
 .knowledge-maintenance-quick-ask .quick-ask-input textarea {
   width: 100%;
   min-height: 80px;
@@ -14,22 +31,37 @@
 
 .knowledge-maintenance-quick-ask .quick-ask-result {
   margin-top: 12px;
-  padding: 12px;
+  padding: 16px;
   background: var(--background-secondary);
   border-radius: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 200px;
+  max-height: 50vh;
 }
 
 .knowledge-maintenance-quick-ask .quick-ask-answer {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  line-height: 1.7;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-answer p {
-  line-height: 1.6;
+.knowledge-maintenance-quick-ask .quick-ask-footer {
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .knowledge-maintenance-quick-ask .quick-ask-meta {
   color: var(--text-muted);
   font-size: var(--font-smallest);
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* Inbox Status View */
