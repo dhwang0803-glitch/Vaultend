@@ -23,6 +23,7 @@ export const DEFAULT_AI_TEMPERATURE = 0.7;
 export const DEFAULT_MAINTENANCE_INTERVAL_MINUTES = 60;
 export const DEFAULT_MAX_CONTEXT_CHUNKS = 5;
 export const DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB = 200;
+export const DEFAULT_ARCHIVE_FOLDER = 'Archive';
 
 /** 디바운스 설정 */
 export const INBOX_DEBOUNCE_MS = 2000;

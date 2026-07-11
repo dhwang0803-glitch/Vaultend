@@ -13,6 +13,7 @@ export interface NoteMetadata {
   readonly frontmatterKeys: ReadonlyArray<string>;
   readonly createdAt: Timestamp;
   readonly modifiedAt: Timestamp;
+  readonly fileSize: number;
   readonly isInbox: boolean;
   readonly isProcessed: boolean;
   readonly category?: string;

@@ -6,6 +6,7 @@ export type MaintenanceAction =
   | RemoveBrokenLink
   | CreateMissingNote
   | ApplyMissingTags
+  | ArchiveNote
   | DismissIssue;
 
 export interface DeleteOrphan {
@@ -31,7 +32,13 @@ export interface ApplyMissingTags {
   readonly tags: ReadonlyArray<TagName>;
 }
 
-export type MaintenanceIssueType = 'orphan' | 'broken-link' | 'missing-tags' | 'duplicate';
+export interface ArchiveNote {
+  readonly kind: 'archive-note';
+  readonly notePath: NotePath;
+  readonly targetFolder: string;
+}
+
+export type MaintenanceIssueType = 'orphan' | 'broken-link' | 'missing-tags' | 'duplicate' | 'empty' | 'untagged';
 
 export interface DismissIssue {
   readonly kind: 'dismiss';

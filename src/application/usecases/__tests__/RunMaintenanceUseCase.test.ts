@@ -43,7 +43,8 @@ describe('RunMaintenanceUseCase', () => {
       const plan = await uc.execute();
 
       expect(plan.orphanNotes).toHaveLength(1);
-      expect(plan.orphanNotes[0]).toBe(np('a.md'));
+      expect(plan.orphanNotes[0].notePath).toBe(np('a.md'));
+      expect(plan.orphanNotes[0].fileSize).toBe(1024);
     });
 
     it('링크가 있으면 고아가 아니다', async () => {
@@ -184,7 +185,7 @@ describe('RunMaintenanceUseCase', () => {
       expect(plan.brokenLinks).toHaveLength(0);
     });
 
-    it('#heading 접미사를 제거하고 대상을 확인한다', async () => {
+    it('#heading 접미사가 유효하면 깨진 링크로 보고하지 않는다', async () => {
       const notes = [np('source.md'), np('target.md')];
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
@@ -196,7 +197,11 @@ describe('RunMaintenanceUseCase', () => {
               metadata: createTestMetadata({ links: [np('x.md')] }),
             });
           }
-          return createTestNote({ path, metadata: createTestMetadata({ links: [np('x.md')] }) });
+          return createTestNote({
+            path,
+            content: '# section\nSome content.',
+            metadata: createTestMetadata({ links: [np('x.md')] }),
+          });
         }),
       });
 

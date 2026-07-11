@@ -26,6 +26,12 @@ export interface VaultAccessPort {
   /** 노트 존재 여부 확인. */
   exists(path: NotePath): Promise<boolean>;
 
+  /** 노트를 다른 경로로 이동 (링크 자동 갱신). */
+  moveNote(from: NotePath, to: NotePath): Promise<void>;
+
+  /** 비-마크다운 파일의 원시 텍스트를 읽는다. 없으면 null. */
+  readFileRaw(path: string): Promise<string | null>;
+
   /** 파일 이벤트 감시 등록. 해제를 위한 콜백 반환. */
   watchEvents(handler: VaultEventHandler): () => void;
 }

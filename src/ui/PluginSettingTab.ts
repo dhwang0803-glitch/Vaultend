@@ -169,6 +169,46 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName('스캔 제외 파일 패턴')
+      .setDesc('유지보수 스캔에서 제외할 파일 패턴 (쉼표로 구분, glob 지원)')
+      .addText(text => {
+        const patterns = this.settings!.maintenanceExcludeFiles ?? [];
+        text
+          .setPlaceholder('*.excalidraw.md, README.md')
+          .setValue(patterns.join(', '))
+          .onChange(async (value) => {
+            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            await this.config.updateSettings({ maintenanceExcludeFiles: parsed });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('스캔 제외 태그')
+      .setDesc('이 태그가 있는 노트를 유지보수 스캔에서 제외합니다 (쉼표로 구분)')
+      .addText(text => {
+        const tags = this.settings!.maintenanceExcludeTags ?? [];
+        text
+          .setPlaceholder('#template, #archive')
+          .setValue(tags.join(', '))
+          .onChange(async (value) => {
+            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            await this.config.updateSettings({ maintenanceExcludeTags: parsed });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('아카이브 폴더')
+      .setDesc('노트 아카이브 시 이동할 대상 폴더')
+      .addText(text => {
+        text
+          .setPlaceholder('Archive')
+          .setValue(this.settings!.maintenanceArchiveFolder)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ maintenanceArchiveFolder: value || 'Archive' });
+          });
+      });
+
     // --- 프라이버시 ---
     containerEl.createEl('h3', { text: '프라이버시' });
     containerEl.createEl('p', {

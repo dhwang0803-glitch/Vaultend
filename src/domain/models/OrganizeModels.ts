@@ -19,11 +19,24 @@ export interface OrganizeResult {
  * MaintenancePlan — Vault 전체 유지보수 계획.
  */
 export interface MaintenancePlan {
-  readonly orphanNotes: ReadonlyArray<NotePath>;
+  readonly orphanNotes: ReadonlyArray<OrphanNoteEntry>;
   readonly duplicateCandidates: ReadonlyArray<DuplicatePair>;
   readonly missingTags: ReadonlyArray<MissingTagSuggestion>;
   readonly brokenLinks: ReadonlyArray<BrokenLink>;
+  readonly emptyNotes: ReadonlyArray<EmptyNoteEntry>;
+  readonly untaggedNotes: ReadonlyArray<NotePath>;
   readonly timestamp: Timestamp;
+}
+
+export interface OrphanNoteEntry {
+  readonly notePath: NotePath;
+  readonly fileSize: number;
+}
+
+export interface EmptyNoteEntry {
+  readonly notePath: NotePath;
+  readonly backlinkCount: number;
+  readonly backlinkPaths: ReadonlyArray<NotePath>;
 }
 
 export interface DuplicatePair {

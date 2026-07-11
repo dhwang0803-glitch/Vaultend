@@ -1,10 +1,15 @@
-import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion } from '../../domain/models/OrganizeModels';
+import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion, OrphanNoteEntry, EmptyNoteEntry } from '../../domain/models/OrganizeModels';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
-import { ConfigPort } from '../ports/ConfigPort';
+import { ConfigPort, PluginSettings } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
+import { Note } from '../../domain/models/Note';
+
+export interface MaintenanceScanOptions {
+  readonly folder?: string;
+}
 
 export class RunMaintenanceUseCase {
   constructor(
@@ -14,56 +19,148 @@ export class RunMaintenanceUseCase {
     private readonly clock: ClockPort,
   ) {}
 
-  /**
-   * Vault 전체 유지보수 스캔을 실행한다.
-   *
-   * 1. 모든 노트 목록 조회
-   * 2. 고아 노트 탐지 (백링크 0개)
-   * 3. 중복 후보 탐지 (제목 유사도 + 내용 유사도)
-   * 4. 깨진 링크 탐지
-   * 5. 누락 태그 제안
-   * 6. 결과를 MaintenancePlan으로 반환
-   */
-  async execute(): Promise<MaintenancePlan> {
-    const allNotes = await this.vault.listNotes();
+  async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
+    const allNotes = options?.folder
+      ? await this.vault.listNotes(options.folder)
+      : await this.vault.listNotes();
     const settings = await this.config.getSettings();
-    const excludeFolders = (settings.maintenanceExcludeFolders ?? [])
-      .map(f => f.replace(/\/+$/, ''));
-    const filteredNotes = excludeFolders.length > 0
-      ? allNotes.filter(np => !excludeFolders.some(folder => (np as string).startsWith(folder + '/')))
-      : allNotes;
+    const pathFiltered = this.applyPathExclusions(allNotes, settings);
+    const filteredNotes = await this.applyTagExclusion(pathFiltered, settings);
     const now = this.clock.now();
 
-    // 고아 노트 탐지
-    const orphanNotes = await this.findOrphanNotes(filteredNotes);
+    const canvasRefs = await this.collectCanvasReferences();
 
-    // 중복 후보 탐지
+    const orphanNotes = await this.findOrphanNotes(filteredNotes, canvasRefs);
     const duplicateCandidates = await this.findDuplicates(filteredNotes);
-
-    // 깨진 링크 탐지 — allNotes를 전달하여 제외 폴더 노트도 존재 확인에 사용
     const brokenLinks = await this.findBrokenLinks(filteredNotes, allNotes);
-
-    // 누락 태그 제안
     const missingTags = await this.suggestMissingTags(filteredNotes);
+    const emptyNotes = await this.findEmptyNotes(filteredNotes);
+    const untaggedNotes = await this.findUntaggedNotes(filteredNotes);
 
     return {
       orphanNotes,
       duplicateCandidates,
       brokenLinks,
       missingTags,
+      emptyNotes,
+      untaggedNotes,
       timestamp: now,
     };
   }
 
-  private async findOrphanNotes(allNotes: ReadonlyArray<NotePath>): Promise<NotePath[]> {
-    const orphans: NotePath[] = [];
+  private applyPathExclusions(
+    allNotes: ReadonlyArray<NotePath>,
+    settings: PluginSettings,
+  ): ReadonlyArray<NotePath> {
+    const excludeFolders = (settings.maintenanceExcludeFolders ?? [])
+      .map(f => f.replace(/\/+$/, ''));
+    const excludeFilePatterns = settings.maintenanceExcludeFiles ?? [];
+
+    let filtered = allNotes;
+
+    if (excludeFolders.length > 0) {
+      filtered = filtered.filter(
+        np => !excludeFolders.some(folder => (np as string).startsWith(folder + '/')),
+      );
+    }
+
+    if (excludeFilePatterns.length > 0) {
+      filtered = filtered.filter(
+        np => !excludeFilePatterns.some(pattern => this.matchGlob(np as string, pattern)),
+      );
+    }
+
+    return filtered;
+  }
+
+  private matchGlob(path: string, pattern: string): boolean {
+    const escaped = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    return new RegExp(`^${escaped}$`, 'i').test(path);
+  }
+
+  private async applyTagExclusion(
+    notes: ReadonlyArray<NotePath>,
+    settings: PluginSettings,
+  ): Promise<ReadonlyArray<NotePath>> {
+    const excludeTags = new Set(
+      (settings.maintenanceExcludeTags ?? []).map(t => t.startsWith('#') ? t : `#${t}`),
+    );
+    if (excludeTags.size === 0) return notes;
+    const result: NotePath[] = [];
+    for (const notePath of notes) {
+      const note = await this.vault.readNote(notePath);
+      if (!note) continue;
+      const hasExcludedTag = note.metadata.tags.some(t => excludeTags.has(t as string));
+      if (!hasExcludedTag) result.push(notePath);
+    }
+    return result;
+  }
+
+  private async collectCanvasReferences(): Promise<Set<string>> {
+    const canvasRefs = new Set<string>();
+    try {
+      const canvasMap = await (this.vault as { getCanvasReferences?(): Promise<Map<string, string[]>> })
+        .getCanvasReferences?.();
+      if (canvasMap) {
+        for (const [, refs] of canvasMap) {
+          for (const ref of refs) canvasRefs.add(ref);
+        }
+      }
+    } catch {
+      // canvas 지원 없는 어댑터 — 무시
+    }
+    return canvasRefs;
+  }
+
+  private async findOrphanNotes(
+    allNotes: ReadonlyArray<NotePath>,
+    canvasRefs: Set<string>,
+  ): Promise<OrphanNoteEntry[]> {
+    const orphans: OrphanNoteEntry[] = [];
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
-      if (note && note.metadata.backlinks.length === 0 && note.metadata.links.length === 0) {
-        orphans.push(notePath);
+      if (!note) continue;
+      const hasBacklinks = note.metadata.backlinks.length > 0;
+      const hasLinks = note.metadata.links.length > 0;
+      const referencedByCanvas = canvasRefs.has(notePath as string);
+      if (!hasBacklinks && !hasLinks && !referencedByCanvas) {
+        orphans.push({ notePath, fileSize: note.metadata.fileSize });
       }
     }
     return orphans;
+  }
+
+  private async findEmptyNotes(allNotes: ReadonlyArray<NotePath>): Promise<EmptyNoteEntry[]> {
+    const empties: EmptyNoteEntry[] = [];
+    for (const notePath of allNotes) {
+      const note = await this.vault.readNote(notePath);
+      if (!note) continue;
+      const bodyContent = note.content.replace(/^---[\s\S]*?---\s*/, '').trim();
+      if (bodyContent.length === 0) {
+        empties.push({
+          notePath,
+          backlinkCount: note.metadata.backlinks.length,
+          backlinkPaths: note.metadata.backlinks,
+        });
+      }
+    }
+    return empties;
+  }
+
+  private async findUntaggedNotes(allNotes: ReadonlyArray<NotePath>): Promise<NotePath[]> {
+    const untagged: NotePath[] = [];
+    for (const notePath of allNotes) {
+      const note = await this.vault.readNote(notePath);
+      if (!note) continue;
+      const realTags = note.metadata.tags.filter(t => (t as string) !== '#untagged');
+      if (realTags.length === 0) {
+        untagged.push(notePath);
+      }
+    }
+    return untagged;
   }
 
   private async findDuplicates(allNotes: ReadonlyArray<NotePath>): Promise<DuplicatePair[]> {
@@ -120,46 +217,173 @@ export class RunMaintenanceUseCase {
     allVaultNotes: ReadonlyArray<NotePath>,
   ): Promise<BrokenLink[]> {
     const wikiLinkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+    const mdLinkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
+    const externalPattern = /^(https?:\/\/|mailto:|obsidian:\/\/)/i;
     const broken: BrokenLink[] = [];
 
     const basenameSet = new Set<string>();
+    const basenameToPath = new Map<string, NotePath>();
+    const fullPathSet = new Set<string>();
     for (const np of allVaultNotes) {
-      const base = (np as string).split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
-      if (base) basenameSet.add(base);
+      const pathStr = np as string;
+      fullPathSet.add(pathStr.toLowerCase());
+      const base = pathStr.split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
+      if (base) {
+        basenameSet.add(base);
+        basenameToPath.set(base, np);
+      }
     }
 
     for (const notePath of scanNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
 
+      const sourceDir = (notePath as string).substring(0, (notePath as string).lastIndexOf('/'));
       const lines = note.content.split('\n');
+
       for (let i = 0; i < lines.length; i++) {
-        let match: RegExpExecArray | null;
-        wikiLinkPattern.lastIndex = 0;
-        while ((match = wikiLinkPattern.exec(lines[i])) !== null) {
-          let target = match[1].trim();
-          const hashIdx = target.indexOf('#');
-          if (hashIdx !== -1) target = target.substring(0, hashIdx);
-          if (!target) continue;
-
-          const targetBasename = target.split('/').pop()?.toLowerCase() ?? '';
-          if (basenameSet.has(targetBasename)) continue;
-
-          const normalized = target.endsWith('.md') ? target : `${target}.md`;
-          try {
-            const targetPath = createNotePath(normalized);
-            const exists = await this.vault.exists(targetPath);
-            if (!exists) {
-              broken.push({ sourcePath: notePath, targetLink: match[1].trim(), lineNumber: i + 1 });
-            }
-          } catch {
-            broken.push({ sourcePath: notePath, targetLink: match[1].trim(), lineNumber: i + 1 });
-          }
-        }
+        await this.scanWikiLinks(lines[i], i, wikiLinkPattern, notePath, basenameSet, basenameToPath, broken, note);
+        this.collectMarkdownLinkBroken(lines[i], i, mdLinkPattern, externalPattern, notePath, sourceDir, basenameSet, fullPathSet, broken);
       }
     }
 
     return broken;
+  }
+
+  private async scanWikiLinks(
+    line: string,
+    lineIdx: number,
+    pattern: RegExp,
+    notePath: NotePath,
+    basenameSet: Set<string>,
+    basenameToPath: Map<string, NotePath>,
+    broken: BrokenLink[],
+    note: Note,
+  ): Promise<void> {
+    pattern.lastIndex = 0;
+    const matches: RegExpExecArray[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(line)) !== null) matches.push(m);
+
+    for (const match of matches) {
+      const rawTarget = match[1].trim();
+      let target = rawTarget;
+
+      const hashIdx = target.indexOf('#');
+      const caretIdx = target.indexOf('^');
+      const fragmentIdx = hashIdx !== -1 ? hashIdx : (caretIdx !== -1 ? caretIdx : -1);
+      const fragment = fragmentIdx !== -1 ? target.substring(fragmentIdx) : null;
+      if (fragmentIdx !== -1) target = target.substring(0, fragmentIdx);
+
+      if (!target && fragment) {
+        if (!this.fragmentExistsInContent(note.content, fragment)) {
+          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+        }
+        continue;
+      }
+      if (!target) continue;
+
+      const targetBasename = target.split('/').pop()?.toLowerCase() ?? '';
+      if (!basenameSet.has(targetBasename)) {
+        const normalized = target.endsWith('.md') ? target : `${target}.md`;
+        try {
+          const targetPath = createNotePath(normalized);
+          const exists = await this.vault.exists(targetPath);
+          if (!exists) {
+            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+          }
+        } catch {
+          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+        }
+        continue;
+      }
+
+      if (fragment) {
+        const resolvedPath = basenameToPath.get(targetBasename);
+        if (resolvedPath) {
+          const targetNote = await this.vault.readNote(resolvedPath);
+          if (targetNote && !this.fragmentExistsInContent(targetNote.content, fragment)) {
+            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+          }
+        }
+      }
+    }
+  }
+
+  private fragmentExistsInContent(content: string, fragment: string): boolean {
+    if (fragment.startsWith('#')) {
+      const headingText = fragment.substring(1).replace(/-/g, ' ').toLowerCase();
+      const headingPattern = /^#{1,6}\s+(.+)/gm;
+      let match: RegExpExecArray | null;
+      while ((match = headingPattern.exec(content)) !== null) {
+        const normalized = match[1].trim().toLowerCase().replace(/\s+/g, ' ');
+        if (normalized === headingText) return true;
+      }
+      return false;
+    }
+    if (fragment.startsWith('^')) {
+      const blockId = fragment.substring(1);
+      const blockPattern = new RegExp(`\\^${blockId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm');
+      return blockPattern.test(content);
+    }
+    return true;
+  }
+
+  private collectMarkdownLinkBroken(
+    line: string,
+    lineIdx: number,
+    pattern: RegExp,
+    externalPattern: RegExp,
+    notePath: NotePath,
+    sourceDir: string,
+    basenameSet: Set<string>,
+    fullPathSet: Set<string>,
+    broken: BrokenLink[],
+  ): void {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(line)) !== null) {
+      const href = match[2].trim();
+
+      if (externalPattern.test(href)) continue;
+      if (href.startsWith('#')) continue;
+
+      let targetPath = href.split('#')[0].split('?')[0];
+      if (!targetPath) continue;
+
+      try {
+        targetPath = decodeURIComponent(targetPath);
+      } catch {
+        broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
+        continue;
+      }
+
+      if (!targetPath.startsWith('/') && sourceDir) {
+        targetPath = sourceDir + '/' + targetPath;
+      }
+      targetPath = this.normalizePath(targetPath);
+
+      if (!targetPath.endsWith('.md')) continue;
+
+      if (fullPathSet.has(targetPath.toLowerCase())) continue;
+
+      const targetBasename = targetPath.split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
+      const hasExplicitPath = targetPath.includes('/');
+      if (!hasExplicitPath && basenameSet.has(targetBasename)) continue;
+
+      broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
+    }
+  }
+
+  private normalizePath(path: string): string {
+    const parts = path.split('/');
+    const resolved: string[] = [];
+    for (const part of parts) {
+      if (part === '.' || part === '') continue;
+      if (part === '..') { resolved.pop(); continue; }
+      resolved.push(part);
+    }
+    return resolved.join('/');
   }
 
   private async suggestMissingTags(allNotes: ReadonlyArray<NotePath>): Promise<MissingTagSuggestion[]> {

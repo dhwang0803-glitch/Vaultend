@@ -25,5 +25,6 @@ export type HistoryAction =
   | 'classify'
   | 'delete'
   | 'dismiss'
+  | 'archive'
   | 'quick-ask-save'
   | 'clipboard-capture';

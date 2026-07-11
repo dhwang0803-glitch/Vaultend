@@ -1,9 +1,10 @@
 import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
 import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
-import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair } from '../domain/models/OrganizeModels';
+import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
+import type { ConfigPort } from '../application/ports/ConfigPort';
 import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
@@ -25,6 +26,7 @@ export class MaintenanceResultView extends ItemView {
     leaf: WorkspaceLeaf,
     private readonly runMaintenance: RunMaintenanceUseCase,
     private readonly applyAction: ApplyMaintenanceActionUseCase,
+    private readonly configPort: ConfigPort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
   ) {
@@ -71,6 +73,30 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
+  async triggerScanForFolder(folderPath: string): Promise<void> {
+    if (this.scanInProgress) return;
+    this.scanInProgress = true;
+
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl('h4', { text: `유지보수 결과: ${folderPath}/` });
+    contentEl.createEl('p', { text: '스캔 중...', cls: 'maintenance-result-scanning' });
+
+    try {
+      this.currentPlan = await this.runMaintenance.execute({ folder: folderPath });
+      this.render();
+    } catch (err) {
+      contentEl.empty();
+      contentEl.createEl('h4', { text: `유지보수 결과: ${folderPath}/` });
+      contentEl.createEl('p', {
+        text: `스캔 실패: ${err instanceof Error ? err.message : String(err)}`,
+        cls: 'maintenance-result-error',
+      });
+    } finally {
+      this.scanInProgress = false;
+    }
+  }
+
   private renderEmpty(): void {
     const { contentEl } = this;
     contentEl.empty();
@@ -102,11 +128,13 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.triggerScan()),
       );
 
+    const emptyCount = plan.emptyNotes.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`)).length;
+    const untaggedCount = plan.untaggedNotes.filter(p => !this.dismissedIds.has(`untagged:${p as string}`)).length;
     const missingTagsCount = plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`)).length;
     const brokenLinksCount = plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length;
-    const orphanCount = plan.orphanNotes.filter(p => !this.dismissedIds.has(`orphan:${p as string}`)).length;
+    const orphanCount = plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`)).length;
     const dupCount = plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length;
-    const totalIssues = missingTagsCount + brokenLinksCount + orphanCount + dupCount;
+    const totalIssues = emptyCount + untaggedCount + missingTagsCount + brokenLinksCount + orphanCount + dupCount;
 
     if (totalIssues === 0) {
       contentEl.createEl('p', {
@@ -118,12 +146,20 @@ export class MaintenanceResultView extends ItemView {
 
     const summaryEl = contentEl.createDiv('maintenance-result-summary');
     const parts: string[] = [];
+    if (emptyCount > 0) parts.push(`빈 노트 ${emptyCount}`);
+    if (untaggedCount > 0) parts.push(`미태그 ${untaggedCount}`);
     if (missingTagsCount > 0) parts.push(`누락 태그 ${missingTagsCount}`);
     if (brokenLinksCount > 0) parts.push(`깨진 링크 ${brokenLinksCount}`);
     if (orphanCount > 0) parts.push(`고아 노트 ${orphanCount}`);
     if (dupCount > 0) parts.push(`중복 후보 ${dupCount}`);
     summaryEl.createEl('p', { text: parts.join(' · ') });
 
+    if (plan.emptyNotes.length > 0) {
+      this.renderEmptyNotes(contentEl, plan.emptyNotes);
+    }
+    if (plan.untaggedNotes.length > 0) {
+      this.renderUntaggedNotes(contentEl, plan.untaggedNotes);
+    }
     if (plan.missingTags.length > 0) {
       this.renderMissingTags(contentEl, plan.missingTags);
     }
@@ -135,6 +171,88 @@ export class MaintenanceResultView extends ItemView {
     }
     if (plan.duplicateCandidates.length > 0) {
       this.renderDuplicates(contentEl, plan.duplicateCandidates);
+    }
+  }
+
+  private renderEmptyNotes(container: HTMLElement, items: ReadonlyArray<EmptyNoteEntry>): void {
+    const filtered = items.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `빈 노트 (${filtered.length})` });
+
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries, '선택 아카이브');
+
+    for (const item of filtered) {
+      const settingEl = new Setting(container)
+        .setName(this.basename(item.notePath))
+        .setDesc(item.notePath as string);
+
+      if (item.backlinkCount > 0) {
+        const warningEl = settingEl.settingEl.createDiv('maintenance-impact-warning');
+        const backlinkNames = item.backlinkPaths.slice(0, 3).map(p => this.basename(p)).join(', ');
+        const suffix = item.backlinkCount > 3 ? ` 외 ${item.backlinkCount - 3}개` : '';
+        warningEl.textContent = `⚠ 이 노트를 참조하는 ${item.backlinkCount}개 노트: ${backlinkNames}${suffix}`;
+      }
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'archive-note', notePath: item.notePath, targetFolder: '' },
+        setting: settingEl,
+        issueType: 'empty',
+        identifier: item.notePath as string,
+      });
+
+      settingEl.addButton(btn => btn
+        .setButtonText('열기')
+        .onClick(() => this.openFile(item.notePath as string)),
+      );
+
+      settingEl.addButton(btn => btn
+        .setButtonText('아카이브')
+        .setCta()
+        .onClick(() => this.archiveWithConfig(item.notePath, settingEl)),
+      );
+
+      settingEl.addButton(btn => btn
+        .setButtonText('삭제')
+        .setWarning()
+        .onClick(() => this.executeAction(
+          { kind: 'delete-orphan', notePath: item.notePath },
+          settingEl,
+        )),
+      );
+
+      this.addDismissButton(settingEl, 'empty', item.notePath as string);
+    }
+  }
+
+  private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>): void {
+    const filtered = items.filter(p => !this.dismissedIds.has(`untagged:${p as string}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `미태그 노트 (${filtered.length})` });
+
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries);
+
+    for (const notePath of filtered) {
+      const settingEl = new Setting(container)
+        .setName(this.basename(notePath))
+        .setDesc(notePath as string);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
+        setting: settingEl,
+        issueType: 'untagged',
+        identifier: notePath as string,
+      });
+
+      settingEl.addButton(btn => btn
+        .setButtonText('열기')
+        .onClick(() => this.openFile(notePath as string)),
+      );
+
+      this.addDismissButton(settingEl, 'untagged', notePath as string);
     }
   }
 
@@ -213,42 +331,51 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
-  private renderOrphanNotes(container: HTMLElement, items: ReadonlyArray<NotePath>): void {
-    const filtered = items.filter(p => !this.dismissedIds.has(`orphan:${p as string}`));
+  private renderOrphanNotes(container: HTMLElement, items: ReadonlyArray<OrphanNoteEntry>): void {
+    const filtered = items
+      .filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`))
+      .slice()
+      .sort((a, b) => b.fileSize - a.fileSize);
     if (filtered.length === 0) return;
     container.createEl('h5', { text: `고아 노트 (${filtered.length})` });
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(container, entries, '선택 삭제', true);
 
-    for (const notePath of filtered) {
+    for (const entry of filtered) {
+      const sizeStr = this.formatFileSize(entry.fileSize);
       const settingEl = new Setting(container)
-        .setName(this.basename(notePath))
-        .setDesc(notePath as string);
+        .setName(this.basename(entry.notePath))
+        .setDesc(`${entry.notePath as string} · ${sizeStr}`);
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'delete-orphan', notePath },
+        action: { kind: 'delete-orphan', notePath: entry.notePath },
         setting: settingEl,
         issueType: 'orphan',
-        identifier: notePath as string,
+        identifier: entry.notePath as string,
       });
 
       settingEl.addButton(btn => btn
         .setButtonText('열기')
-        .onClick(() => this.openFile(notePath as string)),
+        .onClick(() => this.openFile(entry.notePath as string)),
+      );
+
+      settingEl.addButton(btn => btn
+        .setButtonText('아카이브')
+        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl)),
       );
 
       settingEl.addButton(btn => btn
         .setButtonText('삭제')
         .setWarning()
         .onClick(() => this.executeAction(
-          { kind: 'delete-orphan', notePath },
+          { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
         )),
       );
 
-      this.addDismissButton(settingEl, 'orphan', notePath as string);
+      this.addDismissButton(settingEl, 'orphan', entry.notePath as string);
     }
   }
 
@@ -337,6 +464,14 @@ export class MaintenanceResultView extends ItemView {
     );
   }
 
+  private async archiveWithConfig(notePath: NotePath, setting: Setting): Promise<void> {
+    const settings = await this.configPort.getSettings();
+    await this.executeAction(
+      { kind: 'archive-note', notePath, targetFolder: settings.maintenanceArchiveFolder },
+      setting,
+    );
+  }
+
   private async executeAction(action: MaintenanceAction, setting: Setting): Promise<void> {
     try {
       await this.applyAction.execute(action);
@@ -357,12 +492,18 @@ export class MaintenanceResultView extends ItemView {
       new Notice('선택된 항목이 없습니다');
       return;
     }
+
+    const archiveFolder = await this.getArchiveFolder();
     let success = 0;
     let failed = 0;
     const applied = new Set<BatchEntry>();
     for (const entry of selected) {
       try {
-        await this.applyAction.execute(entry.action);
+        let action = entry.action;
+        if (action.kind === 'archive-note' && !action.targetFolder) {
+          action = { ...action, targetFolder: archiveFolder };
+        }
+        await this.applyAction.execute(action);
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
         entry.checkbox.remove();
@@ -401,8 +542,19 @@ export class MaintenanceResultView extends ItemView {
     new Notice(`${selected.length}건 무시 처리`);
   }
 
+  private async getArchiveFolder(): Promise<string> {
+    const settings = await this.configPort.getSettings();
+    return settings.maintenanceArchiveFolder;
+  }
+
   private basename(path: NotePath): string {
     return (path as string).split('/').pop()?.replace('.md', '') ?? (path as string);
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   private formatTimestamp(ts: number): string {

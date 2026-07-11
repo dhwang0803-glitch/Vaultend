@@ -23,6 +23,8 @@ export class ApplyMaintenanceActionUseCase {
         return this.createMissingNote(action.targetLink);
       case 'apply-missing-tags':
         return this.applyMissingTags(action.notePath, action.tags);
+      case 'archive-note':
+        return this.archiveNote(action.notePath, action.targetFolder);
       case 'dismiss':
         return this.dismiss(action.issueType, action.identifier);
     }
@@ -110,6 +112,21 @@ export class ApplyMaintenanceActionUseCase {
       timestamp: this.clock.now(),
       description: `태그 추가: ${newTags.join(', ')} → ${notePath as string}`,
       previousContent: note.content,
+    };
+    await this.history.record(entry);
+  }
+
+  private async archiveNote(notePath: NotePath, targetFolder: string): Promise<void> {
+    const basename = (notePath as string).split('/').pop() ?? '';
+    const destPath = createNotePath(`${targetFolder}/${basename}`);
+    await this.vault.moveNote(notePath, destPath);
+
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'archive',
+      notePath,
+      timestamp: this.clock.now(),
+      description: `노트 아카이브: ${notePath as string} → ${targetFolder}/`,
     };
     await this.history.record(entry);
   }

@@ -72,7 +72,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   async listNotes(folder?: string): Promise<ReadonlyArray<NotePath>> {
     const files = this.app.vault.getMarkdownFiles();
     const filtered = folder
-      ? files.filter(f => f.path.startsWith(folder))
+      ? files.filter(f => f.path === folder || f.path.startsWith(folder + '/'))
       : files;
 
     return filtered.map(f => createNotePath(f.path));
@@ -91,6 +91,52 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
 
   async exists(path: NotePath): Promise<boolean> {
     return this.app.vault.getAbstractFileByPath(path as string) !== null;
+  }
+
+  async moveNote(from: NotePath, to: NotePath): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(from as string);
+    if (!(file instanceof TFile)) {
+      throw new NoteNotFoundError(from as string);
+    }
+    const toStr = to as string;
+    const folderPath = toStr.substring(0, toStr.lastIndexOf('/'));
+    if (folderPath) {
+      await this.ensureFolderExists(folderPath);
+    }
+    await this.app.fileManager.renameFile(file, toStr);
+  }
+
+  async readFileRaw(path: string): Promise<string | null> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return null;
+    return this.app.vault.read(file);
+  }
+
+  async getCanvasReferences(): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    const allFiles = this.app.vault.getFiles();
+    const canvasFiles = allFiles.filter(f => f.extension === 'canvas');
+
+    for (const canvas of canvasFiles) {
+      try {
+        const raw = await this.app.vault.read(canvas);
+        const data = JSON.parse(raw) as { nodes?: Array<{ type?: string; file?: string }> };
+        const refs: string[] = [];
+        if (Array.isArray(data.nodes)) {
+          for (const node of data.nodes) {
+            if (node.type === 'file' && typeof node.file === 'string') {
+              refs.push(node.file);
+            }
+          }
+        }
+        if (refs.length > 0) {
+          result.set(canvas.path, refs);
+        }
+      } catch {
+        // 파싱 실패 시 무시
+      }
+    }
+    return result;
   }
 
   watchEvents(handler: VaultEventHandler): () => void {
@@ -187,6 +233,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       links,
       backlinks,
       frontmatterKeys: Object.keys(frontmatter).filter(k => k !== 'position'),
+      fileSize: file.stat.size,
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),
       isInbox: false,

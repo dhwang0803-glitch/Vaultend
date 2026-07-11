@@ -47,6 +47,9 @@ export interface PluginSettings {
   readonly maintenanceEnabled: boolean;
   readonly maintenanceIntervalMinutes: number;
   readonly maintenanceExcludeFolders: ReadonlyArray<string>;
+  readonly maintenanceExcludeFiles: ReadonlyArray<string>;
+  readonly maintenanceExcludeTags: ReadonlyArray<string>;
+  readonly maintenanceArchiveFolder: string;
 
   // 프라이버시
   readonly privacyRules: ReadonlyArray<PrivacyRule>;

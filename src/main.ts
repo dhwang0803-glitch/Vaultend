@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
 import { PluginSettings } from './application/ports/ConfigPort';
 
 // Adapters
@@ -46,6 +46,7 @@ import {
   DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   DEFAULT_MAX_CONTEXT_CHUNKS,
   DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
+  DEFAULT_ARCHIVE_FOLDER,
 } from './constants';
 
 /**
@@ -69,6 +70,9 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceEnabled: false,
   maintenanceIntervalMinutes: DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   maintenanceExcludeFolders: [DEFAULT_SAVE_FOLDER],
+  maintenanceExcludeFiles: [],
+  maintenanceExcludeTags: [],
+  maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,
@@ -123,13 +127,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 6. 설정 탭 등록
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
 
-    // 7. Vault 이벤트 감시 시작
+    // 7. 폴더 우클릭 메뉴 등록
+    this.registerFolderContextMenu();
+
+    // 8. Vault 이벤트 감시 시작
     this.startInboxWatcher();
 
-    // 8. 자동 유지보수 스케줄링
+    // 9. 자동 유지보수 스케줄링
     this.scheduleMaintenanceIfEnabled();
 
-    // 9. 앱 열림 시 Catch-up (마지막 실행 이후 변경된 Inbox 노트 처리)
+    // 10. 앱 열림 시 Catch-up (마지막 실행 이후 변경된 Inbox 노트 처리)
     this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
@@ -240,6 +247,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         leaf,
         this.runMaintenanceUseCase,
         this.applyMaintenanceActionUseCase,
+        this.configPort,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -353,6 +361,27 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       name: 'Inbox 상태 열기',
       callback: () => this.activateView(INBOX_STATUS_VIEW_TYPE),
     });
+  }
+
+  private registerFolderContextMenu(): void {
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file) => {
+        if (!(file instanceof TFolder)) return;
+        menu.addItem(item => {
+          item
+            .setTitle('이 폴더 유지보수 스캔')
+            .setIcon('shield-check')
+            .onClick(async () => {
+              await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as MaintenanceResultView;
+                view.triggerScanForFolder(file.path);
+              }
+            });
+        });
+      }),
+    );
   }
 
   private async activateView(viewType: string): Promise<void> {
