@@ -1,6 +1,7 @@
 import { HistoryPort, HistoryFilter } from '../../application/ports/HistoryPort';
 import { HistoryEntry } from '../../domain/models/HistoryEntry';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
+import { ClockPort } from '../../application/ports/ClockPort';
 import { NotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
 import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
@@ -16,6 +17,7 @@ export class FileHistoryAdapter implements HistoryPort {
 
   constructor(
     private readonly vault: VaultAccessPort,
+    private readonly clock: ClockPort,
   ) {}
 
   async record(entry: HistoryEntry): Promise<void> {
@@ -61,7 +63,6 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   async undo(entryId: string): Promise<void> {
-    // Revert using previousContent from the entry
     const historyFiles = await this.vault.listFiles(FileHistoryAdapter.HISTORY_FOLDER, 'json');
 
     for (const filePath of historyFiles) {
@@ -70,6 +71,14 @@ export class FileHistoryAdapter implements HistoryPort {
 
       if (target && target.previousContent !== undefined) {
         await this.vault.writeNote(target.notePath, target.previousContent);
+
+        await this.record({
+          id: crypto.randomUUID(),
+          action: 'restore',
+          notePath: target.notePath,
+          timestamp: this.clock.now(),
+          description: `복원: ${target.notePath as string} (${target.action} 취소)`,
+        });
         return;
       }
     }

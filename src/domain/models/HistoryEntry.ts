@@ -26,5 +26,6 @@ export type HistoryAction =
   | 'delete'
   | 'dismiss'
   | 'archive'
+  | 'restore'
   | 'quick-ask-save'
   | 'clipboard-capture';

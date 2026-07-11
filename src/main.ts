@@ -176,7 +176,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private wireAdapters(): void {
     this.vaultAdapter = new ObsidianVaultAdapter(this.app);
     this.searchIndex = new JsonSearchIndexAdapter(this.vaultAdapter);
-    this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter);
+    this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
     this.clipboardAdapter = new ObsidianClipboardAdapter();
     this.clockAdapter = new SystemClockAdapter();
 
