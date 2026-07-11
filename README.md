@@ -76,32 +76,41 @@ Analyze the active note with AI to get classification, tags, and link suggestion
 
 **How to use**: Open a note → `Ctrl/Cmd + P` → "Organize Current Note"
 
+> This command only appears when a note is actively open in the editor.
+
 The AI will:
 1. Classify the note into a category (technology, personal, work, etc.)
-2. Suggest relevant tags based on content
+2. Suggest relevant tags based on your vault's existing tag list
 3. Propose links to related notes in your vault
 4. Suggest a folder to move the note into
 
-Results are shown as a Notice. Tags and classification are recorded in the [Activity Log](#activity-log).
+Results are shown as a Notice (`Category: X | Tags: Y`). This command **shows results only** — it does not modify your note. To auto-apply changes, use Inbox Processing instead.
 
 ---
 
 ### Inbox Processing
 
-Automatically detect and process new notes landing in your Inbox folder.
+Automatically detect and process new notes landing in your Inbox folder. Internally runs the same AI classification as Note Organizer, but in batch mode with auto-apply.
 
 <!-- TODO: screenshot of Inbox Status view -->
 
 **How it works**:
 1. Drop notes into your Inbox folder (default: `Inbox/`)
 2. The plugin watches for new files (2-second debounce)
-3. Each note gets classified, tagged, and organized by AI
-4. Processed notes are moved to suggested folders (if auto-apply is on)
+3. Each note gets sent to AI for classification
+4. AI returns: category, suggested tags, and target folder
+5. Tags are written to frontmatter, note is moved to the suggested folder
+
+**How AI decides tags and folders**:
+- **Tags**: AI reads the note content and references your vault's existing tag list (`knownTags` in settings) to suggest relevant tags. New tags may also be proposed based on content.
+- **Folder**: AI classifies the note's category (technology, personal, work, etc.) and maps it to an appropriate folder path. The mapping is inferred from your vault's existing folder structure.
 
 **Trigger methods**:
 - **Automatic**: Runs on file creation/modification in the Inbox folder
 - **Manual**: `Ctrl/Cmd + P` → "Process Inbox"
 - **Startup catch-up**: Processes any unprocessed notes when Obsidian launches
+
+**Auto Apply setting**: When enabled, tags and folder moves happen automatically. When disabled, only classification is performed and results are logged.
 
 **Status view**: Open with "Open Inbox Status" command — shows total/processed/unprocessed counts.
 
@@ -109,7 +118,7 @@ Automatically detect and process new notes landing in your Inbox folder.
 
 ### Vault Maintenance
 
-Scan your vault for structural issues and fix them in bulk.
+Scan your vault for structural issues and fix them in bulk. **No AI required** — all detection is local analysis (link graph, file content, keyword matching).
 
 <!-- TODO: screenshot of Maintenance Results view with severity badges and filter -->
 
