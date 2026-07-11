@@ -72,7 +72,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   async listNotes(folder?: string): Promise<ReadonlyArray<NotePath>> {
     const files = this.app.vault.getMarkdownFiles();
     const filtered = folder
-      ? files.filter(f => f.path.startsWith(folder))
+      ? files.filter(f => f.path === folder || f.path.startsWith(folder + '/'))
       : files;
 
     return filtered.map(f => createNotePath(f.path));

@@ -222,12 +222,16 @@ export class RunMaintenanceUseCase {
     const broken: BrokenLink[] = [];
 
     const basenameSet = new Set<string>();
+    const basenameToPath = new Map<string, NotePath>();
     const fullPathSet = new Set<string>();
     for (const np of allVaultNotes) {
       const pathStr = np as string;
       fullPathSet.add(pathStr.toLowerCase());
       const base = pathStr.split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
-      if (base) basenameSet.add(base);
+      if (base) {
+        basenameSet.add(base);
+        basenameToPath.set(base, np);
+      }
     }
 
     for (const notePath of scanNotes) {
@@ -238,7 +242,7 @@ export class RunMaintenanceUseCase {
       const lines = note.content.split('\n');
 
       for (let i = 0; i < lines.length; i++) {
-        await this.scanWikiLinks(lines[i], i, wikiLinkPattern, notePath, basenameSet, broken, note);
+        await this.scanWikiLinks(lines[i], i, wikiLinkPattern, notePath, basenameSet, basenameToPath, broken, note);
         this.collectMarkdownLinkBroken(lines[i], i, mdLinkPattern, externalPattern, notePath, sourceDir, basenameSet, fullPathSet, broken);
       }
     }
@@ -252,6 +256,7 @@ export class RunMaintenanceUseCase {
     pattern: RegExp,
     notePath: NotePath,
     basenameSet: Set<string>,
+    basenameToPath: Map<string, NotePath>,
     broken: BrokenLink[],
     note: Note,
   ): Promise<void> {
@@ -294,15 +299,12 @@ export class RunMaintenanceUseCase {
       }
 
       if (fragment) {
-        const normalized = target.endsWith('.md') ? target : `${target}.md`;
-        try {
-          const targetPath = createNotePath(normalized);
-          const targetNote = await this.vault.readNote(targetPath);
+        const resolvedPath = basenameToPath.get(targetBasename);
+        if (resolvedPath) {
+          const targetNote = await this.vault.readNote(resolvedPath);
           if (targetNote && !this.fragmentExistsInContent(targetNote.content, fragment)) {
             broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
           }
-        } catch {
-          // 경로 생성 실패 시 무시 — 노트 자체는 basename으로 존재 확인됨
         }
       }
     }
@@ -349,7 +351,12 @@ export class RunMaintenanceUseCase {
       let targetPath = href.split('#')[0].split('?')[0];
       if (!targetPath) continue;
 
-      targetPath = decodeURIComponent(targetPath);
+      try {
+        targetPath = decodeURIComponent(targetPath);
+      } catch {
+        broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
+        continue;
+      }
 
       if (!targetPath.startsWith('/') && sourceDir) {
         targetPath = sourceDir + '/' + targetPath;
@@ -358,9 +365,11 @@ export class RunMaintenanceUseCase {
 
       if (!targetPath.endsWith('.md')) continue;
 
-      const targetBasename = targetPath.split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
-      if (basenameSet.has(targetBasename)) continue;
       if (fullPathSet.has(targetPath.toLowerCase())) continue;
+
+      const targetBasename = targetPath.split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
+      const hasExplicitPath = targetPath.includes('/');
+      if (!hasExplicitPath && basenameSet.has(targetBasename)) continue;
 
       broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
     }
