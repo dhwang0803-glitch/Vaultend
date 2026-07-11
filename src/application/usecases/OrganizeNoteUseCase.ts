@@ -48,12 +48,17 @@ export class OrganizeNoteUseCase {
     const MAX_FOLDERS = 50;
     const existingFolders = [...folderSet].sort().slice(0, MAX_FOLDERS);
 
+    // Collect vault-wide tags (frequency-sorted, capped)
+    const MAX_TAGS = 200;
+    const vaultTagEntries = await this.vault.listAllTags();
+    const vaultTags = vaultTagEntries.slice(0, MAX_TAGS).map(e => e.tag);
+
     // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
       text: redactedContent,
       task: 'classify-and-tag',
-      existingTags: settings.knownTags,
+      existingTags: vaultTags,
       currentNoteTags: currentTags,
       existingFolders,
     });

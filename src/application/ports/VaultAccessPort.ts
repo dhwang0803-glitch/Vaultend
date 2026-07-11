@@ -32,6 +32,9 @@ export interface VaultAccessPort {
   /** 노트를 다른 경로로 이동 (링크 자동 갱신). */
   moveNote(from: NotePath, to: NotePath): Promise<void>;
 
+  /** Vault 전체의 태그를 빈도순(내림차)으로 반환. 메타데이터 캐시만 사용하므로 I/O 없음. */
+  listAllTags(): Promise<ReadonlyArray<{ tag: string; count: number }>>;
+
   /** 비-마크다운 파일의 원시 텍스트를 읽는다. 없으면 null. */
   readFileRaw(path: string): Promise<string | null>;
 

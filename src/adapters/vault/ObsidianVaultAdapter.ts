@@ -117,6 +117,44 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     await this.app.fileManager.renameFile(file, toStr);
   }
 
+  async listAllTags(): Promise<ReadonlyArray<{ tag: string; count: number }>> {
+    const countByNormalized = new Map<string, number>();
+    const displayByNormalized = new Map<string, string>();
+    const files = this.app.vault.getMarkdownFiles();
+
+    const trackTag = (tag: string, seen: Set<string>) => {
+      const withHash = tag.startsWith('#') ? tag : `#${tag}`;
+      const normalized = withHash.toLowerCase();
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      countByNormalized.set(normalized, (countByNormalized.get(normalized) ?? 0) + 1);
+      if (!displayByNormalized.has(normalized)) {
+        displayByNormalized.set(normalized, withHash);
+      }
+    };
+
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) continue;
+
+      const seen = new Set<string>();
+
+      if (cache.tags) {
+        for (const t of cache.tags) trackTag(t.tag, seen);
+      }
+
+      const fm = cache.frontmatter;
+      if (fm && fm.tags != null) {
+        const fmTags = Array.isArray(fm.tags) ? fm.tags : [fm.tags];
+        for (const raw of fmTags) trackTag(String(raw), seen);
+      }
+    }
+
+    return [...countByNormalized.entries()]
+      .map(([normalized, count]) => ({ tag: displayByNormalized.get(normalized)!, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   async readFileRaw(path: string): Promise<string | null> {
     try {
       const exists = await this.app.vault.adapter.exists(path);
