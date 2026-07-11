@@ -40,7 +40,7 @@ ${question}`;
   classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, existingFolders?: ReadonlyArray<string>): string {
     const tagsInfo = existingTags.length > 0
       ? `\n사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n⚠️ 중요: 반드시 위 기존 태그 중에서만 선택하세요. 기존 태그 중 적합한 것이 전혀 없는 경우에만 새 태그를 최대 1개까지 제안할 수 있습니다. 태그가 늘어나면 vault 유지보수가 어려워지므로 기존 태그 재사용을 최우선으로 하세요.`
-      : '';
+      : `\n이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요.`;
     const currentInfo = currentNoteTags && currentNoteTags.length > 0
       ? `\n이 노트에 이미 적용된 태그: ${currentNoteTags.join(', ')}\n이미 적용된 태그는 제안하지 마세요. 새로운 태그만 제안하세요.`
       : '';
