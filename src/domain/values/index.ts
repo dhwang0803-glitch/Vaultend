@@ -12,3 +12,5 @@ export type { TagName } from './TagName';
 export { createTagName } from './TagName';
 export type { Timestamp } from './Timestamp';
 export { createTimestamp, timestampNow } from './Timestamp';
+export type { SeverityLevel } from './Severity';
+export { ISSUE_SEVERITY, SEVERITY_ORDER, getSeverity } from './Severity';

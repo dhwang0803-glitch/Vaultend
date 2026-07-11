@@ -2,14 +2,10 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import { ConfigPort } from '../application/ports/ConfigPort';
 import { INBOX_STATUS_VIEW_TYPE } from '../constants';
+import { t } from '../i18n';
 
 export { INBOX_STATUS_VIEW_TYPE };
 
-/**
- * Inbox 상태 사이드바 뷰 — Inbox 폴더의 처리 현황을 표시한다.
- *
- * 미처리/처리완료 노트 수, 최근 처리된 노트 목록 등을 보여준다.
- */
 export class InboxStatusView extends ItemView {
   constructor(
     leaf: WorkspaceLeaf,
@@ -24,7 +20,7 @@ export class InboxStatusView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Inbox Status';
+    return t('inbox.viewTitle');
   }
 
   getIcon(): string {
@@ -39,7 +35,7 @@ export class InboxStatusView extends ItemView {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h4', { text: 'Inbox 처리 현황' });
+    contentEl.createEl('h4', { text: t('inbox.title') });
 
     const settings = await this.config.getSettings();
     const inboxNotes = await this.vault.listNotes(settings.inboxFolder);
@@ -57,9 +53,9 @@ export class InboxStatusView extends ItemView {
     }
 
     const statsEl = contentEl.createDiv('inbox-stats');
-    statsEl.createEl('p', { text: `총 노트: ${inboxNotes.length}` });
-    statsEl.createEl('p', { text: `미처리: ${unprocessedCount}` });
-    statsEl.createEl('p', { text: `처리완료: ${processedCount}` });
+    statsEl.createEl('p', { text: t('inbox.total', { count: inboxNotes.length }) });
+    statsEl.createEl('p', { text: t('inbox.unprocessed', { count: unprocessedCount }) });
+    statsEl.createEl('p', { text: t('inbox.processed', { count: processedCount }) });
   }
 
   async onClose(): Promise<void> {

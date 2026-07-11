@@ -1,10 +1,8 @@
 import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
+import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
 
-/**
- * 플러그인 설정 탭 — AI 공급자, Inbox 폴더, 프라이버시 규칙 등을 설정한다.
- */
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
 
@@ -22,14 +20,34 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     this.settings = await this.config.getSettings();
 
-    containerEl.createEl('h2', { text: 'Knowledge Maintenance 설정' });
+    containerEl.createEl('h2', { text: t('settings.title') });
 
-    // --- AI 공급자 설정 ---
-    containerEl.createEl('h3', { text: 'AI 공급자' });
+    // --- Language ---
+    containerEl.createEl('h3', { text: t('settings.language') });
 
     new Setting(containerEl)
-      .setName('AI 공급자')
-      .setDesc('사용할 AI 서비스를 선택합니다.')
+      .setName(t('settings.locale'))
+      .setDesc(t('settings.localeDesc'))
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('auto', t('settings.localeAuto'))
+          .addOption('en', 'English')
+          .addOption('ko', '한국어')
+          .setValue(this.settings!.locale)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ locale: value as 'auto' | 'en' | 'ko' });
+            const resolved = value === 'auto' ? detectObsidianLocale() : value as SupportedLocale;
+            setLocale(resolved);
+            this.display();
+          });
+      });
+
+    // --- AI Provider ---
+    containerEl.createEl('h3', { text: t('settings.aiProvider') });
+
+    new Setting(containerEl)
+      .setName(t('settings.aiProviderName'))
+      .setDesc(t('settings.aiProviderDesc'))
       .addDropdown(dropdown => {
         dropdown
           .addOption('openai', 'OpenAI')
@@ -43,8 +61,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('API 키')
-      .setDesc('AI 공급자의 API 키를 입력합니다.')
+      .setName(t('settings.apiKey'))
+      .setDesc(t('settings.apiKeyDesc'))
       .addText(text => {
         text
           .setPlaceholder('sk-...')
@@ -56,8 +74,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('모델')
-      .setDesc('사용할 AI 모델을 입력합니다.')
+      .setName(t('settings.model'))
+      .setDesc(t('settings.modelDesc'))
       .addText(text => {
         text
           .setPlaceholder('gpt-4o')
@@ -67,12 +85,12 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- Inbox 설정 ---
-    containerEl.createEl('h3', { text: 'Inbox' });
+    // --- Inbox ---
+    containerEl.createEl('h3', { text: t('settings.inbox') });
 
     new Setting(containerEl)
-      .setName('Inbox 폴더')
-      .setDesc('미처리 노트가 수집되는 폴더 경로')
+      .setName(t('settings.inboxFolder'))
+      .setDesc(t('settings.inboxFolderDesc'))
       .addText(text => {
         text
           .setPlaceholder('Inbox')
@@ -83,8 +101,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('자동 적용')
-      .setDesc('Inbox 처리 결과를 자동으로 적용합니다.')
+      .setName(t('settings.autoApply'))
+      .setDesc(t('settings.autoApplyDesc'))
       .addToggle(toggle => {
         toggle
           .setValue(this.settings!.autoApplyInbox)
@@ -93,16 +111,16 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- Quick Ask 설정 ---
-    containerEl.createEl('h3', { text: 'Quick Ask' });
+    // --- Quick Ask ---
+    containerEl.createEl('h3', { text: t('settings.quickAsk') });
 
     new Setting(containerEl)
-      .setName('저장 모드')
-      .setDesc('Quick Ask 답변의 저장 방식을 선택합니다.')
+      .setName(t('settings.saveMode'))
+      .setDesc(t('settings.saveModeDesc'))
       .addDropdown(dropdown => {
         dropdown
-          .addOption('timestamp', '타임스탬프 파일명 (질문마다 별도 파일)')
-          .addOption('daily-note', 'Daily Note (하루치를 하나의 파일에 추가)')
+          .addOption('timestamp', t('settings.saveModeTimestamp'))
+          .addOption('daily-note', t('settings.saveModeDailyNote'))
           .setValue(this.settings!.quickAskSaveMode)
           .onChange(async (value) => {
             await this.config.updateSettings({
@@ -112,8 +130,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Daily Note 용량 제한 (KB)')
-      .setDesc('Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.')
+      .setName(t('settings.dailyNoteLimit'))
+      .setDesc(t('settings.dailyNoteLimitDesc'))
       .addText(text => {
         text
           .setPlaceholder('200')
@@ -126,12 +144,12 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- 유지보수 설정 ---
-    containerEl.createEl('h3', { text: '유지보수' });
+    // --- Maintenance ---
+    containerEl.createEl('h3', { text: t('settings.maintenance') });
 
     new Setting(containerEl)
-      .setName('자동 유지보수')
-      .setDesc('주기적으로 Vault 유지보수를 실행합니다.')
+      .setName(t('settings.autoMaintenance'))
+      .setDesc(t('settings.autoMaintenanceDesc'))
       .addToggle(toggle => {
         toggle
           .setValue(this.settings!.maintenanceEnabled)
@@ -141,8 +159,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('유지보수 주기 (분)')
-      .setDesc('자동 유지보수 실행 간격')
+      .setName(t('settings.maintenanceInterval'))
+      .setDesc(t('settings.maintenanceIntervalDesc'))
       .addText(text => {
         text
           .setPlaceholder('60')
@@ -156,8 +174,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('스캔 제외 폴더')
-      .setDesc('유지보수 스캔에서 제외할 폴더 (쉼표로 구분)')
+      .setName(t('settings.excludeFolders'))
+      .setDesc(t('settings.excludeFoldersDesc'))
       .addText(text => {
         const folders = this.settings!.maintenanceExcludeFolders ?? [];
         text
@@ -170,8 +188,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('스캔 제외 파일 패턴')
-      .setDesc('유지보수 스캔에서 제외할 파일 패턴 (쉼표로 구분, glob 지원)')
+      .setName(t('settings.excludeFiles'))
+      .setDesc(t('settings.excludeFilesDesc'))
       .addText(text => {
         const patterns = this.settings!.maintenanceExcludeFiles ?? [];
         text
@@ -184,8 +202,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('스캔 제외 태그')
-      .setDesc('이 태그가 있는 노트를 유지보수 스캔에서 제외합니다 (쉼표로 구분)')
+      .setName(t('settings.excludeTags'))
+      .setDesc(t('settings.excludeTagsDesc'))
       .addText(text => {
         const tags = this.settings!.maintenanceExcludeTags ?? [];
         text
@@ -198,8 +216,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('아카이브 폴더')
-      .setDesc('노트 아카이브 시 이동할 대상 폴더')
+      .setName(t('settings.archiveFolder'))
+      .setDesc(t('settings.archiveFolderDesc'))
       .addText(text => {
         text
           .setPlaceholder('Archive')
@@ -209,10 +227,10 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- 프라이버시 ---
-    containerEl.createEl('h3', { text: '프라이버시' });
+    // --- Privacy ---
+    containerEl.createEl('h3', { text: t('settings.privacy') });
     containerEl.createEl('p', {
-      text: '아래 규칙에 해당하는 노트는 AI에게 전송되지 않습니다.',
+      text: t('settings.privacyDesc'),
       cls: 'setting-item-description',
     });
 
@@ -230,7 +248,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     new Setting(container)
       .addButton(btn => {
-        btn.setButtonText('규칙 추가').setCta().onClick(async () => {
+        btn.setButtonText(t('settings.ruleAdd')).setCta().onClick(async () => {
           const newRule: PrivacyRule = {
             id: crypto.randomUUID(),
             name: '',
@@ -257,17 +275,17 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     const setting = new Setting(container)
       .addText(text => {
-        text.setPlaceholder('규칙 이름').setValue(rule.name).onChange(async (value) => {
+        text.setPlaceholder(t('settings.ruleName')).setValue(rule.name).onChange(async (value) => {
           rules[index] = { ...rules[index], name: value };
           await this.config.updateSettings({ privacyRules: rules });
         });
       })
       .addDropdown(dropdown => {
         dropdown
-          .addOption('folder-exclude', '폴더 제외')
-          .addOption('tag-exclude', '태그 제외')
-          .addOption('frontmatter-exclude', 'Frontmatter 제외')
-          .addOption('content-redact', '내용 마스킹')
+          .addOption('folder-exclude', t('settings.ruleTypeFolderExclude'))
+          .addOption('tag-exclude', t('settings.ruleTypeTagExclude'))
+          .addOption('frontmatter-exclude', t('settings.ruleTypeFrontmatterExclude'))
+          .addOption('content-redact', t('settings.ruleTypeContentRedact'))
           .setValue(rule.type)
           .onChange(async (value) => {
             rules[index] = { ...rules[index], type: value as PrivacyRuleType };
@@ -287,7 +305,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
         });
       })
       .addExtraButton(btn => {
-        btn.setIcon('trash').setTooltip('삭제').onClick(async () => {
+        btn.setIcon('trash').setTooltip(t('settings.ruleDelete')).onClick(async () => {
           rules.splice(index, 1);
           await this.config.updateSettings({ privacyRules: rules });
           this.settings = await this.config.getSettings();
@@ -296,7 +314,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     if (!rule.name) {
-      setting.setName(`규칙 ${index + 1}`);
+      setting.setName(t('settings.ruleNumber', { number: index + 1 }));
     } else {
       setting.setName(rule.name);
     }

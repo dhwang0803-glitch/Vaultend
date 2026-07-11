@@ -1,15 +1,10 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
 import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants';
+import { t, formatDate } from '../i18n';
 
 export { MAINTENANCE_LOG_VIEW_TYPE };
 
-/**
- * 유지보수 로그 사이드바 뷰 — 플러그인의 활동 이력을 표시한다.
- *
- * 최근 수행된 자동 태깅, 분류, 링크 제안, 중복 탐지 등의
- * 결과를 시간순으로 보여준다.
- */
 export class MaintenanceLogView extends ItemView {
   constructor(
     leaf: WorkspaceLeaf,
@@ -23,7 +18,7 @@ export class MaintenanceLogView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Maintenance Log';
+    return t('log.viewTitle');
   }
 
   getIcon(): string {
@@ -38,13 +33,13 @@ export class MaintenanceLogView extends ItemView {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h4', { text: '유지보수 활동 로그' });
+    contentEl.createEl('h4', { text: t('log.title') });
 
     const entries = await this.getHistory.execute({ limit: 50 });
 
     if (entries.length === 0) {
       contentEl.createEl('p', {
-        text: '아직 기록된 활동이 없습니다.',
+        text: t('log.empty'),
         cls: 'knowledge-maintenance-empty',
       });
       return;
@@ -53,7 +48,7 @@ export class MaintenanceLogView extends ItemView {
     const listEl = contentEl.createEl('ul', { cls: 'knowledge-maintenance-log-list' });
     for (const entry of entries) {
       const li = listEl.createEl('li');
-      const time = new Date(entry.timestamp as number).toLocaleString('ko-KR');
+      const time = formatDate(entry.timestamp as number);
       li.createEl('span', { text: `[${time}] `, cls: 'log-timestamp' });
       li.createEl('span', { text: `${entry.action}: `, cls: 'log-action' });
       li.createEl('span', { text: entry.description, cls: 'log-description' });

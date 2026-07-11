@@ -2,6 +2,7 @@ import { App, Component, Modal, MarkdownRenderer, TextAreaComponent, ButtonCompo
 import { QuickAskUseCase } from '../application/usecases/QuickAskUseCase';
 import { QuickAskRequest, QuickAskResult } from '../domain/models/QuickAskModels';
 import { SaveTarget } from '../domain/models/SaveTarget';
+import { t } from '../i18n';
 
 export class QuickAskModal extends Modal {
   private questionInput: TextAreaComponent | null = null;
@@ -23,11 +24,11 @@ export class QuickAskModal extends Modal {
     contentEl.empty();
     contentEl.addClass('knowledge-maintenance-quick-ask');
 
-    contentEl.createEl('h2', { text: 'Quick Ask' });
+    contentEl.createEl('h2', { text: t('quickAsk.title') });
 
     const inputContainer = contentEl.createDiv('quick-ask-input');
     this.questionInput = new TextAreaComponent(inputContainer);
-    this.questionInput.setPlaceholder('질문을 입력하세요... (Ctrl+Enter로 전송)');
+    this.questionInput.setPlaceholder(t('quickAsk.placeholder'));
     this.questionInput.inputEl.rows = 3;
     this.questionInput.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -38,11 +39,11 @@ export class QuickAskModal extends Modal {
 
     const buttonContainer = contentEl.createDiv('quick-ask-buttons');
     new ButtonComponent(buttonContainer)
-      .setButtonText('질문하기')
+      .setButtonText(t('quickAsk.askButton'))
       .setCta()
       .onClick(() => this.handleAsk());
     new ButtonComponent(buttonContainer)
-      .setButtonText('닫기')
+      .setButtonText(t('quickAsk.closeButton'))
       .onClick(() => this.close());
 
     this.resultContainer = contentEl.createDiv('quick-ask-result');
@@ -57,13 +58,14 @@ export class QuickAskModal extends Modal {
   private async handleAsk(): Promise<void> {
     const question = this.questionInput?.getValue()?.trim();
     if (!question) {
-      new Notice('질문을 입력해주세요.');
+      new Notice(t('quickAsk.emptyQuestion'));
       return;
     }
 
     if (this.resultContainer) {
       this.resultContainer.style.display = 'block';
-      this.resultContainer.innerHTML = '<p>AI에게 질문하는 중...</p>';
+      this.resultContainer.empty();
+      this.resultContainer.createEl('p', { text: t('quickAsk.loading') });
     }
 
     try {
@@ -79,8 +81,9 @@ export class QuickAskModal extends Modal {
       await this.renderResult(this.lastResult);
     } catch (err) {
       if (this.resultContainer) {
-        this.resultContainer.innerHTML =
-          `<p style="color: var(--text-error);">오류: ${err instanceof Error ? err.message : String(err)}</p>`;
+        const errorMsg = t('quickAsk.error', { error: err instanceof Error ? err.message : String(err) });
+        this.resultContainer.empty();
+        this.resultContainer.createEl('p', { text: errorMsg, cls: 'maintenance-result-error' });
       }
     }
   }
@@ -96,11 +99,11 @@ export class QuickAskModal extends Modal {
     const footerEl = this.resultContainer.createDiv('quick-ask-footer');
 
     const metaParts = [
-      `토큰: ${result.tokenUsage.totalTokens.toLocaleString()}`,
-      `비용: $${result.tokenUsage.estimatedCostUsd.toFixed(4)}`,
+      t('quickAsk.tokens', { count: result.tokenUsage.totalTokens.toLocaleString() }),
+      t('quickAsk.cost', { amount: result.tokenUsage.estimatedCostUsd.toFixed(4) }),
     ];
     if (result.suggestedTags.length > 0) {
-      metaParts.push(`태그: ${result.suggestedTags.join(', ')}`);
+      metaParts.push(t('quickAsk.tags', { tags: result.suggestedTags.join(', ') }));
     }
     footerEl.createEl('small', { text: metaParts.join(' · '), cls: 'quick-ask-meta' });
 
@@ -121,7 +124,7 @@ export class QuickAskModal extends Modal {
       });
 
     new ButtonComponent(actionsEl)
-      .setButtonText('닫기')
+      .setButtonText(t('btn.close'))
       .onClick(() => this.close());
   }
 }

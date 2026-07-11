@@ -60,4 +60,7 @@ export interface PluginSettings {
   // 비용 추적
   readonly trackTokenUsage: boolean;
   readonly monthlyBudgetUsd?: number;
+
+  // 언어
+  readonly locale: 'auto' | 'en' | 'ko';
 }

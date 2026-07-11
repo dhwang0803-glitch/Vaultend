@@ -7,6 +7,7 @@ export type {
   HeadingPath,
   TagName,
   Timestamp,
+  SeverityLevel,
 } from './values';
 export {
   createNoteId, noteIdToString,
@@ -16,6 +17,7 @@ export {
   createHeadingPath,
   createTagName,
   createTimestamp, timestampNow,
+  ISSUE_SEVERITY, SEVERITY_ORDER, getSeverity,
 } from './values';
 
 // Models

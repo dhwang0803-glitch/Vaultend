@@ -4,10 +4,17 @@ import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMain
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
+import type { SeverityLevel } from '../domain/values/Severity';
+import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
+import { t, formatDate } from '../i18n';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
+
+const ALL_ISSUE_TYPES: MaintenanceIssueType[] = [
+  'broken-link', 'empty', 'orphan', 'duplicate', 'untagged', 'missing-tags',
+];
 
 interface BatchEntry {
   checkbox: HTMLInputElement;
@@ -17,10 +24,21 @@ interface BatchEntry {
   identifier: string;
 }
 
+interface FilterState {
+  issueTypes: Set<MaintenanceIssueType>;
+  severityLevels: Set<SeverityLevel>;
+  searchQuery: string;
+}
+
 export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
   private readonly dismissedIds = new Set<string>();
+  private filterState: FilterState = {
+    issueTypes: new Set(ALL_ISSUE_TYPES),
+    severityLevels: new Set<SeverityLevel>(['critical', 'warning', 'info']),
+    searchQuery: '',
+  };
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -38,7 +56,7 @@ export class MaintenanceResultView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Vault 유지보수';
+    return t('maintenance.viewTitle');
   }
 
   getIcon(): string {
@@ -55,17 +73,17 @@ export class MaintenanceResultView extends ItemView {
 
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl('h4', { text: 'Vault 유지보수 결과' });
-    contentEl.createEl('p', { text: '스캔 중...', cls: 'maintenance-result-scanning' });
+    contentEl.createEl('h4', { text: t('maintenance.title') });
+    contentEl.createEl('p', { text: t('maintenance.scanning'), cls: 'maintenance-result-scanning' });
 
     try {
       this.currentPlan = await this.runMaintenance.execute();
       this.render();
     } catch (err) {
       contentEl.empty();
-      contentEl.createEl('h4', { text: 'Vault 유지보수 결과' });
+      contentEl.createEl('h4', { text: t('maintenance.title') });
       contentEl.createEl('p', {
-        text: `스캔 실패: ${err instanceof Error ? err.message : String(err)}`,
+        text: t('maintenance.scanFailed', { error: err instanceof Error ? err.message : String(err) }),
         cls: 'maintenance-result-error',
       });
     } finally {
@@ -79,17 +97,17 @@ export class MaintenanceResultView extends ItemView {
 
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl('h4', { text: `유지보수 결과: ${folderPath}/` });
-    contentEl.createEl('p', { text: '스캔 중...', cls: 'maintenance-result-scanning' });
+    contentEl.createEl('h4', { text: t('maintenance.folderTitle', { folder: folderPath }) });
+    contentEl.createEl('p', { text: t('maintenance.scanning'), cls: 'maintenance-result-scanning' });
 
     try {
       this.currentPlan = await this.runMaintenance.execute({ folder: folderPath });
       this.render();
     } catch (err) {
       contentEl.empty();
-      contentEl.createEl('h4', { text: `유지보수 결과: ${folderPath}/` });
+      contentEl.createEl('h4', { text: t('maintenance.folderTitle', { folder: folderPath }) });
       contentEl.createEl('p', {
-        text: `스캔 실패: ${err instanceof Error ? err.message : String(err)}`,
+        text: t('maintenance.scanFailed', { error: err instanceof Error ? err.message : String(err) }),
         cls: 'maintenance-result-error',
       });
     } finally {
@@ -100,13 +118,13 @@ export class MaintenanceResultView extends ItemView {
   private renderEmpty(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl('h4', { text: 'Vault 유지보수 결과' });
+    contentEl.createEl('h4', { text: t('maintenance.title') });
 
     new Setting(contentEl)
-      .setName('스캔 실행')
-      .setDesc('Vault 전체를 분석합니다')
+      .setName(t('maintenance.runScan'))
+      .setDesc(t('maintenance.scanDesc'))
       .addButton(btn => btn
-        .setButtonText('스캔 시작')
+        .setButtonText(t('maintenance.startScan'))
         .setCta()
         .onClick(() => this.triggerScan()),
       );
@@ -118,69 +136,183 @@ export class MaintenanceResultView extends ItemView {
     if (!plan) return;
 
     contentEl.empty();
-    contentEl.createEl('h4', { text: 'Vault 유지보수 결과' });
+    contentEl.createEl('h4', { text: t('maintenance.title') });
 
     new Setting(contentEl)
-      .setName('다시 스캔')
-      .setDesc(this.formatTimestamp(plan.timestamp as number))
+      .setName(t('maintenance.rescan'))
+      .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp as number) }))
       .addButton(btn => btn
-        .setButtonText('다시 스캔')
+        .setButtonText(t('maintenance.rescan'))
         .onClick(() => this.triggerScan()),
       );
 
-    const emptyCount = plan.emptyNotes.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`)).length;
-    const untaggedCount = plan.untaggedNotes.filter(p => !this.dismissedIds.has(`untagged:${p as string}`)).length;
-    const missingTagsCount = plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`)).length;
-    const brokenLinksCount = plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length;
-    const orphanCount = plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`)).length;
-    const dupCount = plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length;
-    const totalIssues = emptyCount + untaggedCount + missingTagsCount + brokenLinksCount + orphanCount + dupCount;
+    const counts = this.computeCounts(plan);
+    const totalIssues = Object.values(counts).reduce((a, b) => a + b, 0);
 
     if (totalIssues === 0) {
       contentEl.createEl('p', {
-        text: 'Vault 상태가 양호합니다.',
+        text: t('maintenance.vaultClean'),
         cls: 'maintenance-result-clean',
       });
       return;
     }
 
+    // Summary
     const summaryEl = contentEl.createDiv('maintenance-result-summary');
     const parts: string[] = [];
-    if (emptyCount > 0) parts.push(`빈 노트 ${emptyCount}`);
-    if (untaggedCount > 0) parts.push(`미태그 ${untaggedCount}`);
-    if (missingTagsCount > 0) parts.push(`누락 태그 ${missingTagsCount}`);
-    if (brokenLinksCount > 0) parts.push(`깨진 링크 ${brokenLinksCount}`);
-    if (orphanCount > 0) parts.push(`고아 노트 ${orphanCount}`);
-    if (dupCount > 0) parts.push(`중복 후보 ${dupCount}`);
+    if (counts.empty > 0) parts.push(t('summary.emptyNotes', { count: counts.empty }));
+    if (counts.untagged > 0) parts.push(t('summary.untagged', { count: counts.untagged }));
+    if (counts['missing-tags'] > 0) parts.push(t('summary.missingTags', { count: counts['missing-tags'] }));
+    if (counts['broken-link'] > 0) parts.push(t('summary.brokenLinks', { count: counts['broken-link'] }));
+    if (counts.orphan > 0) parts.push(t('summary.orphanNotes', { count: counts.orphan }));
+    if (counts.duplicate > 0) parts.push(t('summary.duplicates', { count: counts.duplicate }));
     summaryEl.createEl('p', { text: parts.join(' · ') });
 
-    if (plan.emptyNotes.length > 0) {
-      this.renderEmptyNotes(contentEl, plan.emptyNotes);
-    }
-    if (plan.untaggedNotes.length > 0) {
-      this.renderUntaggedNotes(contentEl, plan.untaggedNotes);
-    }
-    if (plan.missingTags.length > 0) {
-      this.renderMissingTags(contentEl, plan.missingTags);
-    }
-    if (plan.brokenLinks.length > 0) {
+    // Filter bar
+    this.renderFilterBar(contentEl, counts);
+
+    // Sections in severity order: critical → warning → info
+    if (this.isTypeVisible('broken-link') && plan.brokenLinks.length > 0) {
       this.renderBrokenLinks(contentEl, plan.brokenLinks);
     }
-    if (plan.orphanNotes.length > 0) {
+    if (this.isTypeVisible('empty') && plan.emptyNotes.length > 0) {
+      this.renderEmptyNotes(contentEl, plan.emptyNotes);
+    }
+    if (this.isTypeVisible('orphan') && plan.orphanNotes.length > 0) {
       this.renderOrphanNotes(contentEl, plan.orphanNotes);
     }
-    if (plan.duplicateCandidates.length > 0) {
+    if (this.isTypeVisible('duplicate') && plan.duplicateCandidates.length > 0) {
       this.renderDuplicates(contentEl, plan.duplicateCandidates);
+    }
+    if (this.isTypeVisible('untagged') && plan.untaggedNotes.length > 0) {
+      this.renderUntaggedNotes(contentEl, plan.untaggedNotes);
+    }
+    if (this.isTypeVisible('missing-tags') && plan.missingTags.length > 0) {
+      this.renderMissingTags(contentEl, plan.missingTags);
+    }
+
+    if (this.filterState.searchQuery) {
+      const input = contentEl.querySelector('.maintenance-search-input') as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }
     }
   }
 
+  // ─── Filter ───
+
+  private renderFilterBar(container: HTMLElement, counts: Record<MaintenanceIssueType, number>): void {
+    const filterEl = container.createDiv('maintenance-filter-bar');
+
+    // Severity chips
+    const sevRow = filterEl.createDiv('filter-row');
+    for (const sev of ['critical', 'warning', 'info'] as SeverityLevel[]) {
+      const sevCount = ALL_ISSUE_TYPES
+        .filter(type => getSeverity(type) === sev)
+        .reduce((sum, type) => sum + counts[type], 0);
+      if (sevCount === 0) continue;
+
+      const isActive = this.filterState.severityLevels.has(sev);
+      const chip = sevRow.createEl('button', { cls: 'filter-chip' });
+      if (isActive) chip.addClass('active');
+      chip.setAttribute('aria-pressed', String(isActive));
+      chip.addClass(`filter-chip-${sev}`);
+
+      const badge = chip.createSpan({ cls: `maintenance-severity-badge severity-${sev}` });
+      badge.textContent = t(`severity.${sev}` as const);
+      chip.createSpan({ text: ` ${sevCount}`, cls: 'chip-count' });
+
+      chip.addEventListener('click', () => {
+        if (this.filterState.severityLevels.has(sev)) {
+          this.filterState.severityLevels.delete(sev);
+        } else {
+          this.filterState.severityLevels.add(sev);
+        }
+        this.render();
+      });
+    }
+
+    // Type chips
+    const typeRow = filterEl.createDiv('filter-row');
+    for (const type of ALL_ISSUE_TYPES) {
+      if (counts[type] === 0) continue;
+
+      const isActive = this.filterState.issueTypes.has(type);
+      const chip = typeRow.createEl('button', { cls: 'filter-chip' });
+      if (isActive) chip.addClass('active');
+      chip.setAttribute('aria-pressed', String(isActive));
+
+      chip.createSpan({ text: t(`issueShort.${type}` as const) });
+      chip.createSpan({ text: ` ${counts[type]}`, cls: 'chip-count' });
+
+      chip.addEventListener('click', () => {
+        if (this.filterState.issueTypes.has(type)) {
+          this.filterState.issueTypes.delete(type);
+        } else {
+          this.filterState.issueTypes.add(type);
+        }
+        this.render();
+      });
+    }
+
+    // Text search
+    const searchRow = filterEl.createDiv('filter-row');
+    const searchInput = searchRow.createEl('input', {
+      type: 'search',
+      placeholder: t('filter.searchPlaceholder'),
+      cls: 'maintenance-search-input',
+    });
+    searchInput.value = this.filterState.searchQuery;
+    searchInput.addEventListener('input', () => {
+      this.filterState.searchQuery = searchInput.value;
+      this.render();
+    });
+  }
+
+  private isTypeVisible(type: MaintenanceIssueType): boolean {
+    return this.filterState.issueTypes.has(type)
+      && this.filterState.severityLevels.has(ISSUE_SEVERITY[type]);
+  }
+
+  private matchesSearch(path: string): boolean {
+    if (!this.filterState.searchQuery) return true;
+    return path.toLowerCase().includes(this.filterState.searchQuery.toLowerCase());
+  }
+
+  private computeCounts(plan: MaintenancePlan): Record<MaintenanceIssueType, number> {
+    return {
+      empty: plan.emptyNotes.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`)).length,
+      untagged: plan.untaggedNotes.filter(p => !this.dismissedIds.has(`untagged:${p as string}`)).length,
+      'missing-tags': plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`)).length,
+      'broken-link': plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length,
+      orphan: plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`)).length,
+      duplicate: plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length,
+    };
+  }
+
+  // ─── Section Headings with Severity Badge ───
+
+  private renderSectionHeading(container: HTMLElement, issueType: MaintenanceIssueType, label: string): void {
+    const heading = container.createEl('h5', { cls: 'maintenance-section-heading' });
+    const severity = getSeverity(issueType);
+    const badge = heading.createSpan({ cls: `maintenance-severity-badge severity-${severity}` });
+    badge.textContent = t(`severity.${severity}` as const);
+    heading.appendText(` ${label}`);
+  }
+
+  // ─── Section Renderers ───
+
   private renderEmptyNotes(container: HTMLElement, items: ReadonlyArray<EmptyNoteEntry>): void {
-    const filtered = items.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`));
+    const filtered = items
+      .filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`))
+      .filter(i => this.matchesSearch(i.notePath as string));
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `빈 노트 (${filtered.length})` });
+    this.renderSectionHeading(container, 'empty', t('issue.emptyNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, '선택 아카이브');
+    this.renderBatchControls(container, entries, t('batch.selectedArchive'));
 
     for (const item of filtered) {
       const settingEl = new Setting(container)
@@ -190,8 +322,14 @@ export class MaintenanceResultView extends ItemView {
       if (item.backlinkCount > 0) {
         const warningEl = settingEl.settingEl.createDiv('maintenance-impact-warning');
         const backlinkNames = item.backlinkPaths.slice(0, 3).map(p => this.basename(p)).join(', ');
-        const suffix = item.backlinkCount > 3 ? ` 외 ${item.backlinkCount - 3}개` : '';
-        warningEl.textContent = `⚠ 이 노트를 참조하는 ${item.backlinkCount}개 노트: ${backlinkNames}${suffix}`;
+        const suffix = item.backlinkCount > 3
+          ? t('impact.andMore', { count: item.backlinkCount - 3 })
+          : '';
+        warningEl.textContent = t('impact.warning', {
+          count: item.backlinkCount,
+          names: backlinkNames,
+          suffix,
+        });
       }
 
       entries.push({
@@ -203,18 +341,18 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('열기')
+        .setButtonText(t('btn.open'))
         .onClick(() => this.openFile(item.notePath as string)),
       );
 
       settingEl.addButton(btn => btn
-        .setButtonText('아카이브')
+        .setButtonText(t('btn.archive'))
         .setCta()
         .onClick(() => this.archiveWithConfig(item.notePath, settingEl)),
       );
 
       settingEl.addButton(btn => btn
-        .setButtonText('삭제')
+        .setButtonText(t('btn.delete'))
         .setWarning()
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: item.notePath },
@@ -227,9 +365,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>): void {
-    const filtered = items.filter(p => !this.dismissedIds.has(`untagged:${p as string}`));
+    const filtered = items
+      .filter(p => !this.dismissedIds.has(`untagged:${p as string}`))
+      .filter(p => this.matchesSearch(p as string));
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `미태그 노트 (${filtered.length})` });
+    this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(container, entries);
@@ -248,7 +388,7 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('열기')
+        .setButtonText(t('btn.open'))
         .onClick(() => this.openFile(notePath as string)),
       );
 
@@ -257,17 +397,19 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderMissingTags(container: HTMLElement, items: ReadonlyArray<MissingTagSuggestion>): void {
-    const filtered = items.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`));
+    const filtered = items
+      .filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`))
+      .filter(i => this.matchesSearch(i.notePath as string));
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `누락 태그 (${filtered.length})` });
+    this.renderSectionHeading(container, 'missing-tags', t('issue.missingTags', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, '선택 태그 적용');
+    this.renderBatchControls(container, entries, t('batch.selectedApplyTags'));
 
     for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(item.notePath))
-        .setDesc(`${item.suggestedTags.join(', ')} 추가 제안`);
+        .setDesc(t('duplicate.tagSuggestion', { tags: item.suggestedTags.join(', ') }));
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -278,7 +420,7 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('태그 적용')
+        .setButtonText(t('btn.applyTags'))
         .setCta()
         .onClick(() => this.executeAction(
           { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
@@ -291,12 +433,14 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderBrokenLinks(container: HTMLElement, items: ReadonlyArray<BrokenLink>): void {
-    const filtered = items.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`));
+    const filtered = items
+      .filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`))
+      .filter(i => this.matchesSearch(i.sourcePath as string));
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `깨진 링크 (${filtered.length})` });
+    this.renderSectionHeading(container, 'broken-link', t('issue.brokenLinks', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, '선택 링크 제거');
+    this.renderBatchControls(container, entries, t('batch.selectedRemoveLinks'));
 
     for (const item of filtered) {
       const settingEl = new Setting(container)
@@ -312,7 +456,7 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('링크 제거')
+        .setButtonText(t('btn.removeLink'))
         .onClick(() => this.executeAction(
           { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
           settingEl,
@@ -320,7 +464,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       settingEl.addButton(btn => btn
-        .setButtonText('노트 생성')
+        .setButtonText(t('btn.createNote'))
         .onClick(() => this.executeAction(
           { kind: 'create-missing-note', targetLink: item.targetLink },
           settingEl,
@@ -334,13 +478,14 @@ export class MaintenanceResultView extends ItemView {
   private renderOrphanNotes(container: HTMLElement, items: ReadonlyArray<OrphanNoteEntry>): void {
     const filtered = items
       .filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`))
+      .filter(e => this.matchesSearch(e.notePath as string))
       .slice()
       .sort((a, b) => b.fileSize - a.fileSize);
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `고아 노트 (${filtered.length})` });
+    this.renderSectionHeading(container, 'orphan', t('issue.orphanNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, '선택 삭제', true);
+    this.renderBatchControls(container, entries, t('batch.selectedDelete'), true);
 
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
@@ -357,17 +502,17 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('열기')
+        .setButtonText(t('btn.open'))
         .onClick(() => this.openFile(entry.notePath as string)),
       );
 
       settingEl.addButton(btn => btn
-        .setButtonText('아카이브')
+        .setButtonText(t('btn.archive'))
         .onClick(() => this.archiveWithConfig(entry.notePath, settingEl)),
       );
 
       settingEl.addButton(btn => btn
-        .setButtonText('삭제')
+        .setButtonText(t('btn.delete'))
         .setWarning()
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: entry.notePath },
@@ -380,9 +525,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderDuplicates(container: HTMLElement, items: ReadonlyArray<DuplicatePair>): void {
-    const filtered = items.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`));
+    const filtered = items
+      .filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`))
+      .filter(p => this.matchesSearch(p.noteA as string) || this.matchesSearch(p.noteB as string));
     if (filtered.length === 0) return;
-    container.createEl('h5', { text: `중복 후보 (${filtered.length})` });
+    this.renderSectionHeading(container, 'duplicate', t('issue.duplicates', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(container, entries);
@@ -391,7 +538,7 @@ export class MaintenanceResultView extends ItemView {
       const score = Math.round(pair.similarityScore * 100);
       const settingEl = new Setting(container)
         .setName(`${this.basename(pair.noteA)} ↔ ${this.basename(pair.noteB)}`)
-        .setDesc(`유사도 ${score}%`);
+        .setDesc(t('duplicate.similarity', { score }));
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -402,13 +549,15 @@ export class MaintenanceResultView extends ItemView {
       });
 
       settingEl.addButton(btn => btn
-        .setButtonText('나란히 열기')
+        .setButtonText(t('btn.openSideBySide'))
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
       );
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
     }
   }
+
+  // ─── Batch & Actions ───
 
   private renderBatchControls(
     container: HTMLElement,
@@ -418,10 +567,10 @@ export class MaintenanceResultView extends ItemView {
   ): void {
     const batchSetting = new Setting(container)
       .setClass('maintenance-batch-controls')
-      .setName('전체 선택');
+      .setName(t('batch.selectAll'));
 
     batchSetting.addToggle(toggle => toggle
-      .setTooltip('전체 선택 / 해제')
+      .setTooltip(t('batch.toggleAll'))
       .onChange(checked => entries.forEach(e => { e.checkbox.checked = checked; })),
     );
 
@@ -434,7 +583,7 @@ export class MaintenanceResultView extends ItemView {
     }
 
     batchSetting.addButton(btn => btn
-      .setButtonText('선택 무시')
+      .setButtonText(t('batch.selectedDismiss'))
       .onClick(() => this.dismissBatch(entries)),
     );
   }
@@ -450,7 +599,7 @@ export class MaintenanceResultView extends ItemView {
   private addDismissButton(setting: Setting, issueType: string, identifier: string): void {
     setting.addExtraButton(btn => btn
       .setIcon('x')
-      .setTooltip('무시')
+      .setTooltip(t('dismiss.tooltip'))
       .onClick(async () => {
         await this.applyAction.execute({
           kind: 'dismiss',
@@ -459,7 +608,7 @@ export class MaintenanceResultView extends ItemView {
         });
         this.dismissedIds.add(`${issueType}:${identifier}`);
         setting.settingEl.remove();
-        new Notice('이슈를 무시했습니다');
+        new Notice(t('notice.dismissed'));
       }),
     );
   }
@@ -479,17 +628,17 @@ export class MaintenanceResultView extends ItemView {
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
       const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
       if (cb) cb.remove();
-      setting.setDesc('적용됨');
-      new Notice('액션을 적용했습니다');
+      setting.setDesc(t('maintenance.applied'));
+      new Notice(t('notice.actionApplied'));
     } catch (err) {
-      new Notice(`적용 실패: ${err instanceof Error ? err.message : String(err)}`);
+      new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
     const selected = entries.filter(e => e.checkbox.checked);
     if (selected.length === 0) {
-      new Notice('선택된 항목이 없습니다');
+      new Notice(t('notice.noSelection'));
       return;
     }
 
@@ -507,7 +656,7 @@ export class MaintenanceResultView extends ItemView {
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
         entry.checkbox.remove();
-        entry.setting.setDesc('적용됨');
+        entry.setting.setDesc(t('maintenance.applied'));
         applied.add(entry);
         success++;
       } catch {
@@ -517,35 +666,51 @@ export class MaintenanceResultView extends ItemView {
     for (let i = entries.length - 1; i >= 0; i--) {
       if (applied.has(entries[i])) entries.splice(i, 1);
     }
-    const msg = failed > 0 ? `${success}건 적용, ${failed}건 실패` : `${success}건 적용 완료`;
+    const msg = failed > 0
+      ? t('notice.batchResult', { success, failed })
+      : t('notice.batchComplete', { count: success });
     new Notice(msg);
   }
 
   private async dismissBatch(entries: BatchEntry[]): Promise<void> {
     const selected = entries.filter(e => e.checkbox.checked);
     if (selected.length === 0) {
-      new Notice('선택된 항목이 없습니다');
+      new Notice(t('notice.noSelection'));
       return;
     }
+    let success = 0;
+    let failed = 0;
+    const dismissed = new Set<BatchEntry>();
     for (const entry of selected) {
-      await this.applyAction.execute({
-        kind: 'dismiss',
-        issueType: entry.issueType,
-        identifier: entry.identifier,
-      });
-      this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
-      entry.setting.settingEl.remove();
+      try {
+        await this.applyAction.execute({
+          kind: 'dismiss',
+          issueType: entry.issueType,
+          identifier: entry.identifier,
+        });
+        this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
+        entry.setting.settingEl.remove();
+        dismissed.add(entry);
+        success++;
+      } catch {
+        failed++;
+      }
     }
     for (let i = entries.length - 1; i >= 0; i--) {
-      if (selected.includes(entries[i])) entries.splice(i, 1);
+      if (dismissed.has(entries[i])) entries.splice(i, 1);
     }
-    new Notice(`${selected.length}건 무시 처리`);
+    const msg = failed > 0
+      ? t('notice.batchResult', { success, failed })
+      : t('notice.batchDismissed', { count: success });
+    new Notice(msg);
   }
 
   private async getArchiveFolder(): Promise<string> {
     const settings = await this.configPort.getSettings();
     return settings.maintenanceArchiveFolder;
   }
+
+  // ─── Utilities ───
 
   private basename(path: NotePath): string {
     return (path as string).split('/').pop()?.replace('.md', '') ?? (path as string);
@@ -555,10 +720,6 @@ export class MaintenanceResultView extends ItemView {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  private formatTimestamp(ts: number): string {
-    return `마지막 스캔: ${new Date(ts).toLocaleString('ko-KR')}`;
   }
 
   async onClose(): Promise<void> {
