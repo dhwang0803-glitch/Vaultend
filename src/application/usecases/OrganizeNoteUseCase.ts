@@ -33,6 +33,19 @@ export class OrganizeNoteUseCase {
     }
 
     const settings = await this.config.getSettings();
+    const currentTags = note.metadata.tags.map(t => t as string);
+
+    // Extract vault folder list for AI context
+    const allNotes = await this.vault.listNotes();
+    const folderSet = new Set<string>();
+    for (const np of allNotes) {
+      const pathStr = np as string;
+      const lastSlash = pathStr.lastIndexOf('/');
+      if (lastSlash > 0) {
+        folderSet.add(pathStr.substring(0, lastSlash));
+      }
+    }
+    const existingFolders = [...folderSet].sort();
 
     // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
@@ -40,18 +53,33 @@ export class OrganizeNoteUseCase {
       text: redactedContent,
       task: 'classify-and-tag',
       existingTags: settings.knownTags,
+      currentNoteTags: currentTags,
+      existingFolders,
     });
 
+    // Filter out tags already on the note
+    const currentTagsLower = new Set(currentTags.map(t => t.toLowerCase()));
+    const newSuggestedTags = classification.suggestedTags
+      .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
+
     // Link suggestions — based on other note titles and content
-    const allNotes = await this.vault.listNotes();
     const suggestedLinks = this.findRelevantLinks(note.content, allNotes, notePath);
+
+    // Folder suggestion — skip if same as current folder
+    const currentFolder = (notePath as string).includes('/')
+      ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
+      : '';
+    const suggestedFolder = classification.suggestedFolder &&
+      classification.suggestedFolder !== currentFolder
+      ? classification.suggestedFolder
+      : undefined;
 
     const result: OrganizeResult = {
       noteId: note.id,
       classifiedCategory: classification.category,
-      addedTags: classification.suggestedTags.map(t => createTagName(t)),
+      addedTags: newSuggestedTags.map(t => createTagName(t)),
       suggestedLinks,
-      suggestedMoveTarget: classification.suggestedFolder ?? undefined,
+      suggestedMoveTarget: suggestedFolder,
       summary: classification.summary,
     };
 

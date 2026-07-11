@@ -38,6 +38,8 @@ export interface ClassificationRequest {
   readonly task: 'classify-and-tag' | 'suggest-tags' | 'suggest-links' | 'summarize';
   readonly existingTags?: ReadonlyArray<string>;
   readonly existingCategories?: ReadonlyArray<string>;
+  readonly currentNoteTags?: ReadonlyArray<string>;
+  readonly existingFolders?: ReadonlyArray<string>;
 }
 
 export interface ClassificationResponse {

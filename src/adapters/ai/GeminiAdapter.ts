@@ -60,7 +60,7 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? []);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.existingFolders);
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt,

@@ -37,19 +37,25 @@ ${question}`;
   /**
    * 분류 및 태깅 프롬프트
    */
-  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>): string {
+  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, existingFolders?: ReadonlyArray<string>): string {
     const tagsInfo = existingTags.length > 0
       ? `\n사용 가능한 기존 태그: ${existingTags.join(', ')}\n가능하면 기존 태그를 우선 사용하세요.`
       : '';
+    const currentInfo = currentNoteTags && currentNoteTags.length > 0
+      ? `\n이 노트에 이미 적용된 태그: ${currentNoteTags.join(', ')}\n이미 적용된 태그는 제안하지 마세요. 새로운 태그만 제안하세요.`
+      : '';
+    const folderInfo = existingFolders && existingFolders.length > 0
+      ? `\n기존 폴더 목록: ${existingFolders.join(', ')}\n반드시 기존 폴더 중에서만 선택하세요. 현재 위치가 적절하면 folder를 null로 설정하세요.`
+      : '';
 
     return `다음 노트의 내용을 분석하여 분류하고 적절한 태그를 제안하세요.
-${tagsInfo}
+${tagsInfo}${currentInfo}${folderInfo}
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "category": "카테고리명 (예: 기술, 일상, 프로젝트, 학습, 업무 등)",
   "tags": ["#태그1", "#태그2", "#태그3"],
-  "folder": "추천 폴더 경로 (예: Projects/WebDev)",
+  "folder": "추천 폴더 경로 또는 null (현재 위치가 적절하면 null)",
   "summary": "노트 내용을 한 문장으로 요약",
   "confidence": 0.85
 }
