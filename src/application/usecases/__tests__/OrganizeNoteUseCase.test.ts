@@ -219,7 +219,7 @@ describe('OrganizeNoteUseCase', () => {
         readNote: vi.fn().mockResolvedValue(
           createTestNote({ content: 'content' }),
         ),
-        listNotes: vi.fn().mockResolvedValue([]),
+        listNotes: vi.fn().mockResolvedValue([np('Projects/existing.md')]),
       });
       const ai = createMockAI({
         callClassification: vi.fn().mockResolvedValue(

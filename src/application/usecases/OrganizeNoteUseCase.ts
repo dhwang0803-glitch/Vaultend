@@ -35,7 +35,7 @@ export class OrganizeNoteUseCase {
     const settings = await this.config.getSettings();
     const currentTags = note.metadata.tags.map(t => t as string);
 
-    // Extract vault folder list for AI context
+    // Extract vault folder list for AI context (capped to prevent token overflow)
     const allNotes = await this.vault.listNotes();
     const folderSet = new Set<string>();
     for (const np of allNotes) {
@@ -45,7 +45,8 @@ export class OrganizeNoteUseCase {
         folderSet.add(pathStr.substring(0, lastSlash));
       }
     }
-    const existingFolders = [...folderSet].sort();
+    const MAX_FOLDERS = 50;
+    const existingFolders = [...folderSet].sort().slice(0, MAX_FOLDERS);
 
     // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
@@ -65,13 +66,15 @@ export class OrganizeNoteUseCase {
     // Link suggestions — based on other note titles and content
     const suggestedLinks = this.findRelevantLinks(note.content, allNotes, notePath);
 
-    // Folder suggestion — skip if same as current folder
+    // Folder suggestion — validate against actual vault folders
     const currentFolder = (notePath as string).includes('/')
       ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
       : '';
-    const suggestedFolder = classification.suggestedFolder &&
-      classification.suggestedFolder !== currentFolder
-      ? classification.suggestedFolder
+    const rawFolder = classification.suggestedFolder;
+    const suggestedFolder = rawFolder &&
+      rawFolder !== currentFolder &&
+      folderSet.has(rawFolder)
+      ? rawFolder
       : undefined;
 
     const result: OrganizeResult = {

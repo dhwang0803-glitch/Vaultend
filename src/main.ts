@@ -21,7 +21,7 @@ import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaint
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
-import { OrganizeResultModal, OrganizeApplyActions } from './ui/OrganizeResultModal';
+import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
@@ -313,7 +313,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
         this.organizeNoteUseCase
           .execute(notePath, false)
-          .then(result => {
+          .then(async result => {
             const actions: OrganizeApplyActions = {
               applyTags: async (path, tags) => {
                 const note = await this.vaultAdapter.readNote(path);
@@ -346,7 +346,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
                 await this.vaultAdapter.moveNote(path, newPath);
               },
             };
-            new OrganizeResultModal(this.app, notePath, result, actions).open();
+            const allNotes = await this.vaultAdapter.listNotes();
+            const folderSet = new Set<string>();
+            for (const np of allNotes) {
+              const pathStr = np as string;
+              const slash = pathStr.lastIndexOf('/');
+              if (slash > 0) folderSet.add(pathStr.substring(0, slash));
+            }
+            const ctx: OrganizeModalContext = {
+              existingFolders: [...folderSet].sort(),
+            };
+            new OrganizeResultModal(this.app, notePath, result, actions, ctx).open();
           })
           .catch(err => {
             new Notice(t('notice.organizeFailed', { error: err instanceof Error ? err.message : String(err) }));

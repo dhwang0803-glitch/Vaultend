@@ -159,6 +159,12 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.linksAdded': '{{count}}개 링크 추가됨',
   'organize.noteMoved': '{{folder}}/로 이동됨',
   'organize.analyzing': 'AI로 노트를 분석 중...',
+  'organize.addTagPlaceholder': '태그 추가...',
+  'organize.addLinkPlaceholder': '링크 추가 (노트 이름)...',
+  'organize.addBtn': '추가',
+  'organize.keepCurrent': '— 현재 위치 유지 —',
+  'organize.applyAll': '전체 적용',
+  'organize.nothingToApply': '적용할 항목이 없습니다.',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance 설정',
