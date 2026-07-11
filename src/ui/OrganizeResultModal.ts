@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath } from '../domain/values/NotePath';
 import { t } from '../i18n';
@@ -9,14 +9,26 @@ export interface OrganizeApplyActions {
   moveNote(notePath: NotePath, targetFolder: string): Promise<void>;
 }
 
+export interface OrganizeModalContext {
+  existingFolders: string[];
+}
+
 export class OrganizeResultModal extends Modal {
+  private selectedTags: string[];
+  private selectedLinks: NotePath[];
+  private selectedFolder: string | undefined;
+
   constructor(
     app: App,
     private readonly notePath: NotePath,
     private readonly result: OrganizeResult,
     private readonly actions: OrganizeApplyActions,
+    private readonly context: OrganizeModalContext,
   ) {
     super(app);
+    this.selectedTags = result.addedTags.map(tag => tag as string);
+    this.selectedLinks = [...result.suggestedLinks];
+    this.selectedFolder = result.suggestedMoveTarget;
   }
 
   onOpen(): void {
@@ -39,21 +51,16 @@ export class OrganizeResultModal extends Modal {
     this.renderTags(contentEl);
     this.renderLinks(contentEl);
     this.renderMove(contentEl);
-
-    const footer = contentEl.createDiv('organize-footer');
-    new ButtonComponent(footer)
-      .setButtonText(t('btn.close'))
-      .onClick(() => this.close());
+    this.renderFooter(contentEl);
   }
 
   private renderCategory(container: HTMLElement): void {
     const section = container.createDiv('organize-section');
     section.createEl('h4', { text: t('organize.category') });
-    const badge = section.createEl('span', {
+    section.createEl('span', {
       text: this.result.classifiedCategory,
       cls: 'organize-category-badge',
     });
-    badge.setAttribute('data-category', this.result.classifiedCategory);
   }
 
   private renderSummary(container: HTMLElement): void {
@@ -67,115 +74,180 @@ export class OrganizeResultModal extends Modal {
 
   private renderTags(container: HTMLElement): void {
     const section = container.createDiv('organize-section');
-    const header = section.createDiv('organize-section-header');
-    header.createEl('h4', { text: t('organize.suggestedTags') });
+    section.createEl('h4', { text: t('organize.suggestedTags') });
 
-    const tags = this.result.addedTags.map(tag => tag as string);
+    const tagListEl = section.createDiv('organize-tag-list');
+    this.rebuildTagList(tagListEl);
 
-    if (tags.length === 0) {
-      section.createEl('p', {
-        text: t('organize.noTags'),
-        cls: 'organize-empty',
-      });
+    const addRow = section.createDiv('organize-add-row');
+    const input = new TextComponent(addRow);
+    input.setPlaceholder(t('organize.addTagPlaceholder'));
+    input.inputEl.addClass('organize-add-input');
+    input.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.addTagFromInput(input, tagListEl);
+      }
+    });
+    new ButtonComponent(addRow)
+      .setButtonText(t('organize.addBtn'))
+      .onClick(() => this.addTagFromInput(input, tagListEl));
+  }
+
+  private rebuildTagList(tagListEl: HTMLElement): void {
+    tagListEl.empty();
+    if (this.selectedTags.length === 0) {
+      tagListEl.createEl('span', { text: t('organize.noTags'), cls: 'organize-empty' });
       return;
     }
-
-    const tagContainer = section.createDiv('organize-tag-list');
-    for (const tag of tags) {
-      tagContainer.createEl('span', { text: `#${tag}`, cls: 'organize-tag' });
-    }
-
-    new ButtonComponent(header)
-      .setButtonText(t('organize.applyTags'))
-      .setCta()
-      .onClick(async (e) => {
-        const btn = (e.target as HTMLElement).closest('button');
-        try {
-          await this.actions.applyTags(this.notePath, tags);
-          new Notice(t('organize.tagsApplied', { count: String(tags.length) }));
-          if (btn) {
-            btn.setText(t('maintenance.applied'));
-            btn.setAttribute('disabled', 'true');
-            btn.addClass('organize-applied');
-          }
-        } catch (err) {
-          new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
-        }
+    for (const tag of this.selectedTags) {
+      const chip = tagListEl.createDiv('organize-chip');
+      chip.createEl('span', { text: `#${tag}` });
+      const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+      removeBtn.addEventListener('click', () => {
+        this.selectedTags = this.selectedTags.filter(t2 => t2 !== tag);
+        this.rebuildTagList(tagListEl);
       });
+    }
+  }
+
+  private addTagFromInput(input: TextComponent, tagListEl: HTMLElement): void {
+    const raw = input.getValue().trim();
+    if (!raw) return;
+    const tag = raw.startsWith('#') ? raw.slice(1) : raw;
+    if (tag && !this.selectedTags.includes(tag)) {
+      this.selectedTags.push(tag);
+      this.rebuildTagList(tagListEl);
+    }
+    input.setValue('');
   }
 
   private renderLinks(container: HTMLElement): void {
     const section = container.createDiv('organize-section');
-    const header = section.createDiv('organize-section-header');
-    header.createEl('h4', { text: t('organize.suggestedLinks') });
+    section.createEl('h4', { text: t('organize.suggestedLinks') });
 
-    const links = this.result.suggestedLinks;
+    const linkListEl = section.createDiv('organize-link-list');
+    this.rebuildLinkList(linkListEl);
 
-    if (links.length === 0) {
-      section.createEl('p', {
-        text: t('organize.noLinks'),
-        cls: 'organize-empty',
-      });
+    const addRow = section.createDiv('organize-add-row');
+    const input = new TextComponent(addRow);
+    input.setPlaceholder(t('organize.addLinkPlaceholder'));
+    input.inputEl.addClass('organize-add-input');
+    input.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.addLinkFromInput(input, linkListEl);
+      }
+    });
+    new ButtonComponent(addRow)
+      .setButtonText(t('organize.addBtn'))
+      .onClick(() => this.addLinkFromInput(input, linkListEl));
+  }
+
+  private rebuildLinkList(linkListEl: HTMLElement): void {
+    linkListEl.empty();
+    if (this.selectedLinks.length === 0) {
+      linkListEl.createEl('span', { text: t('organize.noLinks'), cls: 'organize-empty' });
       return;
     }
-
-    const linkList = section.createEl('ul', { cls: 'organize-link-list' });
-    for (const link of links) {
+    for (const link of this.selectedLinks) {
       const linkPath = (link as string).replace('.md', '');
-      linkList.createEl('li', { text: `[[${linkPath}]]` });
-    }
-
-    new ButtonComponent(header)
-      .setButtonText(t('organize.addLinks'))
-      .setCta()
-      .onClick(async (e) => {
-        const btn = (e.target as HTMLElement).closest('button');
-        try {
-          await this.actions.addLinks(this.notePath, [...links]);
-          new Notice(t('organize.linksAdded', { count: String(links.length) }));
-          if (btn) {
-            btn.setText(t('maintenance.applied'));
-            btn.setAttribute('disabled', 'true');
-            btn.addClass('organize-applied');
-          }
-        } catch (err) {
-          new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
-        }
+      const chip = linkListEl.createDiv('organize-chip');
+      chip.createEl('span', { text: `[[${linkPath}]]` });
+      const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+      removeBtn.addEventListener('click', () => {
+        this.selectedLinks = this.selectedLinks.filter(l => l !== link);
+        this.rebuildLinkList(linkListEl);
       });
+    }
+  }
+
+  private addLinkFromInput(input: TextComponent, linkListEl: HTMLElement): void {
+    const raw = input.getValue().trim();
+    if (!raw) return;
+    const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '');
+    const path = cleaned.endsWith('.md') ? cleaned : `${cleaned}.md`;
+    const asNotePath = path as unknown as NotePath;
+    if (!this.selectedLinks.some(l => (l as string) === path)) {
+      this.selectedLinks.push(asNotePath);
+      this.rebuildLinkList(linkListEl);
+    }
+    input.setValue('');
   }
 
   private renderMove(container: HTMLElement): void {
     const section = container.createDiv('organize-section');
-    const header = section.createDiv('organize-section-header');
-    header.createEl('h4', { text: t('organize.suggestedMove') });
+    section.createEl('h4', { text: t('organize.suggestedMove') });
 
-    const target = this.result.suggestedMoveTarget;
+    const folders = this.context.existingFolders;
 
-    if (!target) {
-      section.createEl('p', {
-        text: t('organize.noMove'),
-        cls: 'organize-empty',
-      });
+    if (folders.length === 0) {
+      section.createEl('p', { text: t('organize.noMove'), cls: 'organize-empty' });
       return;
     }
 
-    section.createEl('p', {
-      text: `${t('organize.moveTo')}: ${target}/`,
-      cls: 'organize-move-target',
-    });
+    const selectEl = section.createEl('select', { cls: 'organize-folder-select' });
 
-    new ButtonComponent(header)
-      .setButtonText(t('organize.moveNote'))
-      .setWarning()
+    const noneOption = selectEl.createEl('option', { text: t('organize.keepCurrent'), value: '' });
+    if (!this.selectedFolder) noneOption.selected = true;
+
+    for (const folder of folders) {
+      const opt = selectEl.createEl('option', { text: folder, value: folder });
+      if (folder === this.selectedFolder) opt.selected = true;
+    }
+
+    selectEl.addEventListener('change', () => {
+      this.selectedFolder = selectEl.value || undefined;
+    });
+  }
+
+  private renderFooter(container: HTMLElement): void {
+    const footer = container.createDiv('organize-footer');
+
+    new ButtonComponent(footer)
+      .setButtonText(t('organize.applyAll'))
+      .setCta()
       .onClick(async () => {
-        try {
-          await this.actions.moveNote(this.notePath, target);
-          new Notice(t('organize.noteMoved', { folder: target }));
-          this.close();
-        } catch (err) {
-          new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
-        }
+        await this.applyAll();
       });
+
+    new ButtonComponent(footer)
+      .setButtonText(t('btn.close'))
+      .onClick(() => this.close());
+  }
+
+  private async applyAll(): Promise<void> {
+    const applied: string[] = [];
+
+    try {
+      if (this.selectedTags.length > 0) {
+        await this.actions.applyTags(this.notePath, this.selectedTags);
+        applied.push(t('organize.tagsApplied', { count: String(this.selectedTags.length) }));
+        this.selectedTags = [];
+      }
+
+      if (this.selectedLinks.length > 0) {
+        await this.actions.addLinks(this.notePath, this.selectedLinks);
+        applied.push(t('organize.linksAdded', { count: String(this.selectedLinks.length) }));
+        this.selectedLinks = [];
+      }
+
+      if (this.selectedFolder) {
+        await this.actions.moveNote(this.notePath, this.selectedFolder);
+        applied.push(t('organize.noteMoved', { folder: this.selectedFolder }));
+        this.selectedFolder = undefined;
+      }
+
+      if (applied.length > 0) {
+        new Notice(applied.join('\n'));
+      } else {
+        new Notice(t('organize.nothingToApply'));
+      }
+
+      this.close();
+    } catch (err) {
+      new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
+    }
   }
 
   onClose(): void {

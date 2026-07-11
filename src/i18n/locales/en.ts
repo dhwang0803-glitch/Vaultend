@@ -157,6 +157,12 @@ const en = {
   'organize.linksAdded': '{{count}} links added',
   'organize.noteMoved': 'Moved to {{folder}}/',
   'organize.analyzing': 'Analyzing note with AI...',
+  'organize.addTagPlaceholder': 'Add tag...',
+  'organize.addLinkPlaceholder': 'Add link (note name)...',
+  'organize.addBtn': 'Add',
+  'organize.keepCurrent': '— Keep current location —',
+  'organize.applyAll': 'Apply All',
+  'organize.nothingToApply': 'Nothing to apply.',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance Settings',
