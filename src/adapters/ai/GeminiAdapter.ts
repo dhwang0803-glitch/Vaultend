@@ -84,13 +84,13 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   async callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const model = request.model ?? 'text-embedding-004';
+    const model = request.model ?? 'gemini-embedding-001';
     const requests = request.texts.map(text => ({
       model: `models/${model}`,
       content: { parts: [{ text }] },
     }));
 
-    const url = `${GeminiAdapter.BASE_URL}/models/${model}:batchEmbedContents?key=${this.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:batchEmbedContents?key=${this.apiKey}`;
     const params: RequestUrlParam = {
       url,
       method: 'POST',
