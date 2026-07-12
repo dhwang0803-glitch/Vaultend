@@ -32,6 +32,9 @@ coverage/
 test-vault/
 e2e/screenshot-*.png
 
+# Benchmark (contains API call results, regenerated each run)
+src/benchmark/benchmark-results.json
+
 # Python (향후 스크립트 사용 대비)
 __pycache__/
 *.py[codz]
