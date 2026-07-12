@@ -1,5 +1,5 @@
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
-import { createTagName } from '../../domain/values/TagName';
+import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
@@ -97,10 +97,16 @@ export class OrganizeNoteUseCase {
       ? rawFolder
       : undefined;
 
+    const sanitizedTags = newSuggestedTags
+      .map(t => sanitizeTagName(t))
+      .filter(t => /^#[\w가-힣\-/]+$/.test(t))
+      .filter(t => !currentTagsLower.has(t.toLowerCase()));
+    const uniqueSanitized = [...new Set(sanitizedTags)];
+
     const result: OrganizeResult = {
       noteId: note.id,
       classifiedCategory: classification.category,
-      addedTags: newSuggestedTags.map(t => createTagName(t)),
+      addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
       suggestedMoveTarget: suggestedFolder,
       summary: classification.summary,

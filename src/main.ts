@@ -160,16 +160,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 9. Schedule auto-maintenance
     this.scheduleMaintenanceIfEnabled();
 
-    // 10. Initialize embeddings if enabled
-    if (this.settings.embeddingsEnabled) {
-      this.app.workspace.onLayoutReady(async () => {
+    // 10. Initialize search index + embeddings on layout ready
+    this.app.workspace.onLayoutReady(async () => {
+      await this.buildSearchIndex();
+
+      if (this.settings.embeddingsEnabled) {
         await this.vectorStoreAdapter.load();
         await this.embeddingAdapter.initialize();
-      });
-    }
+      }
 
-    // 11. Catch-up on app open (process Inbox notes changed since last run)
-    this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
   }
@@ -486,6 +485,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       // Track all .md file changes for smart scheduling
       if (pathStr.endsWith('.md')) {
         this.changeTracker.markDirty(event.path);
+
+        // Incremental search index update
+        if (event.type === 'delete') {
+          this.searchIndex.remove(event.path);
+        } else if (event.type === 'rename') {
+          if (event.oldPath) this.searchIndex.remove(event.oldPath);
+          this.indexSingleNote(event.path);
+        } else if (event.type === 'create' || event.type === 'modify') {
+          this.indexSingleNote(event.path);
+        }
       }
 
       if (event.type !== 'create' && event.type !== 'modify') return;
@@ -537,6 +546,37 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       dateFolder: `${y}-${mo}-${d}`,
       title: `${prefix} ${h}${mi}${s}`,
     };
+  }
+
+  private async buildSearchIndex(): Promise<void> {
+    try {
+      await this.searchIndex.rebuild();
+      const notes = await this.vaultAdapter.listNotes();
+      let indexed = 0;
+      for (const notePath of notes) {
+        const note = await this.vaultAdapter.readNote(notePath);
+        if (note && note.chunks.length > 0) {
+          await this.searchIndex.index(notePath, note.chunks);
+          indexed++;
+        }
+      }
+      console.log(`Knowledge Maintenance: search index built (${indexed} notes)`);
+    } catch (err) {
+      console.error('Knowledge Maintenance: search index build failed', err);
+    }
+  }
+
+  private async indexSingleNote(notePath: NotePath): Promise<void> {
+    try {
+      const note = await this.vaultAdapter.readNote(notePath);
+      if (note && note.chunks.length > 0) {
+        await this.searchIndex.index(notePath, note.chunks);
+      } else {
+        await this.searchIndex.remove(notePath);
+      }
+    } catch {
+      // Non-critical — index will be rebuilt next startup
+    }
   }
 
   private async runCatchUp(): Promise<void> {

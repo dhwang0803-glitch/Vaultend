@@ -1,6 +1,6 @@
 import { QuickAskRequest, QuickAskResult } from '../../domain/models/QuickAskModels';
 import { NoteChunk } from '../../domain/models/NoteChunk';
-import { TagName, createTagName } from '../../domain/values/TagName';
+import { TagName, createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
@@ -65,11 +65,15 @@ export class QuickAskUseCase {
 
     // 4. Parse response — extract tags/links
     const suggestedTags: ReadonlyArray<TagName> = request.autoTag
-      ? (await this.aiProvider.callClassification({
-          text: aiResponse.content,
-          task: 'suggest-tags',
-          existingTags: settings.knownTags,
-        })).suggestedTags.map(t => createTagName(t))
+      ? [...new Set(
+          (await this.aiProvider.callClassification({
+            text: aiResponse.content,
+            task: 'suggest-tags',
+            existingTags: settings.knownTags,
+          })).suggestedTags
+            .map(t => sanitizeTagName(t))
+            .filter(t => /^#[\w가-힣\-/]+$/.test(t)),
+        )].map(t => createTagName(t))
       : [];
 
     const suggestedLinks = request.autoLink
