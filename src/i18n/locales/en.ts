@@ -138,6 +138,9 @@ const en = {
   'quickAsk.tokens': 'Tokens: {{count}}',
   'quickAsk.cost': 'Cost: ${{amount}}',
   'quickAsk.tags': 'Tags: {{tags}}',
+  'quickAsk.suggestedTags': 'Suggested Tags: {{tags}}',
+  'quickAsk.references': 'Referenced Notes',
+  'quickAsk.truncated': '⚠ Response was truncated due to token limit. Try a more specific question.',
 
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',

@@ -356,4 +356,228 @@ describe('QuickAskUseCase', () => {
       expect(texts).toContain('embedding-only content');
     });
   });
+
+  describe('referencedNotes (#60)', () => {
+    it('검색에서 사용된 노트 경로를 중복 없이 반환한다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('notes/react.md', 'React hooks'),
+        makeSearchResult('notes/react.md', 'React state'),
+        makeSearchResult('notes/typescript.md', 'TS basics'),
+      ];
+      const search = createMockSearch(searchResults);
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+      });
+
+      const uc = createUseCase({ vault, search });
+      const result = await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      const refs = result.referencedNotes.map(n => n as string);
+      expect(refs).toHaveLength(2);
+      expect(refs).toContain('notes/react.md');
+      expect(refs).toContain('notes/typescript.md');
+    });
+  });
+
+  describe('truncated (#65)', () => {
+    it('finishReason이 length면 truncated=true를 반환한다', async () => {
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'partial response...',
+          tokenUsage: { promptTokens: 10, completionTokens: 4096, totalTokens: 4106, estimatedCostUsd: 0.01 },
+          finishReason: 'length' as const,
+        }),
+      });
+
+      const uc = createUseCase({ ai });
+      const result = await uc.execute({
+        question: 'long question',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      expect(result.truncated).toBe(true);
+    });
+
+    it('finishReason이 stop이면 truncated=false를 반환한다', async () => {
+      const uc = createUseCase();
+      const result = await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      expect(result.truncated).toBe(false);
+    });
+  });
+
+  describe('auto-link fallback (#64)', () => {
+    it('AI가 링크를 제안하지 않으면 참조 노트를 링크로 사용한다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('notes/hooks.md', 'React hooks guide'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'No wikilinks in this response.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      const result = await uc.execute({
+        question: 'React hooks?',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: true,
+      });
+
+      expect(result.suggestedLinks.map(l => l as string)).toContain('notes/hooks.md');
+    });
+
+    it('autoLink=false면 참조 노트가 있어도 링크를 추가하지 않는다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('notes/hooks.md', 'React hooks guide'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'No wikilinks here.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      const result = await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      expect(result.suggestedLinks).toHaveLength(0);
+    });
+  });
+
+  describe('formatAnswer (#64 wikilink)', () => {
+    it('저장된 노트에 basename-only wikilink로 References를 포함한다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('folder/deep/note.md', 'content'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'Answer text.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: true,
+      });
+
+      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
+      const savedContent = writeCall[1] as string;
+      expect(savedContent).toContain('## References');
+      expect(savedContent).toContain('[[note]]');
+      expect(savedContent).not.toContain('folder/deep/');
+    });
+
+    it('동일 basename이 vault에 여러 개이면 상위 폴더를 접두사로 붙인다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('projects/hooks.md', 'React hooks'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'Answer.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+        listNotes: vi.fn().mockResolvedValue([
+          np('projects/hooks.md'),
+          np('archive/hooks.md'),
+        ]),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: true,
+      });
+
+      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
+      const savedContent = writeCall[1] as string;
+      expect(savedContent).toContain('[[projects/hooks]]');
+    });
+
+    it('상위 폴더도 동일하면 전체 경로를 사용한다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('a/notes/hooks.md', 'content'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: 'Answer.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+        listNotes: vi.fn().mockResolvedValue([
+          np('a/notes/hooks.md'),
+          np('b/notes/hooks.md'),
+        ]),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: true,
+      });
+
+      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
+      const savedContent = writeCall[1] as string;
+      expect(savedContent).toContain('[[a/notes/hooks]]');
+    });
+  });
 });

@@ -94,8 +94,36 @@ export class QuickAskModal extends Modal {
 
     this.resultContainer.empty();
 
+    // Truncation warning (#65)
+    if (result.truncated) {
+      this.resultContainer.createEl('div', {
+        text: t('quickAsk.truncated'),
+        cls: 'quick-ask-truncation-warning',
+      });
+    }
+
     const answerEl = this.resultContainer.createDiv('quick-ask-answer');
     await MarkdownRenderer.renderMarkdown(result.answer, answerEl, '', this.renderComponent);
+
+    // Referenced notes section (#60)
+    if (result.referencedNotes.length > 0) {
+      const refEl = this.resultContainer.createDiv('quick-ask-references');
+      refEl.createEl('strong', { text: t('quickAsk.references') });
+      const refList = refEl.createEl('ul');
+      for (const notePath of result.referencedNotes) {
+        const pathStr = notePath as string;
+        const displayName = this.resolveDisplayName(pathStr, result.referencedNotes);
+        const li = refList.createEl('li');
+        const link = li.createEl('a', { text: displayName, cls: 'internal-link' });
+        link.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const file = this.app.vault.getAbstractFileByPath(pathStr);
+          if (file instanceof TFile) {
+            await this.app.workspace.getLeaf('tab').openFile(file);
+          }
+        });
+      }
+    }
 
     const footerEl = this.resultContainer.createDiv('quick-ask-footer');
 
@@ -104,7 +132,7 @@ export class QuickAskModal extends Modal {
       t('quickAsk.cost', { amount: result.tokenUsage.estimatedCostUsd.toFixed(4) }),
     ];
     if (result.suggestedTags.length > 0) {
-      metaParts.push(t('quickAsk.tags', { tags: result.suggestedTags.join(', ') }));
+      metaParts.push(t('quickAsk.suggestedTags', { tags: result.suggestedTags.join(', ') }));
     }
     footerEl.createEl('small', { text: metaParts.join(' · '), cls: 'quick-ask-meta' });
 
@@ -127,5 +155,35 @@ export class QuickAskModal extends Modal {
     new ButtonComponent(actionsEl)
       .setButtonText(t('btn.close'))
       .onClick(() => this.close());
+  }
+
+  private resolveDisplayName(pathStr: string, allRefs: ReadonlyArray<import('../domain/values/NotePath').NotePath>): string {
+    const basename = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
+
+    const duplicates = allRefs.filter(n => {
+      const other = (n as string).split('/').pop()?.replace(/\.md$/, '');
+      return other === basename;
+    });
+
+    if (duplicates.length <= 1) {
+      return basename;
+    }
+
+    const parts = pathStr.replace(/\.md$/, '').split('/');
+    if (parts.length <= 1) {
+      return basename;
+    }
+
+    const parentSlug = `${parts[parts.length - 2]}/${basename}`;
+    const stillAmbiguous = duplicates.filter(n => {
+      const rel = (n as string).replace(/\.md$/, '');
+      return rel.endsWith(parentSlug);
+    });
+
+    if (stillAmbiguous.length > 1) {
+      return pathStr.replace(/\.md$/, '');
+    }
+
+    return parentSlug;
   }
 }
