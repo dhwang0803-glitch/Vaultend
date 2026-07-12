@@ -523,8 +523,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.maintenanceInterval = window.setInterval(async () => {
       try {
         if (this.settings.smartScheduling) {
-          const dirtySet = await this.changeTracker.getDirtySet();
-          if (dirtySet.size === 0) return;
+          const lastScan = await this.changeTracker.getLastScanTimestamp();
+          if (lastScan !== null) {
+            const dirtySet = await this.changeTracker.getDirtySet();
+            if (dirtySet.size === 0) return;
+          }
         }
         await this.runMaintenanceUseCase.execute();
       } catch (err) {

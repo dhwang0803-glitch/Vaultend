@@ -234,7 +234,9 @@ export class QuickAskUseCase {
     truncated: boolean,
     allNotes: ReadonlyArray<NotePath>,
   ): string {
-    let result = `## Question\n\n${question}\n\n## Answer\n\n${answer}`;
+    // Strip markdown URL links from AI response to prevent broken links in vault
+    const cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+    let result = `## Question\n\n${question}\n\n## Answer\n\n${cleanedAnswer}`;
 
     if (truncated) {
       result += '\n\n> [!warning] Response truncated due to token limit.';
