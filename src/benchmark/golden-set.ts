@@ -40,9 +40,10 @@ export interface BenchmarkResult {
   readonly topResults: ReadonlyArray<{ id: string; score: number }>;
 }
 
-// ─── 50 Golden Documents ───
-// 실제 Obsidian vault에서 발생하는 다양한 주제/길이/스타일
-export const GOLDEN_DOCUMENTS: GoldenDocument[] = [
+import { GOLDEN_DOCUMENTS_EN, GOLDEN_QUERIES_EN } from './golden-set-en';
+
+// ─── Korean Golden Documents (47) + English Golden Documents (53) = 100 Total ───
+const GOLDEN_DOCUMENTS_KO: GoldenDocument[] = [
   // === 프로그래밍 ===
   {
     id: 'react-hooks-guide',
@@ -560,8 +561,10 @@ Feynman Technique: 초등학생에게 설명하듯 단순화. 막히면 다시 �
   },
 ];
 
-// ─── 20 Golden Queries (Easy / Medium / Hard) ───
-export const GOLDEN_QUERIES: GoldenQuery[] = [
+export const GOLDEN_DOCUMENTS: GoldenDocument[] = [...GOLDEN_DOCUMENTS_KO, ...GOLDEN_DOCUMENTS_EN];
+
+// ─── Korean Golden Queries (20) + English Golden Queries (20) = 40 Total ───
+const GOLDEN_QUERIES_KO: GoldenQuery[] = [
   // === Easy (키워드 직접 매칭 — BM25도 잘 찾음) ===
   {
     id: 'q01-react-hooks',
@@ -708,6 +711,8 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     description: '"아이디어"에서 creativity/zettelkasten 연결은 순수 의미적',
   },
 ];
+
+export const GOLDEN_QUERIES: GoldenQuery[] = [...GOLDEN_QUERIES_KO, ...GOLDEN_QUERIES_EN];
 
 // ─── Scoring Utilities ───
 
