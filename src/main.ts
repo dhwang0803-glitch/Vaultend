@@ -83,6 +83,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   inboxConfidenceThreshold: 0,
   embeddingsEnabled: false,
   embeddingsModel: 'text-embedding-3-small',
+  rrfEmbeddingWeight: 2.0,
+  rrfK: 60,
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,

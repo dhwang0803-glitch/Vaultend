@@ -70,6 +70,10 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     privacyRules: [],
     knownTags: [] as unknown as ReadonlyArray<TagName>,
     trackTokenUsage: false,
+    embeddingsEnabled: false,
+    embeddingsModel: 'text-embedding-3-small',
+    rrfEmbeddingWeight: 2.0,
+    rrfK: 60,
     ...overrides,
   };
 }

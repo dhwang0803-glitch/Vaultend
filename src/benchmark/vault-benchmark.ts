@@ -6,8 +6,11 @@
  *
  * 사용법:
  *   npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Noluma\Inbox"
- *   OPENAI_API_KEY=sk-... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed
  *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini
+ *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini --model gemini-embedding-2
+ *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini --sweep
+ *   --weight 2.0 --k 60: RRF 파라미터 지정 (기본값: weight=2.0, k=60)
+ *   --sweep: 여러 weight/k 조합을 자동 테스트하여 최적 파라미터 출력
  *
  * --embed 없이 실행하면 BM25-only 모드 (API 불필요, 파이프라인 검증용)
  */
@@ -169,15 +172,14 @@ function createOpenAIProvider(apiKey: string): EmbeddingProvider {
   };
 }
 
-function createGeminiProvider(apiKey: string): EmbeddingProvider {
+function createGeminiProvider(apiKey: string, modelName = 'gemini-embedding-001'): EmbeddingProvider {
   let dim = 0;
   return {
-    name: 'gemini/text-embedding-004',
+    name: `gemini/${modelName}`,
     get dimension() { return dim; },
     async embed(texts: string[]): Promise<Float32Array[]> {
-      const model = 'gemini-embedding-001';
-      const requests = texts.map(text => ({ model: `models/${model}`, content: { parts: [{ text }] } }));
-      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:batchEmbedContents?key=${apiKey}`;
+      const requests = texts.map(text => ({ model: `models/${modelName}`, content: { parts: [{ text }] } }));
+      const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:batchEmbedContents?key=${apiKey}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,11 +219,11 @@ function vectorSearch(queryVec: Float32Array, docVecs: Map<string, Float32Array>
 function rrfMerge(
   bm25: Array<{ id: string; score: number }>,
   vec: Array<{ id: string; score: number }>,
-  k = 60, topK = 10,
+  k = 60, topK = 10, embeddingWeight = 1.0,
 ) {
   const scores = new Map<string, number>();
   bm25.forEach((r, i) => scores.set(r.id, (scores.get(r.id) ?? 0) + 1 / (k + i + 1)));
-  vec.forEach((r, i) => scores.set(r.id, (scores.get(r.id) ?? 0) + 1 / (k + i + 1)));
+  vec.forEach((r, i) => scores.set(r.id, (scores.get(r.id) ?? 0) + embeddingWeight * (1 / (k + i + 1))));
   return [...scores.entries()].map(([id, score]) => ({ id, score })).sort((a, b) => b.score - a.score).slice(0, topK);
 }
 
@@ -265,10 +267,14 @@ async function main() {
   const vaultIdx = args.indexOf('--vault');
   const vaultPath = vaultIdx >= 0 ? args[vaultIdx + 1] : null;
   const useEmbed = args.includes('--embed');
+  const useSweep = args.includes('--sweep');
   const providerArg = args.includes('--provider') ? args[args.indexOf('--provider') + 1] : 'openai';
+  const weightArg = args.includes('--weight') ? parseFloat(args[args.indexOf('--weight') + 1]) : 2.0;
+  const kArg = args.includes('--k') ? parseInt(args[args.indexOf('--k') + 1]) : 60;
+  const modelArg = args.includes('--model') ? args[args.indexOf('--model') + 1] : 'gemini-embedding-001';
 
   if (!vaultPath) {
-    console.error('Usage: npx tsx src/benchmark/vault-benchmark.ts --vault <path> [--embed] [--provider openai|gemini]');
+    console.error('Usage: npx tsx src/benchmark/vault-benchmark.ts --vault <path> [--embed] [--provider openai|gemini] [--model name] [--weight N] [--k N] [--sweep]');
     process.exit(1);
   }
 
@@ -310,7 +316,7 @@ async function main() {
     if (providerArg === 'gemini') {
       const key = process.env.GEMINI_API_KEY;
       if (!key) { console.error('GEMINI_API_KEY required'); process.exit(1); }
-      provider = createGeminiProvider(key);
+      provider = createGeminiProvider(key, modelArg);
     } else {
       const key = process.env.OPENAI_API_KEY;
       if (!key) { console.error('OPENAI_API_KEY required'); process.exit(1); }
@@ -328,7 +334,7 @@ async function main() {
     }
     console.log(`  ✓ ${docs.length} docs embedded (${provider.dimension}-dim)\n`);
 
-    console.log(`[4/4] Running embedding + hybrid queries...\n`);
+    console.log(`[4/4] Running embedding + hybrid queries (weight=${weightArg}, k=${kArg})...\n`);
     embResults = [];
     hybResults = [];
     for (const q of GOLDEN_QUERIES) {
@@ -337,8 +343,57 @@ async function main() {
       embResults.push(buildResult(q, 'Embedding', vecHits.map(h => h.id), vecHits));
 
       const bm25Hits = await bm25Search(docs, q.query, 10);
-      const hybHits = rrfMerge(bm25Hits, vecHits, 60, 10);
+      const hybHits = rrfMerge(bm25Hits, vecHits, kArg, 10, weightArg);
       hybResults.push(buildResult(q, 'Hybrid', hybHits.map(h => h.id), hybHits));
+    }
+
+    // Sweep mode: test multiple weight/k combinations
+    if (useSweep) {
+      console.log(`\n${'═'.repeat(60)}`);
+      console.log(`  RRF Weight Sweep`);
+      console.log(`${'═'.repeat(60)}\n`);
+
+      const WEIGHTS = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
+      const KS = [20, 40, 60, 80];
+      const sweepResults: Array<{ w: number; k: number; easyMrr: number; medMrr: number; hardMrr: number; overallMrr: number }> = [];
+
+      for (const k of KS) {
+        for (const w of WEIGHTS) {
+          const results: BenchmarkResult[] = [];
+          for (const q of GOLDEN_QUERIES) {
+            const [qVec] = await provider.embed([q.query]);
+            const vecHits = vectorSearch(qVec, docVecs, 10);
+            const bm25Hits = await bm25Search(docs, q.query, 10);
+            const hybHits = rrfMerge(bm25Hits, vecHits, k, 10, w);
+            results.push(buildResult(q, 'Hybrid', hybHits.map(h => h.id), hybHits));
+          }
+
+          const byDiff = (diff: string) => results.filter(r => GOLDEN_QUERIES.find(q => q.id === r.queryId)?.difficulty === diff);
+          const avgMrr = (arr: BenchmarkResult[]) => arr.length > 0 ? arr.reduce((s, r) => s + r.mrr, 0) / arr.length : 0;
+
+          sweepResults.push({
+            w, k,
+            easyMrr: avgMrr(byDiff('easy')),
+            medMrr: avgMrr(byDiff('medium')),
+            hardMrr: avgMrr(byDiff('hard')),
+            overallMrr: avgMrr(results),
+          });
+        }
+      }
+
+      console.log(`${'k'.padEnd(4)} ${'w'.padEnd(5)} ${'Easy'.padEnd(8)} ${'Medium'.padEnd(8)} ${'Hard'.padEnd(8)} ${'Overall'.padEnd(8)}`);
+      console.log('─'.repeat(50));
+      sweepResults.sort((a, b) => b.overallMrr - a.overallMrr);
+      for (const r of sweepResults) {
+        const mark = r.hardMrr >= 0.9 ? '★' : ' ';
+        console.log(`${String(r.k).padEnd(4)} ${r.w.toFixed(1).padEnd(5)} ${(r.easyMrr * 100).toFixed(1).padStart(5)}%  ${(r.medMrr * 100).toFixed(1).padStart(5)}%  ${(r.hardMrr * 100).toFixed(1).padStart(5)}%  ${(r.overallMrr * 100).toFixed(1).padStart(5)}% ${mark}`);
+      }
+
+      const best = sweepResults[0];
+      console.log(`\n★ Best config: k=${best.k}, weight=${best.w} → Overall MRR ${(best.overallMrr * 100).toFixed(1)}%, Hard MRR ${(best.hardMrr * 100).toFixed(1)}%`);
+
+      fs.writeFileSync('src/benchmark/rrf-sweep-results.json', JSON.stringify(sweepResults, null, 2));
+      console.log(`✓ Sweep results saved to src/benchmark/rrf-sweep-results.json\n`);
     }
   } else {
     console.log(`[3/4] Embedding: SKIPPED (add --embed flag + API key)\n`);

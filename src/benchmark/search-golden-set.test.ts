@@ -151,7 +151,7 @@ function embeddingSearch(query: string, topK: number): string[] {
   return scores.slice(0, topK).map(s => s.id);
 }
 
-function hybridSearch(query: string, topK: number): string[] {
+function hybridSearch(query: string, topK: number, embeddingWeight = 1.0): string[] {
   const RRF_K = 60;
   const bm25Results = bm25Search(query, 20);
   const embResults = embeddingSearch(query, 20);
@@ -165,7 +165,7 @@ function hybridSearch(query: string, topK: number): string[] {
 
   for (let i = 0; i < embResults.length; i++) {
     const id = embResults[i];
-    scores.set(id, (scores.get(id) ?? 0) + 1 / (RRF_K + i + 1));
+    scores.set(id, (scores.get(id) ?? 0) + embeddingWeight * (1 / (RRF_K + i + 1)));
   }
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
@@ -279,9 +279,7 @@ describe('Golden Set: Search Performance Benchmark', () => {
   });
 
   it('hybrid search improves on edge cases where BM25 fails', () => {
-    // Query uses different vocabulary than the target documents
     const semanticQuery = 'handling concurrent operations without blocking';
-    // BM25 likely misses 'python-async' and 'node-streams' because vocabulary mismatch
     const relevant = ['python-async', 'node-streams', 'node-events'];
 
     const bm25Res = bm25Search(semanticQuery, 5);
@@ -298,7 +296,23 @@ describe('Golden Set: Search Performance Benchmark', () => {
     console.log(`  Embed:  ${embRes.join(', ')} (${embHits} hits)`);
     console.log(`  Hybrid: ${hybridRes.join(', ')} (${hybridHits} hits)\n`);
 
-    // Embedding should catch semantic similarity even with vocabulary mismatch
     expect(embHits + hybridHits).toBeGreaterThanOrEqual(bm25Hits);
+  });
+
+  it('weighted RRF (embWeight=2.0) favors embedding for semantic queries', () => {
+    const semanticQuery = 'handling concurrent operations without blocking';
+    const relevant = ['python-async', 'node-streams', 'node-events'];
+
+    const equalRes = hybridSearch(semanticQuery, 5, 1.0);
+    const weightedRes = hybridSearch(semanticQuery, 5, 2.0);
+
+    const equalHits = equalRes.filter(id => relevant.includes(id)).length;
+    const weightedHits = weightedRes.filter(id => relevant.includes(id)).length;
+
+    console.log('\n  Weighted RRF Comparison:');
+    console.log(`  Equal (1:1):   ${equalRes.join(', ')} (${equalHits} hits)`);
+    console.log(`  Weighted (2:1): ${weightedRes.join(', ')} (${weightedHits} hits)\n`);
+
+    expect(weightedHits).toBeGreaterThanOrEqual(equalHits);
   });
 });

@@ -121,11 +121,13 @@ export class QuickAskUseCase {
     }
 
     try {
+      const settings = await this.config.getSettings();
+      const RRF_K = settings.rrfK;
+      const embWeight = settings.rrfEmbeddingWeight;
+
       const queryVector = await this.embedding.embed(query);
       const vectorResults = await this.vectorStore.search(queryVector, FETCH_SIZE);
 
-      // Reciprocal Rank Fusion (k=60)
-      const RRF_K = 60;
       const scores = new Map<string, { score: number; result: SearchResult }>();
 
       for (let i = 0; i < bm25Results.length; i++) {
@@ -142,7 +144,7 @@ export class QuickAskUseCase {
       for (let i = 0; i < vectorResults.length; i++) {
         const vr = vectorResults[i];
         const key = `${vr.notePath as string}::${vr.chunkIndex}`;
-        const rrfScore = 1 / (RRF_K + i + 1);
+        const rrfScore = embWeight * (1 / (RRF_K + i + 1));
         const existing = scores.get(key);
         if (existing) {
           existing.score += rrfScore;

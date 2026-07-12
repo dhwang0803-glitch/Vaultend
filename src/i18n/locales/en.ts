@@ -210,6 +210,12 @@ const en = {
   'settings.archiveFolder': 'Archive Folder',
   'settings.archiveFolderDesc': 'Target folder for archived notes',
 
+  'settings.search': 'Search (Advanced)',
+  'settings.rrfEmbeddingWeight': 'Embedding weight',
+  'settings.rrfEmbeddingWeightDesc': 'Weight multiplier for embedding results in hybrid search (default: 2.0). Higher values favor semantic similarity over keyword match.',
+  'settings.rrfK': 'RRF K parameter',
+  'settings.rrfKDesc': 'Reciprocal Rank Fusion smoothing parameter (default: 60). Lower values make rank differences more dramatic.',
+
   'settings.privacy': 'Privacy',
   'settings.privacyDesc': 'Notes matching these rules will not be sent to AI.',
   'settings.ruleName': 'Rule name',

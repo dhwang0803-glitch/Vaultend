@@ -210,7 +210,7 @@ describe('GeminiAdapter', () => {
       expect(result.dimension).toBe(4);
     });
 
-    it('uses text-embedding-004 as default model', async () => {
+    it('uses gemini-embedding-001 as default model', async () => {
       mockRequestUrl.mockResolvedValue({
         status: 200,
         json: { embeddings: [{ values: [0.1] }] },
@@ -222,7 +222,7 @@ describe('GeminiAdapter', () => {
       await adapter.callEmbedding({ texts: ['test'] });
 
       const url = mockRequestUrl.mock.calls[0][0].url as string;
-      expect(url).toContain('text-embedding-004');
+      expect(url).toContain('gemini-embedding-001');
     });
   });
 });

@@ -69,6 +69,10 @@ export interface PluginSettings {
   readonly embeddingsEnabled: boolean;
   readonly embeddingsModel: string;
 
+  // Hybrid search (RRF) tuning
+  readonly rrfEmbeddingWeight: number;
+  readonly rrfK: number;
+
   // Language
   readonly locale: 'auto' | 'en' | 'ko';
 }
