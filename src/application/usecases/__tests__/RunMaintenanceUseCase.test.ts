@@ -65,12 +65,12 @@ describe('RunMaintenanceUseCase', () => {
   });
 
   describe('findDuplicates (via execute)', () => {
-    it('동일 제목 노트를 중복으로 감지한다 (Jaccard = 1.0)', async () => {
+    it('동일 제목 + 동일 콘텐츠인 노트를 중복으로 감지한다', async () => {
       const notes = [np('folder/my-note.md'), np('other/my-note.md')];
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
         readNote: vi.fn().mockResolvedValue(
-          createTestNote({ metadata: createTestMetadata({ links: [np('x.md')] }) }),
+          createTestNote({ content: '# React Guide\n\nReact is a JavaScript library for building UIs.', metadata: createTestMetadata({ links: [np('x.md')] }) }),
         ),
       });
 
@@ -81,18 +81,13 @@ describe('RunMaintenanceUseCase', () => {
       expect(plan.duplicateCandidates[0].similarityScore).toBe(1.0);
     });
 
-    it('유사 제목을 Jaccard ≥ 0.6으로 감지한다', async () => {
-      // "react hooks guide" vs "react hooks tutorial"
-      // Tokens: [react, hooks, guide] vs [react, hooks, tutorial]
-      // intersection = 2, union = 4 → Jaccard = 0.5 → not detected
-      // More similar example: "react hooks" vs "react hooks intro"
-      // Tokens: [react, hooks] vs [react, hooks, intro]
-      // intersection = 2, union = 3 → Jaccard ≈ 0.67
+    it('유사 제목이지만 콘텐츠가 유사한 경우 감지한다', async () => {
       const notes = [np('react-hooks.md'), np('react-hooks-intro.md')];
+      const sharedContent = '# React Hooks\n\nuseState and useEffect are the most common hooks in React applications.';
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
         readNote: vi.fn().mockResolvedValue(
-          createTestNote({ metadata: createTestMetadata({ links: [np('x.md')] }) }),
+          createTestNote({ content: sharedContent, metadata: createTestMetadata({ links: [np('x.md')] }) }),
         ),
       });
 
@@ -100,10 +95,28 @@ describe('RunMaintenanceUseCase', () => {
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates.length).toBeGreaterThanOrEqual(1);
-      expect(plan.duplicateCandidates[0].similarityScore).toBeGreaterThanOrEqual(0.6);
+      expect(plan.duplicateCandidates[0].similarityScore).toBeGreaterThanOrEqual(0.7);
     });
 
-    it('완전히 다른 제목은 중복으로 감지하지 않는다', async () => {
+    it('유사 제목이지만 콘텐츠가 다르면 중복이 아니다', async () => {
+      const notes = [np('react-hooks.md'), np('react-hooks-intro.md')];
+      vault = createMockVault({
+        listNotes: vi.fn().mockResolvedValue(notes),
+        readNote: vi.fn().mockImplementation(async (path: NotePath) => {
+          if ((path as string) === 'react-hooks.md') {
+            return createTestNote({ content: '# React Hooks\n\nuseState and useEffect are powerful.', metadata: createTestMetadata({ links: [np('x.md')] }) });
+          }
+          return createTestNote({ content: '# Cooking Guide\n\nHow to make pasta from scratch with fresh ingredients.', metadata: createTestMetadata({ links: [np('x.md')] }) });
+        }),
+      });
+
+      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const plan = await uc.execute();
+
+      expect(plan.duplicateCandidates).toHaveLength(0);
+    });
+
+    it('완전히 다른 제목은 후보로도 생성되지 않는다', async () => {
       const notes = [np('typescript.md'), np('cooking-recipe.md')];
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
@@ -119,9 +132,7 @@ describe('RunMaintenanceUseCase', () => {
     });
 
     it('같은 토큰을 공유하는 노트가 50개 초과이면 스킵한다', async () => {
-      // 51 notes share the same token → paths.length > 50 → continue
       const notes = Array.from({ length: 51 }, (_, i) => np(`same-${i}.md`));
-      // All notes have only "same" token → tokenIndex["same"].length = 51 > 50 → skip
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
         readNote: vi.fn().mockResolvedValue(
@@ -132,10 +143,6 @@ describe('RunMaintenanceUseCase', () => {
       const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
-      // Only "same" as token so candidates = 0
-      // But numeric parts (0, 1, ...) become individual tokens and may partially match
-      // tokenize "same-0" → ["same", "0"]. Token "0" is not in all 51 (each number differs)
-      // In practice only "same" is >50 so it's skipped, each number token has count=1 so no candidates
       expect(plan.duplicateCandidates).toHaveLength(0);
     });
   });

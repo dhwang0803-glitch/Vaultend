@@ -1,0 +1,148 @@
+name: "QA Test Run"
+description: "실환경 수동 QA 테스트 실행 기록"
+title: "QA: v{version} 테스트런"
+labels: ["qa", "test-run"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 테스트 환경 정보
+        아래 환경 정보를 기입하고, 각 TC를 실행하며 체크하세요.
+        FAIL 항목은 하단에 상세 기록 후 별도 Issue로 등록합니다.
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin Version
+      placeholder: "0.3.11"
+    validations:
+      required: true
+
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian Version
+      placeholder: "1.7.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai-provider
+    attributes:
+      label: AI Provider
+      options:
+        - Gemini
+        - OpenAI
+    validations:
+      required: true
+
+  - type: input
+    id: vault-size
+    attributes:
+      label: "Vault Size (노트 수)"
+      placeholder: "50"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: quick-ask
+    attributes:
+      label: "1. Quick Ask"
+      options:
+        - label: "TC-1.1: 기본 질의 → 응답 표시 + 토큰/비용 + 저장 파일 버튼"
+        - label: "TC-1.2: Ctrl+Enter 단축키 동작"
+        - label: "TC-1.3: 빈 질문 → 에러 Notice"
+        - label: "TC-1.4: 태그 자동 추출 (vault 기존 태그 재사용)"
+        - label: "TC-1.5: 링크 자동 추출 ([[wikilink]])"
+        - label: "TC-1.6: Daily Note 모드 저장"
+        - label: "TC-1.7: Hybrid Search — 키워드 없는 의미적 질문에 관련 노트 포함"
+
+  - type: checkboxes
+    id: organize
+    attributes:
+      label: "2. Organize Current Note"
+      options:
+        - label: "TC-2.1: 기본 분류 → 모달 (카테고리/요약/태그/링크/폴더)"
+        - label: "TC-2.2: 태그 제안 품질 (vault 기존 태그 재사용, hallucination 없음)"
+        - label: "TC-2.3: 태그 수동 추가/제거"
+        - label: "TC-2.4: 링크 제안 (실제 존재하는 노트)"
+        - label: "TC-2.5: 폴더 이동 드롭다운 (실제 폴더 목록)"
+        - label: "TC-2.6: Apply All → frontmatter 태그 + 링크 + 이동"
+        - label: "TC-2.7: 토큰/비용 표시"
+        - label: "TC-2.8: 빈 vault 태그 생성 (3개+)"
+
+  - type: checkboxes
+    id: maintenance
+    attributes:
+      label: "3. Run Maintenance"
+      options:
+        - label: "TC-3.1: 전체 스캔 → Results 뷰 + 심각도 뱃지 + 필터"
+        - label: "TC-3.2: 고아 노트 탐지"
+        - label: "TC-3.3: 깨진 링크 탐지"
+        - label: "TC-3.4: 중복 노트 탐지"
+        - label: "TC-3.5: 빈 파일 탐지"
+        - label: "TC-3.6: 태그 없는 파일 탐지"
+        - label: "TC-3.7: 제외 폴더 동작"
+        - label: "TC-3.8: Smart Scheduling (dirty set 비면 스킵)"
+
+  - type: checkboxes
+    id: inbox
+    attributes:
+      label: "4. Inbox Process"
+      options:
+        - label: "TC-4.1: 기본 처리 → Notice (processed/skipped/errors)"
+        - label: "TC-4.2: 자동 감지 (Inbox Watcher)"
+        - label: "TC-4.3: Confidence Gating (low confidence → 미적용)"
+
+  - type: checkboxes
+    id: others
+    attributes:
+      label: "5. 기타 기능"
+      options:
+        - label: "TC-5.1: Capture Clipboard → 새 노트 저장"
+        - label: "TC-6.1: Maintenance Log 이력 조회"
+        - label: "TC-6.2: Undo 동작"
+        - label: "TC-7.1: AI Provider 전환 후 정상 동작"
+        - label: "TC-7.2: Privacy Rules (folder-exclude)"
+        - label: "TC-7.3: content-redact 규칙"
+        - label: "TC-7.4: Locale 전환 (en/ko)"
+
+  - type: checkboxes
+    id: edge-cases
+    attributes:
+      label: "6. Edge Cases"
+      options:
+        - label: "TC-8.1: API 키 미설정 → 에러 메시지 (크래시 없음)"
+        - label: "TC-8.2: 네트워크 오류 → 타임아웃 Notice"
+        - label: "TC-8.3: 노트 미선택 시 Organize 비활성"
+        - label: "TC-8.4: 매우 긴 노트 (10K자+) 정상 처리"
+
+  - type: textarea
+    id: failures
+    attributes:
+      label: "FAIL 상세 기록"
+      description: "FAIL된 TC 번호, 증상, 재현 방법을 기록하세요"
+      placeholder: |
+        TC-2.2: FAIL
+        증상: vault에 없는 태그 "quantum-computing"이 제안됨
+        재현: Inbox/react-hooks.md에서 Organize 실행
+        스크린샷: (있으면 첨부)
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "기타 메모"
+      description: "체감 속도, UX 개선점, 발견한 이상 동작 등"

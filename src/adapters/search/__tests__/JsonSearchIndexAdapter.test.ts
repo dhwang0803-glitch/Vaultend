@@ -10,16 +10,16 @@ function np(path: string): NotePath {
   return path as unknown as NotePath;
 }
 
-function makeChunk(text: string, heading = 'Section'): NoteChunk {
+function makeChunk(text: string, heading = 'Section', startLine = 0): NoteChunk {
   return {
     headingPath: heading as unknown as HeadingPath,
     text: text as unknown as ChunkText,
-    startLine: 0,
-    endLine: 5,
+    startLine,
+    endLine: startLine + 5,
   };
 }
 
-describe('JsonSearchIndexAdapter', () => {
+describe('JsonSearchIndexAdapter (MiniSearch)', () => {
   describe('index + search', () => {
     it('인덱스한 청크를 검색으로 찾을 수 있다', async () => {
       const vault = createMockVault({
@@ -72,14 +72,14 @@ describe('JsonSearchIndexAdapter', () => {
       expect(results).toHaveLength(0);
     });
 
-    it('1글자 검색어는 무시한다', async () => {
+    it('빈 검색어는 빈 결과를 반환한다', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(null),
       });
       const adapter = new JsonSearchIndexAdapter(vault);
 
-      await adapter.index(np('note.md'), [makeChunk('a b c data')]);
-      const results = await adapter.search('a b', 10);
+      await adapter.index(np('note.md'), [makeChunk('some data')]);
+      const results = await adapter.search('', 10);
 
       expect(results).toHaveLength(0);
     });
@@ -90,11 +90,54 @@ describe('JsonSearchIndexAdapter', () => {
       });
       const adapter = new JsonSearchIndexAdapter(vault);
 
-      await adapter.index(np('partial.md'), [makeChunk('only typescript')]);
-      await adapter.index(np('full.md'), [makeChunk('typescript react hooks')]);
+      await adapter.index(np('partial.md'), [makeChunk('only typescript guide')]);
+      await adapter.index(np('full.md'), [makeChunk('typescript react hooks pattern')]);
 
       const results = await adapter.search('typescript react', 10);
       expect(results[0].notePath).toBe(np('full.md'));
+    });
+
+    it('prefix 검색이 동작한다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('note.md'), [makeChunk('programming with typescript')]);
+      const results = await adapter.search('program', 10);
+
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    it('term frequency가 높은 문서가 상위 랭킹된다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('low.md'), [makeChunk('react is a library')]);
+      await adapter.index(np('high.md'), [makeChunk('react react react components in react')]);
+
+      const results = await adapter.search('react', 10);
+      expect(results[0].notePath).toBe(np('high.md'));
+    });
+  });
+
+  describe('re-indexing', () => {
+    it('같은 노트를 다시 인덱스하면 이전 항목을 교체한다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('note.md'), [makeChunk('old content about python')]);
+      await adapter.index(np('note.md'), [makeChunk('new content about rust')]);
+
+      const oldResults = await adapter.search('python', 10);
+      const newResults = await adapter.search('rust', 10);
+
+      expect(oldResults).toHaveLength(0);
+      expect(newResults.length).toBeGreaterThan(0);
     });
   });
 
@@ -143,24 +186,23 @@ describe('JsonSearchIndexAdapter', () => {
       );
     });
 
-    it('기존 인덱스 파일이 있으면 로드한다', async () => {
-      const indexData = {
-        'old-note.md': [{
-          notePath: 'old-note.md',
-          headingPath: 'Title',
-          text: 'existing indexed text',
-          originalText: 'Existing indexed text',
-          startLine: 0,
-          endLine: 3,
-        }],
-      };
-      const vault = createMockVault({
-        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(indexData)),
+    it('저장된 인덱스를 로드하여 검색할 수 있다', async () => {
+      const vault1 = createMockVault({
+        readFileRaw: vi.fn().mockResolvedValue(null),
       });
-      const adapter = new JsonSearchIndexAdapter(vault);
+      const adapter1 = new JsonSearchIndexAdapter(vault1);
+      await adapter1.index(np('note.md'), [makeChunk('persisted content about databases')]);
 
-      const results = await adapter.search('existing', 10);
+      const savedData = (vault1.writeFileRaw as ReturnType<typeof vi.fn>).mock.calls[0][1];
+
+      const vault2 = createMockVault({
+        readFileRaw: vi.fn().mockResolvedValue(savedData),
+      });
+      const adapter2 = new JsonSearchIndexAdapter(vault2);
+      const results = await adapter2.search('databases', 10);
+
       expect(results.length).toBeGreaterThan(0);
+      expect(results[0].notePath).toBe(np('note.md'));
     });
   });
 });

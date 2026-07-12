@@ -3,6 +3,10 @@ import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { ConfigPort, PluginSettings } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
+import { ChangeTrackingPort } from '../ports/ChangeTrackingPort';
+import { CorpusStatsPort } from '../ports/CorpusStatsPort';
+import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
+import { tokenizeForTfIdf } from '../../domain/services/tokenize';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
@@ -17,6 +21,8 @@ export class RunMaintenanceUseCase {
     private readonly searchIndex: SearchIndexPort,
     private readonly config: ConfigPort,
     private readonly clock: ClockPort,
+    private readonly changeTracking?: ChangeTrackingPort,
+    private readonly corpusStats?: CorpusStatsPort,
   ) {}
 
   async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
@@ -36,6 +42,11 @@ export class RunMaintenanceUseCase {
     const missingTags = await this.suggestMissingTags(filteredNotes);
     const emptyNotes = await this.findEmptyNotes(filteredNotes);
     const untaggedNotes = await this.findUntaggedNotes(filteredNotes);
+
+    if (this.changeTracking) {
+      await this.changeTracking.clearAll();
+      await this.changeTracking.setLastScanTimestamp(now);
+    }
 
     return {
       orphanNotes,
@@ -164,6 +175,58 @@ export class RunMaintenanceUseCase {
   }
 
   private async findDuplicates(allNotes: ReadonlyArray<NotePath>): Promise<DuplicatePair[]> {
+    const candidates = this.generateTitleCandidates(allNotes);
+
+    const corpus = new TfIdfCorpus();
+    if (this.corpusStats) {
+      const saved = await this.corpusStats.loadStats();
+      if (saved) corpus.loadFromStats(saved);
+    }
+
+    const noteTokensCache = new Map<string, string[]>();
+
+    const ensureIndexed = async (notePath: NotePath): Promise<string[]> => {
+      const pathStr = notePath as string;
+      if (noteTokensCache.has(pathStr)) return noteTokensCache.get(pathStr)!;
+      const note = await this.vault.readNote(notePath);
+      if (!note) return [];
+      const tokens = tokenizeForTfIdf(note.content);
+      noteTokensCache.set(pathStr, tokens);
+      if (corpus.hasDocument(pathStr)) {
+        corpus.removeDocument(pathStr);
+      }
+      corpus.addDocument(pathStr, tokens);
+      return tokens;
+    };
+
+    const pairs: DuplicatePair[] = [];
+    for (const { a, b } of candidates) {
+      const tokensA = await ensureIndexed(a);
+      const tokensB = await ensureIndexed(b);
+      if (tokensA.length === 0 || tokensB.length === 0) continue;
+
+      const vecA = corpus.computeTfIdfVector(tokensA);
+      const vecB = corpus.computeTfIdfVector(tokensB);
+      const similarity = corpus.cosineSimilarity(vecA, vecB);
+
+      if (similarity >= 0.6) {
+        pairs.push({
+          noteA: a,
+          noteB: b,
+          similarityScore: similarity,
+          reason: `TF-IDF similarity ${Math.round(similarity * 100)}%`,
+        });
+      }
+    }
+
+    if (this.corpusStats) {
+      await this.corpusStats.saveStats(corpus.getStats());
+    }
+
+    return pairs.sort((x, y) => y.similarityScore - x.similarityScore);
+  }
+
+  private generateTitleCandidates(allNotes: ReadonlyArray<NotePath>): Array<{ a: NotePath; b: NotePath }> {
     const tokenIndex = new Map<string, NotePath[]>();
 
     for (const notePath of allNotes) {
@@ -192,20 +255,21 @@ export class RunMaintenanceUseCase {
       }
     }
 
-    const pairs: DuplicatePair[] = [];
+    const results: Array<{ a: NotePath; b: NotePath }> = [];
     for (const [, { a, b, tokensA, tokensB }] of candidateScores) {
       const setB = new Set(tokensB);
       const intersection = tokensA.filter(t => setB.has(t)).length;
       const union = new Set([...tokensA, ...tokensB]).size;
       const jaccard = union > 0 ? intersection / union : 0;
 
-      if (jaccard >= 0.6) {
-        pairs.push({ noteA: a, noteB: b, similarityScore: jaccard, reason: 'Title similarity' });
+      if (jaccard >= 0.4) {
+        results.push({ a, b });
       }
     }
 
-    return pairs.sort((x, y) => y.similarityScore - x.similarityScore);
+    return results;
   }
+
 
   private tokenizeTitle(path: NotePath): string[] {
     const basename = (path as string).split('/').pop()?.replace('.md', '') ?? '';

@@ -1,0 +1,74 @@
+name: "QA Failure"
+description: "테스트런에서 발견된 버그 등록"
+title: "[QA] TC-{id}: {간단한 설명}"
+labels: ["bug", "qa"]
+body:
+  - type: input
+    id: test-case
+    attributes:
+      label: "Test Case ID"
+      placeholder: "TC-2.2"
+    validations:
+      required: true
+
+  - type: input
+    id: test-run
+    attributes:
+      label: "테스트런 Issue 번호"
+      description: "이 버그가 발견된 QA Test Run Issue"
+      placeholder: "#55"
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical (기능 불가)
+        - High (주요 기능 오동작)
+        - Medium (부분 오동작)
+        - Low (표시/UX 문제)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "기대 동작"
+      placeholder: "vault 기존 태그만 제안되어야 한다"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: "실제 동작"
+      placeholder: "vault에 없는 'quantum-computing' 태그가 제안됨"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "재현 방법"
+      placeholder: |
+        1. Inbox/react-hooks.md 열기
+        2. Command Palette → Organize Current Note
+        3. 제안 태그 확인
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "환경"
+      value: |
+        - Plugin: v0.3.11
+        - Obsidian: v1.7.2
+        - OS: Windows 11
+        - AI Provider: Gemini
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: "스크린샷 / 콘솔 로그"
+      description: "가능하면 첨부"

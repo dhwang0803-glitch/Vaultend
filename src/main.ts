@@ -8,6 +8,10 @@ import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 import { ObsidianClipboardAdapter } from './adapters/clipboard/ObsidianClipboardAdapter';
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
+import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackingAdapter';
+import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
+import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
+import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
 
 // Use Cases
 import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
@@ -26,6 +30,7 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
 import { PluginSettingTab } from './ui/PluginSettingTab';
+import { localizeError } from './ui/localizeError';
 
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
@@ -71,10 +76,16 @@ const DEFAULT_SETTINGS: PluginSettings = {
   dailyNoteFolder: DEFAULT_DAILY_NOTE_FOLDER,
   maintenanceEnabled: false,
   maintenanceIntervalMinutes: DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
+  smartScheduling: true,
   maintenanceExcludeFolders: [DEFAULT_SAVE_FOLDER],
   maintenanceExcludeFiles: [],
   maintenanceExcludeTags: [],
   maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
+  inboxConfidenceThreshold: 0,
+  embeddingsEnabled: false,
+  embeddingsModel: 'text-embedding-3-small',
+  rrfEmbeddingWeight: 2.0,
+  rrfK: 60,
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,
@@ -91,6 +102,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private historyAdapter!: FileHistoryAdapter;
   private clipboardAdapter!: ObsidianClipboardAdapter;
   private clockAdapter!: SystemClockAdapter;
+  private changeTracker!: FileChangeTrackingAdapter;
+  private corpusStatsAdapter!: FileCorpusStatsAdapter;
+  private embeddingAdapter!: AIEmbeddingAdapter;
+  private vectorStoreAdapter!: JsonVectorStoreAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -145,7 +160,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 9. Schedule auto-maintenance
     this.scheduleMaintenanceIfEnabled();
 
-    // 10. Catch-up on app open (process Inbox notes changed since last run)
+    // 10. Initialize embeddings if enabled
+    if (this.settings.embeddingsEnabled) {
+      this.app.workspace.onLayoutReady(async () => {
+        await this.vectorStoreAdapter.load();
+        await this.embeddingAdapter.initialize();
+      });
+    }
+
+    // 11. Catch-up on app open (process Inbox notes changed since last run)
     this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
@@ -153,6 +176,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
   onunload(): void {
     console.log('Knowledge Maintenance Plugin: unloading');
+
+    // Persist dirty set before shutdown
+    this.changeTracker.persist();
 
     // Unsubscribe event watchers
     if (this.unsubscribeVaultEvents) {
@@ -180,6 +206,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.searchIndex = new JsonSearchIndexAdapter(this.vaultAdapter);
     this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
     this.clipboardAdapter = new ObsidianClipboardAdapter();
+    this.changeTracker = new FileChangeTrackingAdapter(this.vaultAdapter);
+    this.corpusStatsAdapter = new FileCorpusStatsAdapter(this.vaultAdapter);
+    this.vectorStoreAdapter = new JsonVectorStoreAdapter(this.vaultAdapter);
 
     // ConfigPort — shared single instance across all layers
     this.configPort = {
@@ -193,6 +222,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
+    this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter, this.configPort);
   }
 
   private wireUseCases(): void {
@@ -204,6 +234,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter, this.vaultAdapter, this.searchIndex,
       this.historyAdapter, this.configPort, this.clockAdapter,
       this.saveNoteUseCase,
+      this.settings.embeddingsEnabled ? this.embeddingAdapter : undefined,
+      this.settings.embeddingsEnabled ? this.vectorStoreAdapter : undefined,
     );
 
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
@@ -219,6 +251,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
       this.configPort, this.clockAdapter,
+      this.changeTracker, this.corpusStatsAdapter,
     );
 
     this.captureClipboardUseCase = new CaptureClipboardUseCase(
@@ -295,7 +328,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const path = await this.captureClipboardUseCase.execute();
           new Notice(t('notice.clipboardSaved', { path: String(path) }));
         } catch (err) {
-          new Notice(t('notice.clipboardFailed', { error: err instanceof Error ? err.message : String(err) }));
+          new Notice(t('notice.clipboardFailed', { error: localizeError(err) }));
         }
       },
     });
@@ -359,7 +392,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             new OrganizeResultModal(this.app, notePath, result, actions, ctx).open();
           })
           .catch(err => {
-            new Notice(t('notice.organizeFailed', { error: err instanceof Error ? err.message : String(err) }));
+            new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
           });
       },
     });
@@ -390,7 +423,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             errors: result.errors.length,
           }));
         } catch (err) {
-          new Notice(t('notice.inboxFailed', { error: err instanceof Error ? err.message : String(err) }));
+          new Notice(t('notice.inboxFailed', { error: localizeError(err) }));
         }
       },
     });
@@ -448,9 +481,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const pendingPaths = new Set<string>();
 
     this.unsubscribeVaultEvents = this.vaultAdapter.watchEvents((event: VaultEvent) => {
-      if (event.type !== 'create' && event.type !== 'modify') return;
-
       const pathStr = event.path as string;
+
+      // Track all .md file changes for smart scheduling
+      if (pathStr.endsWith('.md')) {
+        this.changeTracker.markDirty(event.path);
+      }
+
+      if (event.type !== 'create' && event.type !== 'modify') return;
       if (!pathStr.startsWith(this.settings.inboxFolder)) return;
 
       pendingPaths.add(pathStr);
@@ -475,6 +513,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     this.maintenanceInterval = window.setInterval(async () => {
       try {
+        if (this.settings.smartScheduling) {
+          const dirtySet = await this.changeTracker.getDirtySet();
+          if (dirtySet.size === 0) return;
+        }
         await this.runMaintenanceUseCase.execute();
       } catch (err) {
         console.error('Knowledge Maintenance: scheduled maintenance failed', err);

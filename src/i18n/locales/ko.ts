@@ -212,6 +212,21 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.archiveFolder': '아카이브 폴더',
   'settings.archiveFolderDesc': '노트 아카이브 시 이동할 대상 폴더',
 
+  'settings.search': '검색 (고급)',
+  'settings.rrfEmbeddingWeight': '임베딩 가중치',
+  'settings.rrfEmbeddingWeightDesc': '하이브리드 검색에서 임베딩 결과의 가중치 배율 (기본: 2.0). 높을수록 의미적 유사성을 우선합니다.',
+  'settings.rrfK': 'RRF K 파라미터',
+  'settings.rrfKDesc': 'Reciprocal Rank Fusion 스무딩 파라미터 (기본: 60). 낮을수록 순위 차이가 극적으로 반영됩니다.',
+
+  // ─── Domain Errors ───
+  'error.noteNotFound': '노트를 찾을 수 없습니다: {{id}}',
+  'error.duplicateNote': '이미 존재하는 노트입니다: {{path}}',
+  'error.invalidContent': '유효하지 않은 노트 내용: {{reason}}',
+  'error.aiProvider': 'AI 오류 [{{provider}}] ({{status}}): {{detail}}',
+  'error.privacyViolation': '프라이버시 규칙에 의해 차단: {{rule}}',
+  'error.rateLimit': '요청 한도 초과 — {{ms}}ms 후 재시도',
+  'error.historyNotFound': '되돌릴 이력 항목을 찾을 수 없습니다: {{id}}',
+
   'settings.privacy': '프라이버시',
   'settings.privacyDesc': '아래 규칙에 해당하는 노트는 AI에게 전송되지 않습니다.',
   'settings.ruleName': '규칙 이름',

@@ -1,2 +1,5 @@
 blank_issues_enabled: true
-contact_links: []
+contact_links:
+  - name: QA Test Plan (docs)
+    url: https://github.com/dhwang0803-glitch/Noluma/blob/development/docs/qa/manual-test-plan.md
+    about: Full manual test plan with detailed steps

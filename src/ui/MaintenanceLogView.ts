@@ -3,6 +3,7 @@ import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
 import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants';
 import { t, formatDate } from '../i18n';
+import { localizeError } from './localizeError';
 
 export { MAINTENANCE_LOG_VIEW_TYPE };
 
@@ -69,8 +70,7 @@ export class MaintenanceLogView extends ItemView {
               new Notice(t('undo.success'));
               await this.refresh();
             } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              new Notice(t('undo.failed', { error: msg }));
+              new Notice(t('undo.failed', { error: localizeError(err) }));
             }
           }),
         );

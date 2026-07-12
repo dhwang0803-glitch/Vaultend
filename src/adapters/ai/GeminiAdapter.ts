@@ -1,8 +1,10 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
-         ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
-import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
+         ClassificationRequest, ClassificationResponse,
+         EmbeddingRequest, EmbeddingResponse } from '../../application/ports/AIProviderPort';
+import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
+import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
 
 export class GeminiAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
@@ -24,6 +26,7 @@ export class GeminiAdapter implements AIProviderPort {
       generationConfig: {
         maxOutputTokens: request.maxTokens,
         temperature: request.temperature,
+        ...(request.jsonMode ? { responseMimeType: 'application/json' } : {}),
       },
       ...(request.systemPrompt
         ? { systemInstruction: { parts: [{ text: request.systemPrompt }] } }
@@ -63,20 +66,74 @@ export class GeminiAdapter implements AIProviderPort {
     const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.existingFolders);
     const completionResponse = await this.callCompletion({
       prompt,
-      systemPrompt: PromptTemplates.classificationSystemPrompt,
+      systemPrompt: PromptTemplates.classificationSystemPrompt(detectContentLanguage(request.text)),
       maxTokens: 500,
       temperature: 0.3,
+      jsonMode: true,
     });
 
-    const parsed = JSON.parse(this.stripCodeBlock(completionResponse.content));
+    const parsed = await this.parseJsonWithRetry(completionResponse.content, prompt);
     return {
-      category: parsed.category ?? '미분류',
-      suggestedTags: parsed.tags ?? [],
-      suggestedFolder: parsed.folder,
-      summary: parsed.summary ?? '',
-      confidence: parsed.confidence ?? 0.5,
+      category: (parsed.category as string) ?? '미분류',
+      suggestedTags: (parsed.tags as string[]) ?? [],
+      suggestedFolder: parsed.folder as string | undefined,
+      summary: (parsed.summary as string) ?? '',
+      confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
     };
+  }
+
+  async callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+    const model = request.model ?? 'gemini-embedding-001';
+    const requests = request.texts.map(text => ({
+      model: `models/${model}`,
+      content: { parts: [{ text }] },
+    }));
+
+    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:batchEmbedContents?key=${this.apiKey}`;
+    const params: RequestUrlParam = {
+      url,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests }),
+    };
+
+    const response = await this.requestWithRetry(params);
+    const result = response.json as { embeddings: Array<{ values: number[] }> };
+
+    const embeddings = result.embeddings.map(e => new Float32Array(e.values));
+    const dimension = embeddings.length > 0 ? embeddings[0].length : 0;
+
+    return {
+      embeddings,
+      dimension,
+      tokenUsage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+      },
+    };
+  }
+
+  private async parseJsonWithRetry(content: string, originalPrompt: string): Promise<Record<string, unknown>> {
+    try {
+      return JSON.parse(this.stripCodeBlock(content));
+    } catch {
+      const repairResponse = await this.callCompletion({
+        prompt: `Your previous response was not valid JSON. The original request was:\n\n${originalPrompt}\n\nRespond ONLY with valid JSON. No markdown, no code blocks, no explanation.`,
+        systemPrompt: 'You must respond with valid JSON only. No other text.',
+        maxTokens: 500,
+        temperature: 0.1,
+        jsonMode: true,
+      });
+
+      try {
+        return JSON.parse(this.stripCodeBlock(repairResponse.content));
+      } catch {
+        throw new AIParseError('Gemini', content);
+      }
+    }
   }
 
   private async requestWithRetry(params: RequestUrlParam) {

@@ -1,31 +1,53 @@
 import { NoteChunk } from '../domain/models/NoteChunk';
+import { detectContentLanguage } from './utils/detectContentLanguage';
 
-/**
- * AI 호출에 사용되는 프롬프트 템플릿 모음.
- *
- * 모든 프롬프트는 한국어 기반이며, 사용자의 Vault 언어에 관계없이
- * 플러그인 내부 프롬프트는 일관된 형식을 유지한다.
- */
+type Lang = 'en' | 'ko';
+
 export const PromptTemplates = {
 
-  classificationSystemPrompt: `당신은 노트 분류 및 태깅 전문가입니다.
+  classificationSystemPrompt(lang: Lang): string {
+    if (lang === 'en') {
+      return `You are an expert in note classification and tagging.
+
+Core rules:
+1. Base your analysis ONLY on what is actually written in the "Note content" section.
+2. Do not infer or fabricate information not present in the note.
+3. The summary must only summarize what is actually written in the note. Do not mix tag or folder information into the summary.
+4. The tag/folder lists are merely "options" — do not select them without evidence from the note content.
+5. You must respond ONLY in valid JSON format.`;
+    }
+    return `당신은 노트 분류 및 태깅 전문가입니다.
 
 핵심 규칙:
 1. 오직 "노트 내용" 섹션에 실제로 적혀 있는 내용만 기반으로 분석하세요.
 2. 노트에 없는 내용을 추측하거나 만들어내지 마세요.
 3. summary는 노트에 실제로 적힌 내용만 한 문장으로 요약하세요. 태그나 폴더 정보를 요약에 섞지 마세요.
 4. 태그/폴더 목록은 "선택지"일 뿐이며, 노트 내용의 근거 없이 선택하지 마세요.
-5. 반드시 유효한 JSON 형식으로만 응답하세요.`,
+5. 반드시 유효한 JSON 형식으로만 응답하세요.`;
+  },
 
-  /**
-   * Quick Ask 프롬프트 — 질문에 대해 Vault 컨텍스트 기반 응답 생성
-   */
   quickAsk(question: string, contextChunks: ReadonlyArray<NoteChunk>): string {
+    const lang = detectContentLanguage(question);
     const contextSection = contextChunks.length > 0
-      ? `\n\n## 관련 노트 컨텍스트\n\n${contextChunks.map((chunk, i) =>
-          `### 컨텍스트 ${i + 1}\n${chunk.text}`
+      ? `\n\n## ${lang === 'en' ? 'Related Note Context' : '관련 노트 컨텍스트'}\n\n${contextChunks.map((chunk, i) =>
+          `### ${lang === 'en' ? 'Context' : '컨텍스트'} ${i + 1}\n${chunk.text}`
         ).join('\n\n')}`
       : '';
+
+    if (lang === 'en') {
+      return `You are an assistant that answers questions based on the user's personal knowledge base (Obsidian Vault).
+
+Answer the question using the context provided below. If information is not in the context, you may use general knowledge but clearly distinguish it from context-based information.
+
+Answer format:
+- Write in markdown format
+- Reference existing notes using [[wikilink]] format when relevant
+- Organize key points in a structured manner
+${contextSection}
+
+## Question
+${question}`;
+    }
 
     return `당신은 사용자의 개인 지식 베이스(Obsidian Vault)를 기반으로 질문에 답변하는 어시스턴트입니다.
 
@@ -41,10 +63,43 @@ ${contextSection}
 ${question}`;
   },
 
-  /**
-   * 분류 및 태깅 프롬프트
-   */
   classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, existingFolders?: ReadonlyArray<string>): string {
+    const lang = detectContentLanguage(noteContent);
+
+    if (lang === 'en') {
+      const tagsInfo = existingTags.length > 0
+        ? `\nAvailable existing tags (by frequency): ${existingTags.join(', ')}\n\n⚠️ Important: You MUST choose only from the existing tags above. Only suggest at most 1 new tag if none of the existing tags are appropriate. Reusing existing tags is the top priority to keep the vault maintainable.`
+        : `\nThis vault has no tags yet. Extract exactly 3 tags from the note's key concepts. Tags should be general, concise (1-2 words), and reusable. Avoid overly specific tags that only apply to this note.`;
+      const currentInfo = currentNoteTags && currentNoteTags.length > 0
+        ? `\nTags already applied to this note: ${currentNoteTags.join(', ')}\nDo not suggest tags that are already applied. Only suggest new ones.`
+        : '';
+      const folderInfo = existingFolders && existingFolders.length > 0
+        ? `\nExisting folders: ${existingFolders.join(', ')}\nYou MUST choose only from existing folders. Set folder to null if the current location is appropriate.`
+        : '';
+
+      return `Read the "Note content" section below and suggest tags that match the topics this note actually covers.
+${tagsInfo}${currentInfo}${folderInfo}
+
+## Analysis procedure (you MUST follow this)
+1. Read the note content and identify **2-3 unique key topics/concepts** the note covers.
+2. Select/create tags corresponding to those topics. Never select tags unrelated to the note content.
+3. Determine the category based on the note's actual subject.
+4. Summarize only what is written in the note.
+
+## Response format (JSON only)
+{
+  "category": "category name (e.g., technology, daily, project, learning, work)",
+  "tags": ["#tag1", "#tag2", "#tag3"],
+  "folder": "recommended folder path or null",
+  "summary": "one sentence summarizing only what is actually written in the note",
+  "confidence": 0.85
+}
+
+---
+Note content:
+${noteContent}`;
+    }
+
     const tagsInfo = existingTags.length > 0
       ? `\n사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n⚠️ 중요: 반드시 위 기존 태그 중에서만 선택하세요. 기존 태그 중 적합한 것이 전혀 없는 경우에만 새 태그를 최대 1개까지 제안할 수 있습니다. 태그가 늘어나면 vault 유지보수가 어려워지므로 기존 태그 재사용을 최우선으로 하세요.`
       : `\n이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요.`;
@@ -78,10 +133,26 @@ ${tagsInfo}${currentInfo}${folderInfo}
 ${noteContent}`;
   },
 
-  /**
-   * 링크 제안 프롬프트
-   */
   suggestLinks(noteContent: string, availableNotes: ReadonlyArray<string>): string {
+    const lang = detectContentLanguage(noteContent);
+
+    if (lang === 'en') {
+      return `Find existing notes that may be related to the following note.
+
+Existing notes:
+${availableNotes.map(n => `- ${n}`).join('\n')}
+
+Current note content:
+---
+${noteContent}
+---
+
+Respond with related notes as a JSON array:
+["note1", "note2", ...]
+
+If no notes are related, return an empty array [].`;
+    }
+
     return `다음 노트와 관련이 있을 수 있는 기존 노트를 찾아주세요.
 
 기존 노트 목록:
@@ -98,10 +169,20 @@ ${noteContent}
 관련 노트가 없으면 빈 배열 []을 반환하세요.`;
   },
 
-  /**
-   * 요약 프롬프트
-   */
   summarize(noteContent: string): string {
+    const lang = detectContentLanguage(noteContent);
+
+    if (lang === 'en') {
+      return `Summarize the following note in 2-3 sentences. Include key keywords.
+
+Note content:
+---
+${noteContent}
+---
+
+Summary:`;
+    }
+
     return `다음 노트의 내용을 2-3문장으로 요약하세요. 핵심 키워드를 포함하세요.
 
 노트 내용:

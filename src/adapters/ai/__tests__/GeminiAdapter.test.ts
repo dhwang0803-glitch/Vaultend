@@ -186,4 +186,43 @@ describe('GeminiAdapter', () => {
       expect(result.suggestedFolder).toBe('Science');
     });
   });
+
+  describe('callEmbedding', () => {
+    it('returns Float32Array embeddings from Gemini batchEmbedContents', async () => {
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          embeddings: [
+            { values: [0.1, 0.2, 0.3, 0.4] },
+            { values: [0.5, 0.6, 0.7, 0.8] },
+          ],
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      const result = await adapter.callEmbedding({ texts: ['hello', 'world'] });
+
+      expect(result.embeddings.length).toBe(2);
+      expect(result.embeddings[0]).toBeInstanceOf(Float32Array);
+      expect(result.embeddings[0].length).toBe(4);
+      expect(result.dimension).toBe(4);
+    });
+
+    it('uses gemini-embedding-001 as default model', async () => {
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: { embeddings: [{ values: [0.1] }] },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      await adapter.callEmbedding({ texts: ['test'] });
+
+      const url = mockRequestUrl.mock.calls[0][0].url as string;
+      expect(url).toContain('gemini-embedding-001');
+    });
+  });
 });

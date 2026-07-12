@@ -3,6 +3,7 @@ import { QuickAskUseCase } from '../application/usecases/QuickAskUseCase';
 import { QuickAskRequest, QuickAskResult } from '../domain/models/QuickAskModels';
 import { SaveTarget } from '../domain/models/SaveTarget';
 import { t } from '../i18n';
+import { localizeError } from './localizeError';
 
 export class QuickAskModal extends Modal {
   private questionInput: TextAreaComponent | null = null;
@@ -81,7 +82,7 @@ export class QuickAskModal extends Modal {
       await this.renderResult(this.lastResult);
     } catch (err) {
       if (this.resultContainer) {
-        const errorMsg = t('quickAsk.error', { error: err instanceof Error ? err.message : String(err) });
+        const errorMsg = t('quickAsk.error', { error: localizeError(err) });
         this.resultContainer.empty();
         this.resultContainer.createEl('p', { text: errorMsg, cls: 'maintenance-result-error' });
       }

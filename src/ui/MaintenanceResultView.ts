@@ -8,6 +8,7 @@ import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
+import { localizeError } from './localizeError';
 import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
 import { t, formatDate } from '../i18n';
 
@@ -100,7 +101,7 @@ export class MaintenanceResultView extends ItemView {
       contentEl.empty();
       contentEl.createEl('h4', { text: t('maintenance.title') });
       contentEl.createEl('p', {
-        text: t('maintenance.scanFailed', { error: err instanceof Error ? err.message : String(err) }),
+        text: t('maintenance.scanFailed', { error: localizeError(err) }),
         cls: 'maintenance-result-error',
       });
     } finally {
@@ -124,7 +125,7 @@ export class MaintenanceResultView extends ItemView {
       contentEl.empty();
       contentEl.createEl('h4', { text: t('maintenance.folderTitle', { folder: folderPath }) });
       contentEl.createEl('p', {
-        text: t('maintenance.scanFailed', { error: err instanceof Error ? err.message : String(err) }),
+        text: t('maintenance.scanFailed', { error: localizeError(err) }),
         cls: 'maintenance-result-error',
       });
     } finally {
@@ -667,7 +668,7 @@ export class MaintenanceResultView extends ItemView {
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
     } catch (err) {
-      new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
+      new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
   }
 

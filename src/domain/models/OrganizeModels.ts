@@ -15,6 +15,7 @@ export interface OrganizeResult {
   readonly suggestedMoveTarget?: string;
   readonly summary: string;
   readonly tokenUsage: TokenUsage;
+  readonly lowConfidence?: boolean;
 }
 
 /**

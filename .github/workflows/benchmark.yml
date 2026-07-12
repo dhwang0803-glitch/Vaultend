@@ -1,0 +1,202 @@
+name: Embedding Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      vault_docs:
+        description: "Scale test document count"
+        default: "1000"
+        type: string
+      run_embedding:
+        description: "Run embedding benchmark (requires GEMINI_API_KEY)"
+        default: true
+        type: boolean
+
+  push:
+    branches: [development]
+    paths:
+      - "src/benchmark/**"
+      - "src/application/usecases/QuickAskUseCase.ts"
+      - "src/domain/services/TfIdfCorpus.ts"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit Tests
+        run: npm test
+
+  scale-test:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Scale Test (BM25 only)
+        id: scale
+        run: |
+          echo "## Scale Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          DOCS=${{ inputs.vault_docs || '1000' }}
+          echo "Testing with $DOCS docs..." >> $GITHUB_STEP_SUMMARY
+
+          OUTPUT=$(npx tsx src/benchmark/scale-test.ts --docs "$DOCS" 2>&1) || true
+          echo "$OUTPUT"
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Extract P95 and check threshold (100ms)
+          P95=$(echo "$OUTPUT" | grep -oP 'P95[:\s]*[\d.]+' | grep -oP '[\d.]+' | tail -1)
+          if [ -n "$P95" ]; then
+            THRESHOLD=100
+            PASS=$(echo "$P95 < $THRESHOLD" | bc -l 2>/dev/null || echo "1")
+            if [ "$PASS" = "0" ]; then
+              echo "p95_fail=true" >> $GITHUB_OUTPUT
+              echo "p95_value=$P95" >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **P95 ${P95}ms exceeds ${THRESHOLD}ms threshold**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "✅ **P95 ${P95}ms within ${THRESHOLD}ms threshold**" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Create issue on scale failure
+        if: steps.scale.outputs.p95_fail == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const p95 = '${{ steps.scale.outputs.p95_value }}';
+            const docs = '${{ inputs.vault_docs || '1000' }}';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Benchmark] Scale test P95 regression: ${p95}ms (${docs} docs)`,
+              body: `## Scale Test Performance Regression\n\n` +
+                `- **P95 Latency**: ${p95}ms\n` +
+                `- **Threshold**: 100ms\n` +
+                `- **Document Count**: ${docs}\n` +
+                `- **Commit**: ${context.sha}\n` +
+                `- **Branch**: ${context.ref}\n` +
+                `- **Run**: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n` +
+                `이 이슈는 벤치마크 자동 실행에서 생성되었습니다.`,
+              labels: ['bug', 'performance', 'benchmark'],
+            });
+
+  embedding-benchmark:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ inputs.run_embedding == true || inputs.run_embedding == '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Golden Set Benchmark (BM25-only)
+        id: golden
+        run: |
+          echo "## Golden Set Benchmark (BM25)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          OUTPUT=$(npx tsx src/benchmark/vault-benchmark.ts --vault "src/benchmark/fixtures/golden-vault" 2>&1) || true
+          echo "$OUTPUT"
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" | tail -30 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Extract Overall MRR
+          MRR=$(echo "$OUTPUT" | grep -oP 'Overall.*MRR[:\s]*[\d.]+' | grep -oP '[\d.]+' | tail -1)
+          if [ -n "$MRR" ]; then
+            echo "bm25_mrr=$MRR" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Hybrid Benchmark (with Gemini)
+        id: hybrid
+        if: ${{ env.GEMINI_API_KEY != '' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "## Hybrid Benchmark (BM25 + Gemini Embedding)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          OUTPUT=$(npx tsx src/benchmark/vault-benchmark.ts \
+            --vault "src/benchmark/fixtures/golden-vault" \
+            --embed \
+            --provider gemini \
+            --model gemini-embedding-001 \
+            --weight 2.0 \
+            --k 60 2>&1) || true
+          echo "$OUTPUT"
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" | tail -30 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Extract Overall MRR for hybrid
+          MRR=$(echo "$OUTPUT" | grep -i 'overall' | grep -oP '[\d.]+%' | tail -1 | tr -d '%')
+          if [ -n "$MRR" ]; then
+            echo "hybrid_mrr=$MRR" >> $GITHUB_OUTPUT
+            # Check if MRR dropped below 95%
+            PASS=$(echo "$MRR >= 95" | bc -l 2>/dev/null || echo "1")
+            if [ "$PASS" = "0" ]; then
+              echo "mrr_fail=true" >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **Hybrid MRR ${MRR}% below 95% threshold**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "✅ **Hybrid MRR ${MRR}% meets 95% threshold**" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Create issue on MRR regression
+        if: steps.hybrid.outputs.mrr_fail == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mrr = '${{ steps.hybrid.outputs.hybrid_mrr }}';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Benchmark] Hybrid MRR regression: ${mrr}% (threshold: 95%)`,
+              body: `## Hybrid Search MRR Regression\n\n` +
+                `- **Hybrid MRR**: ${mrr}%\n` +
+                `- **Threshold**: 95%\n` +
+                `- **Model**: gemini-embedding-001\n` +
+                `- **RRF Config**: weight=2.0, k=60\n` +
+                `- **Commit**: ${context.sha}\n` +
+                `- **Run**: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n` +
+                `이 이슈는 벤치마크 자동 실행에서 생성되었습니다.`,
+              labels: ['bug', 'performance', 'benchmark'],
+            });

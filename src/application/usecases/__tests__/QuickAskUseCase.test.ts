@@ -6,6 +6,8 @@ import { createTestNote, createTestMetadata } from '../../../test-utils/fixtures
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { NoteTitle } from '../../../domain/values/NoteTitle';
 import type { SearchResult } from '../../ports/SearchIndexPort';
+import type { EmbeddingPort } from '../../ports/EmbeddingPort';
+import type { VectorStorePort, VectorSearchResult } from '../../ports/VectorStorePort';
 import type { ChunkText } from '../../../domain/values/ChunkText';
 import type { HeadingPath } from '../../../domain/values/HeadingPath';
 
@@ -273,6 +275,85 @@ describe('QuickAskUseCase', () => {
       expect(result.savedTo).toBeTruthy();
       expect(result.tokenUsage).toBeDefined();
       expect(history.record).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('hybridSearch (embedding-only fallback)', () => {
+    it('BM25에 없는 embedding-only 결과를 vault.readNote로 복원하여 포함한다', async () => {
+      const embOnlyChunk = {
+        headingPath: 'Embedding Section' as unknown as HeadingPath,
+        text: 'embedding-only content' as unknown as ChunkText,
+        startLine: 5,
+        endLine: 10,
+      };
+      const noteWithChunks = createTestNote({
+        path: np('semantic.md'),
+        metadata: createTestMetadata(),
+        chunks: [embOnlyChunk],
+      });
+
+      const vault = createMockVault({
+        readNote: vi.fn().mockImplementation(async (p: NotePath) => {
+          if ((p as string) === 'semantic.md') return noteWithChunks;
+          return createTestNote({ path: p, metadata: createTestMetadata() });
+        }),
+      });
+
+      // BM25 returns only one result (different note)
+      const bm25Results: SearchResult[] = [makeSearchResult('keyword.md', 'keyword match')];
+      const search = createMockSearch(bm25Results);
+
+      // Embedding returns a result that is NOT in BM25
+      const mockEmbedding: EmbeddingPort = {
+        initialize: vi.fn().mockResolvedValue(true),
+        isReady: vi.fn().mockReturnValue(true),
+        embed: vi.fn().mockResolvedValue(new Float32Array([0.1, 0.2, 0.3])),
+        embedBatch: vi.fn().mockResolvedValue([]),
+        getDimension: vi.fn().mockReturnValue(3),
+      };
+
+      const vectorResult: VectorSearchResult = {
+        notePath: np('semantic.md'),
+        chunkIndex: 5,
+        similarity: 0.95,
+      };
+      const mockVectorStore: VectorStorePort = {
+        upsert: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn().mockResolvedValue(undefined),
+        search: vi.fn().mockResolvedValue([vectorResult]),
+        flush: vi.fn().mockResolvedValue(undefined),
+        load: vi.fn().mockResolvedValue(undefined),
+        clear: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const config = createMockConfig();
+      const clock = createMockClock();
+      const saveNote = new SaveNoteUseCase(vault, config, clock);
+
+      const uc = new QuickAskUseCase(
+        createMockAI(),
+        vault,
+        search,
+        createMockHistory(),
+        config,
+        clock,
+        saveNote,
+        mockEmbedding,
+        mockVectorStore,
+      );
+
+      const result = await uc.execute({
+        question: 'semantic query',
+        maxContextChunks: 10,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      // Both BM25 and embedding-only results should be included
+      const texts = result.contextChunksUsed.map(c => c.text as string);
+      expect(texts).toContain('keyword match');
+      expect(texts).toContain('embedding-only content');
     });
   });
 });

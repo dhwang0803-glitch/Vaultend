@@ -22,12 +22,14 @@
 
 | # | Title | Status | Date |
 |---|-------|--------|------|
-| <!-- /adr 커맨드 또는 수동으로 행을 추가하세요. 예시: --> | | | |
-| ~~0001~~ | ~~[결정 제목](./adr/ADR-0001-slug.md)~~ | ~~Accepted~~ | ~~YYYY-MM-DD~~ |
+| 0001 | [Codex 초기기획 분기 기준선](./adr/ADR-0001-spec-delta-baseline.md) | Accepted | 2026-07-06 |
+| 0002 | [API 기반 임베딩 (BYOK API)](./adr/ADR-0002-api-based-embeddings.md) | Accepted | 2026-07-12 |
 
 ## 구현 결정 메모 (비-ADR)
 
 > ADR로 올리기엔 가벼우나 **동작 반전**이라 drift 방지용으로 기록하는 항목.
 > 형식: `- **<요약>** (YYYY-MM-DD, PR #NN): <무엇을 왜 바꿨는지 + 무엇을 supersede 하는지>`
 
-(아직 없음)
+- **Codex 명세 대신 현재 코드 우선** (2026-07-06, ADR-0001): 초기 Codex 아키텍처 명세와 현재 코드를 전수 비교. 의도적 분기 9건, 회귀 위험 6건 식별. 스텁 구현 시 현재 코드 방식을 따르도록 기준선 수립.
+- **TF-IDF cosine → trigram Jaccard 교체** (2026-07-12, PR #49): 콘텐츠 중복 탐지에 trigram Jaccard 대신 TF-IDF cosine similarity 사용. threshold 0.6 (trigram 0.7보다 낮음 — TF-IDF가 더 discriminating). `TfIdfCorpus` 도메인 서비스로 구현, 코퍼스 통계는 `.knowledge-maintenance/tfidf-corpus.json`에 영속화.
+- **Change Tracking dirty set** (2026-07-12, PR #49): vault 파일 변경 이벤트 → dirty set 기록. 유지보수 스케줄러가 dirty set 비면 skip (smart scheduling). dirty set은 `.knowledge-maintenance/dirty-set.json`에 영속화. plugin unload 시 persist.

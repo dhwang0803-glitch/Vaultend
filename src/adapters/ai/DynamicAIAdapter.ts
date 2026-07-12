@@ -1,5 +1,6 @@
 import type { AIProviderPort, CompletionRequest, CompletionResponse,
-  ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
+  ClassificationRequest, ClassificationResponse,
+  EmbeddingRequest, EmbeddingResponse } from '../../application/ports/AIProviderPort';
 import type { ConfigPort } from '../../application/ports/ConfigPort';
 import { OpenAIAdapter } from './OpenAIAdapter';
 import { GeminiAdapter } from './GeminiAdapter';
@@ -18,6 +19,11 @@ export class DynamicAIAdapter implements AIProviderPort {
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const adapter = await this.resolveAdapter();
     return adapter.callClassification(request);
+  }
+
+  async callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+    const adapter = await this.resolveAdapter();
+    return adapter.callEmbedding(request);
   }
 
   private async resolveAdapter(): Promise<AIProviderPort> {

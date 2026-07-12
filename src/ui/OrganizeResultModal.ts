@@ -2,6 +2,7 @@ import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath } from '../domain/values/NotePath';
 import { t } from '../i18n';
+import { localizeError } from './localizeError';
 
 export interface OrganizeApplyActions {
   applyTags(notePath: NotePath, tags: string[]): Promise<void>;
@@ -256,7 +257,7 @@ export class OrganizeResultModal extends Modal {
 
       this.close();
     } catch (err) {
-      new Notice(t('notice.actionFailed', { error: err instanceof Error ? err.message : String(err) }));
+      new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
   }
 
