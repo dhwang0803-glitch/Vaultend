@@ -57,8 +57,9 @@ function readVaultFiles(vaultPath: string): VaultDocument[] {
 }
 
 function parseFrontmatter(raw: string): { content: string; tags: string[] } {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!fmMatch) return { content: raw, tags: [] };
+  const normalized = raw.replace(/\r\n/g, '\n');
+  const fmMatch = normalized.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!fmMatch) return { content: normalized, tags: [] };
 
   const fm = fmMatch[1];
   const body = fmMatch[2];
@@ -68,7 +69,6 @@ function parseFrontmatter(raw: string): { content: string; tags: string[] } {
     ? tagMatch[1].split(',').map(t => t.trim())
     : [];
 
-  // Remove heading line from body
   const content = body.replace(/^#\s+.*\n\n?/, '').trim();
   return { content, tags };
 }
@@ -357,13 +357,18 @@ async function main() {
       const KS = [20, 40, 60, 80];
       const sweepResults: Array<{ w: number; k: number; easyMrr: number; medMrr: number; hardMrr: number; overallMrr: number }> = [];
 
+      // Pre-compute query vectors and BM25 results (invariant across sweep params)
+      const queryCache = await Promise.all(GOLDEN_QUERIES.map(async (q) => {
+        const [qVec] = await provider.embed([q.query]);
+        const vecHits = vectorSearch(qVec, docVecs, 10);
+        const bm25Hits = await bm25Search(docs, q.query, 10);
+        return { q, vecHits, bm25Hits };
+      }));
+
       for (const k of KS) {
         for (const w of WEIGHTS) {
           const results: BenchmarkResult[] = [];
-          for (const q of GOLDEN_QUERIES) {
-            const [qVec] = await provider.embed([q.query]);
-            const vecHits = vectorSearch(qVec, docVecs, 10);
-            const bm25Hits = await bm25Search(docs, q.query, 10);
+          for (const { q, vecHits, bm25Hits } of queryCache) {
             const hybHits = rrfMerge(bm25Hits, vecHits, k, 10, w);
             results.push(buildResult(q, 'Hybrid', hybHits.map(h => h.id), hybHits));
           }

@@ -141,6 +141,8 @@ export class QuickAskUseCase {
         }
       }
 
+      const vectorOnlyEntries: Array<{ key: string; score: number; vr: typeof vectorResults[number] }> = [];
+
       for (let i = 0; i < vectorResults.length; i++) {
         const vr = vectorResults[i];
         const key = `${vr.notePath as string}::${vr.chunkIndex}`;
@@ -154,8 +156,19 @@ export class QuickAskUseCase {
           );
           if (bm25Match) {
             scores.set(key, { score: rrfScore, result: bm25Match });
+          } else {
+            vectorOnlyEntries.push({ key, score: rrfScore, vr });
           }
         }
+      }
+
+      for (const { key, score, vr } of vectorOnlyEntries) {
+        if (scores.has(key)) continue;
+        const note = await this.vault.readNote(vr.notePath);
+        if (!note) continue;
+        const chunk = note.chunks.find(c => c.startLine === vr.chunkIndex);
+        if (!chunk) continue;
+        scores.set(key, { score, result: { notePath: vr.notePath, chunk, score: vr.similarity } });
       }
 
       const ranked = [...scores.values()]

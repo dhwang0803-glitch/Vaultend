@@ -58,7 +58,7 @@ function createOpenAIProvider(apiKey: string, model = 'text-embedding-3-small'):
 
 // ─── Gemini Provider ───
 
-function createGeminiProvider(apiKey: string, model = 'text-embedding-004'): EmbeddingProvider {
+function createGeminiProvider(apiKey: string, model = 'gemini-embedding-001'): EmbeddingProvider {
   let cachedDimension = 0;
   return {
     name: `gemini/${model}`,
