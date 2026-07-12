@@ -46,10 +46,14 @@ export interface PluginSettings {
   // Maintenance settings
   readonly maintenanceEnabled: boolean;
   readonly maintenanceIntervalMinutes: number;
+  readonly smartScheduling: boolean;
   readonly maintenanceExcludeFolders: ReadonlyArray<string>;
   readonly maintenanceExcludeFiles: ReadonlyArray<string>;
   readonly maintenanceExcludeTags: ReadonlyArray<string>;
   readonly maintenanceArchiveFolder: string;
+
+  // Inbox confidence gating
+  readonly inboxConfidenceThreshold: number;
 
   // Privacy
   readonly privacyRules: ReadonlyArray<PrivacyRule>;
@@ -60,6 +64,10 @@ export interface PluginSettings {
   // Cost tracking
   readonly trackTokenUsage: boolean;
   readonly monthlyBudgetUsd?: number;
+
+  // Embeddings
+  readonly embeddingsEnabled: boolean;
+  readonly embeddingsModel: string;
 
   // Language
   readonly locale: 'auto' | 'en' | 'ko';

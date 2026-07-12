@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
-         ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
+         ClassificationRequest, ClassificationResponse,
+         EmbeddingRequest, EmbeddingResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
@@ -69,6 +70,33 @@ export class OpenAIAdapter implements AIProviderPort {
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
+    };
+  }
+
+  async callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+    const model = request.model ?? 'text-embedding-3-small';
+    const body = {
+      model,
+      input: request.texts,
+    };
+
+    const response = await this.makeRequest('/embeddings', body) as {
+      data: Array<{ embedding: number[] }>;
+      usage: { prompt_tokens: number; total_tokens: number };
+    };
+
+    const embeddings = response.data.map(d => new Float32Array(d.embedding));
+    const dimension = embeddings.length > 0 ? embeddings[0].length : 0;
+
+    return {
+      embeddings,
+      dimension,
+      tokenUsage: {
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: 0,
+        totalTokens: response.usage.total_tokens,
+        estimatedCostUsd: (response.usage.total_tokens / 1_000_000) * 0.02,
+      },
     };
   }
 

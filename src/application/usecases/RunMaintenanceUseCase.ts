@@ -3,6 +3,10 @@ import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { ConfigPort, PluginSettings } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
+import { ChangeTrackingPort } from '../ports/ChangeTrackingPort';
+import { CorpusStatsPort } from '../ports/CorpusStatsPort';
+import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
+import { tokenizeForTfIdf } from '../../domain/services/tokenize';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
@@ -17,6 +21,8 @@ export class RunMaintenanceUseCase {
     private readonly searchIndex: SearchIndexPort,
     private readonly config: ConfigPort,
     private readonly clock: ClockPort,
+    private readonly changeTracking?: ChangeTrackingPort,
+    private readonly corpusStats?: CorpusStatsPort,
   ) {}
 
   async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
@@ -36,6 +42,11 @@ export class RunMaintenanceUseCase {
     const missingTags = await this.suggestMissingTags(filteredNotes);
     const emptyNotes = await this.findEmptyNotes(filteredNotes);
     const untaggedNotes = await this.findUntaggedNotes(filteredNotes);
+
+    if (this.changeTracking) {
+      await this.changeTracking.clearAll();
+      await this.changeTracking.setLastScanTimestamp(now);
+    }
 
     return {
       orphanNotes,
@@ -166,21 +177,50 @@ export class RunMaintenanceUseCase {
   private async findDuplicates(allNotes: ReadonlyArray<NotePath>): Promise<DuplicatePair[]> {
     const candidates = this.generateTitleCandidates(allNotes);
 
+    const corpus = new TfIdfCorpus();
+    if (this.corpusStats) {
+      const saved = await this.corpusStats.loadStats();
+      if (saved) corpus.loadFromStats(saved);
+    }
+
+    const noteTokensCache = new Map<string, string[]>();
+
+    const ensureIndexed = async (notePath: NotePath): Promise<string[]> => {
+      const pathStr = notePath as string;
+      if (noteTokensCache.has(pathStr)) return noteTokensCache.get(pathStr)!;
+      const note = await this.vault.readNote(notePath);
+      if (!note) return [];
+      const tokens = tokenizeForTfIdf(note.content);
+      noteTokensCache.set(pathStr, tokens);
+      if (corpus.hasDocument(pathStr)) {
+        corpus.removeDocument(pathStr);
+      }
+      corpus.addDocument(pathStr, tokens);
+      return tokens;
+    };
+
     const pairs: DuplicatePair[] = [];
     for (const { a, b } of candidates) {
-      const noteA = await this.vault.readNote(a);
-      const noteB = await this.vault.readNote(b);
-      if (!noteA || !noteB) continue;
+      const tokensA = await ensureIndexed(a);
+      const tokensB = await ensureIndexed(b);
+      if (tokensA.length === 0 || tokensB.length === 0) continue;
 
-      const contentSim = this.computeContentSimilarity(noteA.content, noteB.content);
-      if (contentSim >= 0.7) {
+      const vecA = corpus.computeTfIdfVector(tokensA);
+      const vecB = corpus.computeTfIdfVector(tokensB);
+      const similarity = corpus.cosineSimilarity(vecA, vecB);
+
+      if (similarity >= 0.6) {
         pairs.push({
           noteA: a,
           noteB: b,
-          similarityScore: contentSim,
-          reason: `Content similarity ${Math.round(contentSim * 100)}%`,
+          similarityScore: similarity,
+          reason: `TF-IDF similarity ${Math.round(similarity * 100)}%`,
         });
       }
+    }
+
+    if (this.corpusStats) {
+      await this.corpusStats.saveStats(corpus.getStats());
     }
 
     return pairs.sort((x, y) => y.similarityScore - x.similarityScore);
@@ -230,33 +270,6 @@ export class RunMaintenanceUseCase {
     return results;
   }
 
-  private computeContentSimilarity(contentA: string, contentB: string): number {
-    const trigramsA = this.extractTrigrams(this.stripFrontmatter(contentA));
-    const trigramsB = this.extractTrigrams(this.stripFrontmatter(contentB));
-
-    if (trigramsA.size === 0 || trigramsB.size === 0) return 0;
-
-    let intersection = 0;
-    for (const trigram of trigramsA) {
-      if (trigramsB.has(trigram)) intersection++;
-    }
-
-    const union = trigramsA.size + trigramsB.size - intersection;
-    return union > 0 ? intersection / union : 0;
-  }
-
-  private extractTrigrams(text: string): Set<string> {
-    const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-    const trigrams = new Set<string>();
-    for (let i = 0; i <= normalized.length - 3; i++) {
-      trigrams.add(normalized.slice(i, i + 3));
-    }
-    return trigrams;
-  }
-
-  private stripFrontmatter(content: string): string {
-    return content.replace(/^---[\s\S]*?---\s*/, '').trim();
-  }
 
   private tokenizeTitle(path: NotePath): string[] {
     const basename = (path as string).split('/').pop()?.replace('.md', '') ?? '';

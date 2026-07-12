@@ -63,6 +63,21 @@ export class OrganizeNoteUseCase {
       existingFolders,
     });
 
+    // Confidence gating — if below threshold, return minimal result
+    const confidenceThreshold = settings.inboxConfidenceThreshold ?? 0;
+    if (confidenceThreshold > 0 && classification.confidence < confidenceThreshold) {
+      return {
+        noteId: note.id,
+        classifiedCategory: classification.category,
+        addedTags: [],
+        suggestedLinks: [],
+        suggestedMoveTarget: undefined,
+        summary: classification.summary,
+        tokenUsage: classification.tokenUsage,
+        lowConfidence: true,
+      };
+    }
+
     // Filter out tags already on the note
     const currentTagsLower = new Set(currentTags.map(t => t.toLowerCase()));
     const newSuggestedTags = classification.suggestedTags

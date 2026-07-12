@@ -189,4 +189,47 @@ describe('OpenAIAdapter', () => {
       expect(result.summary).toBe('');
     });
   });
+
+  describe('callEmbedding', () => {
+    it('returns Float32Array embeddings from OpenAI /embeddings endpoint', async () => {
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          data: [
+            { embedding: [0.1, 0.2, 0.3] },
+            { embedding: [0.4, 0.5, 0.6] },
+          ],
+          usage: { prompt_tokens: 12, total_tokens: 12 },
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      const result = await adapter.callEmbedding({ texts: ['hello', 'world'] });
+
+      expect(result.embeddings.length).toBe(2);
+      expect(result.embeddings[0]).toBeInstanceOf(Float32Array);
+      expect(result.dimension).toBe(3);
+      expect(result.tokenUsage.promptTokens).toBe(12);
+    });
+
+    it('uses custom model when specified', async () => {
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          data: [{ embedding: [0.1, 0.2] }],
+          usage: { prompt_tokens: 5, total_tokens: 5 },
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      await adapter.callEmbedding({ texts: ['test'], model: 'text-embedding-3-large' });
+
+      const body = JSON.parse(mockRequestUrl.mock.calls[0][0].body as string);
+      expect(body.model).toBe('text-embedding-3-large');
+    });
+  });
 });

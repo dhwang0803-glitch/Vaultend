@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
-         ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
+         ClassificationRequest, ClassificationResponse,
+         EmbeddingRequest, EmbeddingResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
@@ -79,6 +80,39 @@ export class GeminiAdapter implements AIProviderPort {
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
+    };
+  }
+
+  async callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+    const model = request.model ?? 'text-embedding-004';
+    const requests = request.texts.map(text => ({
+      model: `models/${model}`,
+      content: { parts: [{ text }] },
+    }));
+
+    const url = `${GeminiAdapter.BASE_URL}/models/${model}:batchEmbedContents?key=${this.apiKey}`;
+    const params: RequestUrlParam = {
+      url,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests }),
+    };
+
+    const response = await this.requestWithRetry(params);
+    const result = response.json as { embeddings: Array<{ values: number[] }> };
+
+    const embeddings = result.embeddings.map(e => new Float32Array(e.values));
+    const dimension = embeddings.length > 0 ? embeddings[0].length : 0;
+
+    return {
+      embeddings,
+      dimension,
+      tokenUsage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+      },
     };
   }
 

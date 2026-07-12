@@ -5,6 +5,8 @@ import { NotePath } from '../../domain/values/NotePath';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort, SearchResult } from '../ports/SearchIndexPort';
+import { EmbeddingPort } from '../ports/EmbeddingPort';
+import { VectorStorePort } from '../ports/VectorStorePort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
@@ -21,6 +23,8 @@ export class QuickAskUseCase {
     private readonly config: ConfigPort,
     private readonly clock: ClockPort,
     private readonly saveNote: SaveNoteUseCase,
+    private readonly embedding?: EmbeddingPort,
+    private readonly vectorStore?: VectorStorePort,
   ) {}
 
   /**
@@ -34,8 +38,8 @@ export class QuickAskUseCase {
    * 6. 이력 기록
    */
   async execute(request: QuickAskRequest): Promise<QuickAskResult> {
-    // 1. Search relevant context
-    const contextChunks = await this.searchIndex.search(
+    // 1. Search relevant context (hybrid BM25 + vector if available)
+    const contextChunks = await this.hybridSearch(
       request.question,
       request.maxContextChunks,
     );
@@ -106,6 +110,61 @@ export class QuickAskUseCase {
       tokenUsage: aiResponse.tokenUsage,
       timestamp: now,
     };
+  }
+
+  private async hybridSearch(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
+    const FETCH_SIZE = 20;
+    const bm25Results = await this.searchIndex.search(query, FETCH_SIZE);
+
+    if (!this.embedding?.isReady() || !this.vectorStore) {
+      return bm25Results.slice(0, maxResults);
+    }
+
+    try {
+      const queryVector = await this.embedding.embed(query);
+      const vectorResults = await this.vectorStore.search(queryVector, FETCH_SIZE);
+
+      // Reciprocal Rank Fusion (k=60)
+      const RRF_K = 60;
+      const scores = new Map<string, { score: number; result: SearchResult }>();
+
+      for (let i = 0; i < bm25Results.length; i++) {
+        const key = `${bm25Results[i].notePath as string}::${bm25Results[i].chunk.startLine}`;
+        const existing = scores.get(key);
+        const rrfScore = 1 / (RRF_K + i + 1);
+        if (existing) {
+          existing.score += rrfScore;
+        } else {
+          scores.set(key, { score: rrfScore, result: bm25Results[i] });
+        }
+      }
+
+      for (let i = 0; i < vectorResults.length; i++) {
+        const vr = vectorResults[i];
+        const key = `${vr.notePath as string}::${vr.chunkIndex}`;
+        const rrfScore = 1 / (RRF_K + i + 1);
+        const existing = scores.get(key);
+        if (existing) {
+          existing.score += rrfScore;
+        } else {
+          const bm25Match = bm25Results.find(
+            r => r.notePath === vr.notePath && r.chunk.startLine === vr.chunkIndex,
+          );
+          if (bm25Match) {
+            scores.set(key, { score: rrfScore, result: bm25Match });
+          }
+        }
+      }
+
+      const ranked = [...scores.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxResults)
+        .map(entry => entry.result);
+
+      return ranked;
+    } catch {
+      return bm25Results.slice(0, maxResults);
+    }
   }
 
   private buildPrompt(question: string, chunks: ReadonlyArray<SearchResult>): string {
