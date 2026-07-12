@@ -196,6 +196,8 @@ const en = {
   'settings.saveModeDesc': 'Choose how Quick Ask answers are saved.',
   'settings.saveModeTimestamp': 'Timestamp filename (separate file per question)',
   'settings.saveModeDailyNote': 'Daily Note (append to one file per day)',
+  'settings.maxTokens': 'Max Response Tokens',
+  'settings.maxTokensDesc': 'Maximum tokens for AI response (1024–16384). Higher values allow longer answers but cost more.',
   'settings.dailyNoteLimit': 'Daily Note Size Limit (KB)',
   'settings.dailyNoteLimitDesc': 'Create a new file when Daily Note exceeds this size.',
 

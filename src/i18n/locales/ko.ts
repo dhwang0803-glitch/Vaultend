@@ -198,6 +198,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.saveModeDesc': 'Quick Ask 답변의 저장 방식을 선택합니다.',
   'settings.saveModeTimestamp': '타임스탬프 파일명 (질문마다 별도 파일)',
   'settings.saveModeDailyNote': 'Daily Note (하루치를 하나의 파일에 추가)',
+  'settings.maxTokens': '최대 응답 토큰',
+  'settings.maxTokensDesc': 'AI 응답의 최대 토큰 수 (1024–16384). 높을수록 긴 답변이 가능하지만 비용이 증가합니다.',
   'settings.dailyNoteLimit': 'Daily Note 용량 제한 (KB)',
   'settings.dailyNoteLimitDesc': 'Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.',
 

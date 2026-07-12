@@ -132,6 +132,19 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t('settings.maxTokens'))
+      .setDesc(t('settings.maxTokensDesc'))
+      .addSlider(slider => {
+        slider
+          .setLimits(1024, 16384, 1024)
+          .setValue(this.settings!.aiMaxTokens)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            await this.config.updateSettings({ aiMaxTokens: value });
+          });
+      });
+
+    new Setting(containerEl)
       .setName(t('settings.dailyNoteLimit'))
       .setDesc(t('settings.dailyNoteLimitDesc'))
       .addText(text => {
