@@ -164,6 +164,29 @@ export class RunMaintenanceUseCase {
   }
 
   private async findDuplicates(allNotes: ReadonlyArray<NotePath>): Promise<DuplicatePair[]> {
+    const candidates = this.generateTitleCandidates(allNotes);
+
+    const pairs: DuplicatePair[] = [];
+    for (const { a, b } of candidates) {
+      const noteA = await this.vault.readNote(a);
+      const noteB = await this.vault.readNote(b);
+      if (!noteA || !noteB) continue;
+
+      const contentSim = this.computeContentSimilarity(noteA.content, noteB.content);
+      if (contentSim >= 0.7) {
+        pairs.push({
+          noteA: a,
+          noteB: b,
+          similarityScore: contentSim,
+          reason: `Content similarity ${Math.round(contentSim * 100)}%`,
+        });
+      }
+    }
+
+    return pairs.sort((x, y) => y.similarityScore - x.similarityScore);
+  }
+
+  private generateTitleCandidates(allNotes: ReadonlyArray<NotePath>): Array<{ a: NotePath; b: NotePath }> {
     const tokenIndex = new Map<string, NotePath[]>();
 
     for (const notePath of allNotes) {
@@ -192,19 +215,47 @@ export class RunMaintenanceUseCase {
       }
     }
 
-    const pairs: DuplicatePair[] = [];
+    const results: Array<{ a: NotePath; b: NotePath }> = [];
     for (const [, { a, b, tokensA, tokensB }] of candidateScores) {
       const setB = new Set(tokensB);
       const intersection = tokensA.filter(t => setB.has(t)).length;
       const union = new Set([...tokensA, ...tokensB]).size;
       const jaccard = union > 0 ? intersection / union : 0;
 
-      if (jaccard >= 0.6) {
-        pairs.push({ noteA: a, noteB: b, similarityScore: jaccard, reason: 'Title similarity' });
+      if (jaccard >= 0.4) {
+        results.push({ a, b });
       }
     }
 
-    return pairs.sort((x, y) => y.similarityScore - x.similarityScore);
+    return results;
+  }
+
+  private computeContentSimilarity(contentA: string, contentB: string): number {
+    const trigramsA = this.extractTrigrams(this.stripFrontmatter(contentA));
+    const trigramsB = this.extractTrigrams(this.stripFrontmatter(contentB));
+
+    if (trigramsA.size === 0 || trigramsB.size === 0) return 0;
+
+    let intersection = 0;
+    for (const trigram of trigramsA) {
+      if (trigramsB.has(trigram)) intersection++;
+    }
+
+    const union = trigramsA.size + trigramsB.size - intersection;
+    return union > 0 ? intersection / union : 0;
+  }
+
+  private extractTrigrams(text: string): Set<string> {
+    const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+    const trigrams = new Set<string>();
+    for (let i = 0; i <= normalized.length - 3; i++) {
+      trigrams.add(normalized.slice(i, i + 3));
+    }
+    return trigrams;
+  }
+
+  private stripFrontmatter(content: string): string {
+    return content.replace(/^---[\s\S]*?---\s*/, '').trim();
   }
 
   private tokenizeTitle(path: NotePath): string[] {

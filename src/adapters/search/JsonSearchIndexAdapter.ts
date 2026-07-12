@@ -1,36 +1,73 @@
+import MiniSearch from 'minisearch';
 import { SearchIndexPort, SearchResult } from '../../application/ports/SearchIndexPort';
 import { NoteChunk } from '../../domain/models/NoteChunk';
 import { NotePath } from '../../domain/values/NotePath';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
+import { HeadingPath } from '../../domain/values/HeadingPath';
+import { ChunkText } from '../../domain/values/ChunkText';
 
-/**
- * JSON 기반 검색 인덱스 어댑터.
- *
- * 외부 검색 엔진 없이 Vault 내 JSON 파일로 인덱스를 유지한다.
- * 소규모~중규모 Vault(~5,000 노트)에서 충분한 성능을 제공한다.
- *
- * 인덱스 파일 위치: .knowledge-maintenance/search-index.json
- */
+interface IndexedDocument {
+  id: string;
+  notePath: string;
+  headingPath: string;
+  text: string;
+  originalText: string;
+  startLine: number;
+  endLine: number;
+}
+
+const MINISEARCH_OPTIONS = {
+  fields: ['text'],
+  storeFields: ['notePath', 'headingPath', 'originalText', 'startLine', 'endLine'],
+  idField: 'id',
+};
+
 export class JsonSearchIndexAdapter implements SearchIndexPort {
   private static readonly INDEX_PATH = '.knowledge-maintenance/search-index.json';
-  private indexCache: Map<string, IndexEntry[]> = new Map();
-  private dirty = false;
 
-  constructor(
-    private readonly vault: VaultAccessPort,
-  ) {}
+  private miniSearch: MiniSearch<IndexedDocument>;
+  private noteDocIds: Map<string, string[]> = new Map();
+  private dirty = false;
+  private loaded = false;
+
+  constructor(private readonly vault: VaultAccessPort) {
+    this.miniSearch = this.createMiniSearch();
+  }
+
+  private createMiniSearch(): MiniSearch<IndexedDocument> {
+    return new MiniSearch<IndexedDocument>({
+      ...MINISEARCH_OPTIONS,
+      searchOptions: {
+        prefix: true,
+        fuzzy: false,
+      },
+    });
+  }
 
   async index(notePath: NotePath, chunks: ReadonlyArray<NoteChunk>): Promise<void> {
-    const entries: IndexEntry[] = chunks.map(chunk => ({
-      notePath: notePath as string,
-      headingPath: chunk.headingPath as string,
-      text: (chunk.text as string).toLowerCase(),
-      originalText: chunk.text as string,
-      startLine: chunk.startLine,
-      endLine: chunk.endLine,
-    }));
+    await this.ensureLoaded();
 
-    this.indexCache.set(notePath as string, entries);
+    const existingIds = this.noteDocIds.get(notePath as string) ?? [];
+    for (const id of existingIds) {
+      this.miniSearch.discard(id);
+    }
+
+    const newIds: string[] = [];
+    for (const chunk of chunks) {
+      const id = `${notePath as string}::${chunk.startLine}`;
+      newIds.push(id);
+      this.miniSearch.add({
+        id,
+        notePath: notePath as string,
+        headingPath: chunk.headingPath as string,
+        text: chunk.text as string,
+        originalText: chunk.text as string,
+        startLine: chunk.startLine,
+        endLine: chunk.endLine,
+      });
+    }
+
+    this.noteDocIds.set(notePath as string, newIds);
     this.dirty = true;
     await this.flush();
   }
@@ -38,69 +75,62 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   async search(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
     await this.ensureLoaded();
 
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
-    const results: Array<SearchResult & { _score: number }> = [];
+    if (!query.trim()) return [];
 
-    for (const [, entries] of this.indexCache) {
-      for (const entry of entries) {
-        const score = this.calculateScore(entry.text, queryTerms);
-        if (score > 0) {
-          results.push({
-            notePath: entry.notePath as NotePath,
-            chunk: {
-              headingPath: entry.headingPath,
-              text: entry.originalText,
-              startLine: entry.startLine,
-              endLine: entry.endLine,
-            } as NoteChunk,
-            score,
-            _score: score,
-          });
-        }
-      }
-    }
+    const results = this.miniSearch.search(query, { prefix: true });
 
-    results.sort((a, b) => b._score - a._score);
-    return results.slice(0, maxResults);
+    return results.slice(0, maxResults).map(result => ({
+      notePath: result.notePath as NotePath,
+      chunk: {
+        headingPath: result.headingPath as unknown as HeadingPath,
+        text: result.originalText as unknown as ChunkText,
+        startLine: result.startLine as number,
+        endLine: result.endLine as number,
+      } as NoteChunk,
+      score: result.score,
+    }));
   }
 
   async remove(notePath: NotePath): Promise<void> {
-    this.indexCache.delete(notePath as string);
+    await this.ensureLoaded();
+
+    const ids = this.noteDocIds.get(notePath as string) ?? [];
+    for (const id of ids) {
+      this.miniSearch.discard(id);
+    }
+    this.noteDocIds.delete(notePath as string);
     this.dirty = true;
     await this.flush();
   }
 
   async rebuild(): Promise<void> {
-    this.indexCache.clear();
+    this.miniSearch = this.createMiniSearch();
+    this.noteDocIds.clear();
     this.dirty = true;
-    // Full vault re-index required — caller handles
-  }
-
-  private calculateScore(text: string, queryTerms: string[]): number {
-    let score = 0;
-    for (const term of queryTerms) {
-      const index = text.indexOf(term);
-      if (index !== -1) {
-        score += 1;
-        // Exact match bonus
-        if (text.includes(` ${term} `)) score += 0.5;
-      }
-    }
-    return score;
+    this.loaded = true;
   }
 
   private async ensureLoaded(): Promise<void> {
-    if (this.indexCache.size > 0) return;
+    if (this.loaded) return;
+    this.loaded = true;
 
     const raw = await this.vault.readFileRaw(JsonSearchIndexAdapter.INDEX_PATH);
     if (raw) {
       try {
-        const data: Record<string, IndexEntry[]> = JSON.parse(raw);
-        for (const [key, entries] of Object.entries(data)) {
-          this.indexCache.set(key, entries);
+        const data = JSON.parse(raw);
+        if (data.miniSearchIndex && data.noteDocIds) {
+          this.miniSearch = MiniSearch.loadJSON<IndexedDocument>(
+            JSON.stringify(data.miniSearchIndex),
+            { ...MINISEARCH_OPTIONS, searchOptions: { prefix: true, fuzzy: false } },
+          );
+          this.noteDocIds = new Map(Object.entries(data.noteDocIds as Record<string, string[]>));
+        } else {
+          // Legacy format detected — trigger full rebuild on next vault scan
+          this.dirty = true;
+          await this.flush();
         }
       } catch {
-        // Corrupted index — will rebuild on next index() call
+        // Corrupted index — start fresh
       }
     }
   }
@@ -108,21 +138,15 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   private async flush(): Promise<void> {
     if (!this.dirty) return;
 
-    const data: Record<string, IndexEntry[]> = {};
-    for (const [key, entries] of this.indexCache) {
-      data[key] = entries;
-    }
+    const serialized = {
+      miniSearchIndex: this.miniSearch.toJSON(),
+      noteDocIds: Object.fromEntries(this.noteDocIds),
+    };
 
-    await this.vault.writeFileRaw(JsonSearchIndexAdapter.INDEX_PATH, JSON.stringify(data, null, 2));
+    await this.vault.writeFileRaw(
+      JsonSearchIndexAdapter.INDEX_PATH,
+      JSON.stringify(serialized),
+    );
     this.dirty = false;
   }
-}
-
-interface IndexEntry {
-  notePath: string;
-  headingPath: string;
-  text: string;       // Lowercased for search
-  originalText: string; // Original text
-  startLine: number;
-  endLine: number;
 }

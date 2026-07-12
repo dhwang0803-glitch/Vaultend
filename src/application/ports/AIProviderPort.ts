@@ -25,6 +25,7 @@ export interface CompletionRequest {
   readonly systemPrompt?: string;
   readonly maxTokens: number;
   readonly temperature: number;
+  readonly jsonMode?: boolean;
 }
 
 export interface CompletionResponse {

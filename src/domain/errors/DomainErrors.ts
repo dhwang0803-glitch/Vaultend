@@ -40,6 +40,13 @@ export class PrivacyViolationError extends Error {
   }
 }
 
+export class AIParseError extends AIProviderError {
+  constructor(provider: string, rawContent: string) {
+    super(provider, 0, `JSON 파싱 실패 (재시도 후에도 실패). 원본: ${rawContent.slice(0, 200)}`);
+    this.name = 'AIParseError';
+  }
+}
+
 export class RateLimitError extends Error {
   constructor(readonly retryAfterMs: number) {
     super(`요청 한도 초과 — ${retryAfterMs}ms 후 재시도`);
