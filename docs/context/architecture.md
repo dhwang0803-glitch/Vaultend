@@ -18,10 +18,13 @@ Obsidian 플러그인이므로 별도 서버 없이, Plugin 클래스(`main.ts`)
 ├─────────────────────────────────────────────────┤
 │ Application Layer  src/application/              │
 │   UseCases: QuickAsk, OrganizeNote, Inbox,       │
-│             Maintenance, Search, Save, Clipboard │
+│             Maintenance, Save, Clipboard,        │
+│             SyncEmbeddings                       │
 │   Ports (ABC): AIProvider, VaultAccess,          │
 │                SearchIndex, History, Config,      │
-│                Clipboard, Clock                  │
+│                Clipboard, Clock, Embedding,       │
+│                VectorStore, ChangeTracking,       │
+│                CorpusStats                        │
 ├─────────────────────────────────────────────────┤
 │ Domain Layer       src/domain/                   │
 │   Values: NoteId, NotePath, NoteTitle, ChunkText,│
@@ -29,15 +32,20 @@ Obsidian 플러그인이므로 별도 서버 없이, Plugin 클래스(`main.ts`)
 │   Models: Note, NoteChunk, NoteMetadata,         │
 │           SaveTarget, QuickAsk/OrganizeModels,    │
 │           PrivacyRule, HistoryEntry              │
+│   Services: TfIdfCorpus, tokenize               │
 │   Errors: DomainErrors                           │
 ├─────────────────────────────────────────────────┤
 │ Adapters Layer     src/adapters/                 │
-│   vault/   → ObsidianVaultAdapter                │
-│   ai/      → OpenAIAdapter, GeminiAdapter        │
-│   search/  → JsonSearchIndexAdapter              │
-│   history/ → FileHistoryAdapter                  │
-│   clipboard/ → ObsidianClipboardAdapter          │
-│   clock/   → SystemClockAdapter                  │
+│   vault/       → ObsidianVaultAdapter            │
+│   ai/          → OpenAI/Gemini/DynamicAIAdapter  │
+│   search/      → JsonSearchIndexAdapter          │
+│   history/     → FileHistoryAdapter              │
+│   clipboard/   → ObsidianClipboardAdapter        │
+│   clock/       → SystemClockAdapter              │
+│   embedding/   → AIEmbeddingAdapter              │
+│   vectorstore/ → JsonVectorStoreAdapter          │
+│   tracking/    → FileChangeTrackingAdapter       │
+│   corpus/      → FileCorpusStatsAdapter          │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -57,17 +65,23 @@ ui/ (Modal, View, SettingTab)       ← main.ts에서 UseCase 주입받아 사�
 
 ## 데이터 흐름 (대표 시나리오)
 
-### Quick Ask (AI 질의)
+### Quick Ask (AI 질의 + Hybrid Search)
 
 ```
 [사용자] → QuickAskModal.onSubmit()
   → QuickAskUseCase.execute(question)
-    → SearchIndexPort.search(question)  → 관련 청크 검색
+    → hybridSearch(question)
+      → SearchIndexPort.search(question)     → BM25 top-20
+      → EmbeddingPort.embed(question)        → 쿼리 벡터 생성 (opt-in)
+      → VectorStorePort.search(vec, 20)      → 시맨틱 top-20 (opt-in)
+      → RRF merge (k=60)                    → 최종 상위 N 청크
     → AIProviderPort.ask(prompt, context) → AI 응답 생성
     → SaveNoteUseCase.execute(response)  → 응답 저장
     → HistoryPort.append(entry)          → 이력 기록
   ← QuickAskResult (answer, sources, savedPath)
 ```
+
+> Embeddings 미활성 시 BM25 단독 검색으로 fallback.
 
 ### Inbox 자동 분류
 
@@ -83,6 +97,45 @@ ui/ (Modal, View, SettingTab)       ← main.ts에서 UseCase 주입받아 사�
   ← InboxProcessResult (processed, skipped, errors)
 ```
 
+### Vault Maintenance (스마트 스케줄링 + TF-IDF 중복 탐지)
+
+```
+[Vault 이벤트: .md 변경] → startInboxWatcher()
+  → ChangeTrackingPort.markDirty(path)
+
+[스케줄 타이머 fire]
+  → smartScheduling && dirtySet.size === 0 → skip
+  → RunMaintenanceUseCase.execute()
+    → findDuplicates():
+      → CorpusStatsPort.loadStats() → TfIdfCorpus 복원
+      → 제목 token Jaccard >= 0.4 → 후보 쌍 생성
+      → 각 후보: TfIdfCorpus.cosineSimilarity(vecA, vecB) >= 0.6 → 중복 판정
+      → CorpusStatsPort.saveStats()
+    → ChangeTrackingPort.clearAll() + setLastScanTimestamp(now)
+  ← MaintenanceResult (orphans, duplicates, broken links)
+```
+
+### Embedding Sync (백그라운드 인덱싱)
+
+```
+[plugin startup, embeddingsEnabled=true]
+  → VectorStorePort.load()             → 영속 벡터 복원
+  → EmbeddingPort.initialize()         → API 연결 확인
+  → SyncEmbeddingsUseCase.execute()
+    → ChangeTrackingPort.getDirtySet()
+    → 각 dirty note: read → chunk → EmbeddingPort.embed(chunk) → VectorStorePort.upsert()
+    → VectorStorePort.flush()          → JSON 영속화
+```
+
+## 영속 파일 (`.knowledge-maintenance/`)
+
+| 파일 | 내용 | 어댑터 |
+|------|------|--------|
+| `search-index.json` | BM25 검색 인덱스 | JsonSearchIndexAdapter |
+| `dirty-set.json` | 변경 추적 dirty set + lastScanTimestamp | FileChangeTrackingAdapter |
+| `tfidf-corpus.json` | TF-IDF 문서 빈도 통계 | FileCorpusStatsAdapter |
+| `embeddings.json` | 벡터 임베딩 (base64 Float32Array) | JsonVectorStoreAdapter |
+
 ## 경계 및 계약
 
 | 경계 | 인터페이스 | 위치 |
@@ -94,27 +147,40 @@ ui/ (Modal, View, SettingTab)       ← main.ts에서 UseCase 주입받아 사�
 | UseCase ↔ Config | `ConfigPort` (ABC) | `application/ports/ConfigPort.ts` |
 | UseCase ↔ Clipboard | `ClipboardPort` (ABC) | `application/ports/ClipboardPort.ts` |
 | UseCase ↔ Clock | `ClockPort` (ABC) | `application/ports/ClockPort.ts` |
+| UseCase ↔ Embedding | `EmbeddingPort` (ABC) | `application/ports/EmbeddingPort.ts` |
+| UseCase ↔ VectorStore | `VectorStorePort` (ABC) | `application/ports/VectorStorePort.ts` |
+| UseCase ↔ ChangeTracking | `ChangeTrackingPort` (ABC) | `application/ports/ChangeTrackingPort.ts` |
+| UseCase ↔ CorpusStats | `CorpusStatsPort` (ABC) | `application/ports/CorpusStatsPort.ts` |
 
 ## Port → Adapter 매핑
 
 | Port (ABC) | Adapter 구현 | 외부 의존 |
 |------------|-------------|----------|
-| `AIProviderPort` | `OpenAIAdapter` | OpenAI API |
-| `AIProviderPort` | `GeminiAdapter` | Google Gemini API |
+| `AIProviderPort` | `OpenAIAdapter` | OpenAI API (completion + embedding) |
+| `AIProviderPort` | `GeminiAdapter` | Google Gemini API (completion + embedding) |
+| `AIProviderPort` | `DynamicAIAdapter` | 런타임 provider 전환 (Strategy) |
 | `VaultAccessPort` | `ObsidianVaultAdapter` | Obsidian Vault API |
 | `SearchIndexPort` | `JsonSearchIndexAdapter` | 로컬 JSON 파일 |
 | `HistoryPort` | `FileHistoryAdapter` | 로컬 파일 시스템 |
 | `ClipboardPort` | `ObsidianClipboardAdapter` | Clipboard API |
 | `ClockPort` | `SystemClockAdapter` | `Date` |
+| `EmbeddingPort` | `AIEmbeddingAdapter` | `AIProviderPort.callEmbedding()` 위임 |
+| `VectorStorePort` | `JsonVectorStoreAdapter` | 로컬 JSON (brute-force cosine) |
+| `ChangeTrackingPort` | `FileChangeTrackingAdapter` | 로컬 JSON |
+| `CorpusStatsPort` | `FileCorpusStatsAdapter` | 로컬 JSON |
 
 ## AI Provider 전략
 
 `ConfigPort.aiProvider` 설정에 따라 런타임에 AI 어댑터를 교체한다 (Strategy 패턴).
+`DynamicAIAdapter`가 Composition Root에서 캐시 + lazy switch를 담당.
 
-| Provider | Adapter | 기본 모델 |
-|----------|---------|----------|
-| `openai` | `OpenAIAdapter` | `gpt-4o` |
-| `gemini` | `GeminiAdapter` | 설정에 따라 |
+| Provider | Adapter | Chat 모델 | Embedding 모델 |
+|----------|---------|----------|---------------|
+| `openai` | `OpenAIAdapter` | `gpt-4o` | `text-embedding-3-small` (1536-dim) |
+| `gemini` | `GeminiAdapter` | 설정에 따라 | `text-embedding-004` (768-dim) |
+
+> `AIProviderPort.callEmbedding()`은 `callCompletion`/`callClassification`과 동일한 BYOK 키를 사용한다.
+> 별도 임베딩 전용 키는 불필요.
 
 ## 관련 문서
 

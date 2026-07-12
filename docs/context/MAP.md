@@ -8,10 +8,12 @@
 ```
 obsidian-knowledge-maintenance/
 ├── src/                    # 플러그인 소스 (Clean Architecture)
-│   ├── domain/             #   도메인 레이어 (values, models, errors)
+│   ├── domain/             #   도메인 레이어 (values, models, errors, services)
 │   ├── application/        #   앱 레이어 (ports, usecases)
-│   ├── adapters/           #   어댑터 레이어 (vault, ai, search, history, clipboard, clock)
+│   ├── adapters/           #   어댑터 레이어 (vault, ai, search, history, clipboard,
+│   │                       #     clock, embedding, vectorstore, tracking, corpus)
 │   ├── ui/                 #   UI 레이어 (Modal, View, SettingTab)
+│   ├── benchmark/          #   검색 품질 벤치마크 (golden set)
 │   ├── main.ts             #   Composition Root (Plugin 진입점)
 │   ├── types.ts            #   플러그인 계층 보조 타입
 │   └── constants.ts        #   전역 상수
