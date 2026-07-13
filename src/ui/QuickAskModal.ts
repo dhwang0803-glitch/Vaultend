@@ -9,6 +9,7 @@ export class QuickAskModal extends Modal {
   private questionInput: TextAreaComponent | null = null;
   private resultContainer: HTMLElement | null = null;
   private lastResult: QuickAskResult | null = null;
+  private isAsking = false;
   private readonly renderComponent = new Component();
 
   constructor(
@@ -57,11 +58,15 @@ export class QuickAskModal extends Modal {
   }
 
   private async handleAsk(): Promise<void> {
+    if (this.isAsking) return;
+
     const question = this.questionInput?.getValue()?.trim();
     if (!question) {
       new Notice(t('quickAsk.emptyQuestion'));
       return;
     }
+
+    this.isAsking = true;
 
     if (this.resultContainer) {
       this.resultContainer.style.display = 'block';
@@ -86,6 +91,8 @@ export class QuickAskModal extends Modal {
         this.resultContainer.empty();
         this.resultContainer.createEl('p', { text: errorMsg, cls: 'maintenance-result-error' });
       }
+    } finally {
+      this.isAsking = false;
     }
   }
 
