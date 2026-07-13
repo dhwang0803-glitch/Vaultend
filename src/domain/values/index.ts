@@ -9,7 +9,7 @@ export { createChunkText } from './ChunkText';
 export type { HeadingPath } from './HeadingPath';
 export { createHeadingPath } from './HeadingPath';
 export type { TagName } from './TagName';
-export { createTagName } from './TagName';
+export { createTagName, sanitizeTagName } from './TagName';
 export type { Timestamp } from './Timestamp';
 export { createTimestamp, timestampNow } from './Timestamp';
 export type { SeverityLevel } from './Severity';

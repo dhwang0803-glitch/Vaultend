@@ -1,6 +1,21 @@
 /** 태그 이름 — '#' 접두사 포함 */
 export type TagName = string & { readonly __brand: unique symbol };
 
+/**
+ * AI가 반환한 태그 문자열을 정규화한다.
+ * 공백·특수문자를 하이픈으로 치환하여 유효한 Obsidian 태그 형식으로 변환.
+ */
+export function sanitizeTagName(raw: string): string {
+  const s = raw.trim();
+  const hasHash = s.startsWith('#');
+  const body = hasHash ? s.slice(1) : s;
+  const sanitized = body
+    .replace(/[^\w가-힣\-/]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
+  return `#${sanitized}`;
+}
+
 export function createTagName(raw: string): TagName {
   const normalized = raw.startsWith('#') ? raw : `#${raw}`;
   if (!/^#[\w가-힣\-/]+$/.test(normalized)) {

@@ -29,6 +29,7 @@ import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from 
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
+import { InboxProgressModal } from './ui/InboxProgressModal';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -123,6 +124,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
+  private isInboxProcessing = false;
+  private hasQueuedInboxEvents = false;
 
   async onload(): Promise<void> {
     console.log('Knowledge Maintenance Plugin: loading');
@@ -160,16 +163,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 9. Schedule auto-maintenance
     this.scheduleMaintenanceIfEnabled();
 
-    // 10. Initialize embeddings if enabled
-    if (this.settings.embeddingsEnabled) {
-      this.app.workspace.onLayoutReady(async () => {
+    // 10. Initialize search index + embeddings on layout ready
+    this.app.workspace.onLayoutReady(async () => {
+      await this.buildSearchIndex();
+
+      if (this.settings.embeddingsEnabled) {
         await this.vectorStoreAdapter.load();
         await this.embeddingAdapter.initialize();
-      });
-    }
+      }
 
-    // 11. Catch-up on app open (process Inbox notes changed since last run)
-    this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
   }
@@ -413,18 +415,22 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.addCommand({
       id: 'run-inbox-process',
       name: t('command.runInbox'),
-      callback: async () => {
-        new Notice(t('notice.inboxStarted'));
-        try {
-          const result = await this.runInboxProcessUseCase.execute();
-          new Notice(t('notice.inboxComplete', {
-            processed: result.processedCount,
-            skipped: result.skippedCount,
-            errors: result.errors.length,
-          }));
-        } catch (err) {
-          new Notice(t('notice.inboxFailed', { error: localizeError(err) }));
+      callback: () => {
+        if (this.isInboxProcessing) {
+          new Notice(t('notice.inboxAlreadyRunning'));
+          return;
         }
+        new InboxProgressModal(
+          this.app,
+          this.runInboxProcessUseCase,
+          (v) => {
+            this.isInboxProcessing = v;
+            if (!v && this.hasQueuedInboxEvents) {
+              this.hasQueuedInboxEvents = false;
+              this.runAutoInboxProcess();
+            }
+          },
+        ).open();
       },
     });
 
@@ -486,10 +492,25 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       // Track all .md file changes for smart scheduling
       if (pathStr.endsWith('.md')) {
         this.changeTracker.markDirty(event.path);
+
+        // Incremental search index update
+        if (event.type === 'delete') {
+          this.searchIndex.remove(event.path);
+        } else if (event.type === 'rename') {
+          if (event.oldPath) this.searchIndex.remove(event.oldPath);
+          this.indexSingleNote(event.path);
+        } else if (event.type === 'create' || event.type === 'modify') {
+          this.indexSingleNote(event.path);
+        }
       }
 
       if (event.type !== 'create' && event.type !== 'modify') return;
       if (!pathStr.startsWith(this.settings.inboxFolder)) return;
+
+      if (this.isInboxProcessing) {
+        this.hasQueuedInboxEvents = true;
+        return;
+      }
 
       pendingPaths.add(pathStr);
 
@@ -497,12 +518,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         clearTimeout(debounceTimer);
       }
 
-      debounceTimer = setTimeout(() => {
+      debounceTimer = setTimeout(async () => {
         debounceTimer = null;
         const count = pendingPaths.size;
         pendingPaths.clear();
 
-        new Notice(t('notice.inboxDetected', { count }));
+        if (this.settings.autoApplyInbox) {
+          await this.runAutoInboxProcess();
+        } else {
+          new Notice(t('notice.inboxDetected', { count }));
+        }
       }, INBOX_DEBOUNCE_MS);
     });
   }
@@ -514,8 +539,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.maintenanceInterval = window.setInterval(async () => {
       try {
         if (this.settings.smartScheduling) {
-          const dirtySet = await this.changeTracker.getDirtySet();
-          if (dirtySet.size === 0) return;
+          const lastScan = await this.changeTracker.getLastScanTimestamp();
+          if (lastScan !== null) {
+            const dirtySet = await this.changeTracker.getDirtySet();
+            if (dirtySet.size === 0) return;
+          }
         }
         await this.runMaintenanceUseCase.execute();
       } catch (err) {
@@ -539,13 +567,58 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     };
   }
 
+  private async buildSearchIndex(): Promise<void> {
+    try {
+      await this.searchIndex.rebuild();
+      const notes = await this.vaultAdapter.listNotes();
+      let indexed = 0;
+      for (const notePath of notes) {
+        const note = await this.vaultAdapter.readNote(notePath);
+        if (note && note.chunks.length > 0) {
+          await this.searchIndex.index(notePath, note.chunks);
+          indexed++;
+        }
+      }
+      console.log(`Knowledge Maintenance: search index built (${indexed} notes)`);
+    } catch (err) {
+      console.error('Knowledge Maintenance: search index build failed', err);
+    }
+  }
+
+  private async indexSingleNote(notePath: NotePath): Promise<void> {
+    try {
+      const note = await this.vaultAdapter.readNote(notePath);
+      if (note && note.chunks.length > 0) {
+        await this.searchIndex.index(notePath, note.chunks);
+      } else {
+        await this.searchIndex.remove(notePath);
+      }
+    } catch {
+      // Non-critical — index will be rebuilt next startup
+    }
+  }
+
+  private async runAutoInboxProcess(): Promise<void> {
+    if (this.isInboxProcessing) return;
+
+    const MAX_RERUN = 3;
+    this.isInboxProcessing = true;
+    try {
+      let runs = 0;
+      do {
+        this.hasQueuedInboxEvents = false;
+        await this.runInboxProcessUseCase.execute();
+        runs++;
+      } while (this.hasQueuedInboxEvents && runs < MAX_RERUN);
+    } catch (err) {
+      console.error('Knowledge Maintenance: auto inbox processing failed', err);
+    } finally {
+      this.isInboxProcessing = false;
+    }
+  }
+
   private async runCatchUp(): Promise<void> {
     if (!this.settings.autoApplyInbox) return;
-
-    try {
-      await this.runInboxProcessUseCase.execute();
-    } catch (err) {
-      console.error('Knowledge Maintenance: catch-up 실패', err);
-    }
+    await this.runAutoInboxProcess();
   }
 }

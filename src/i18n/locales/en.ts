@@ -15,12 +15,13 @@ const en = {
   // ─── Notices ───
   'notice.clipboardSaved': 'Clipboard saved: {{path}}',
   'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
-  'notice.organizeResult': 'Category: {{category}} | Tags: {{tags}}',
+  'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
   'notice.inboxStarted': 'Starting Inbox processing...',
   'notice.inboxComplete': 'Inbox complete: {{processed}} processed, {{skipped}} skipped, {{errors}} errors',
   'notice.inboxFailed': 'Inbox processing failed: {{error}}',
   'notice.inboxDetected': 'Inbox: {{count}} file changes detected',
+  'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
   'notice.actionFailed': 'Action failed: {{error}}',
@@ -138,6 +139,9 @@ const en = {
   'quickAsk.tokens': 'Tokens: {{count}}',
   'quickAsk.cost': 'Cost: ${{amount}}',
   'quickAsk.tags': 'Tags: {{tags}}',
+  'quickAsk.suggestedTags': 'Suggested Tags: {{tags}}',
+  'quickAsk.references': 'Referenced Notes',
+  'quickAsk.truncated': '⚠ Response was truncated due to token limit. Try a more specific question.',
 
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',
@@ -166,6 +170,19 @@ const en = {
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
 
+  // ─── Inbox Progress Modal ───
+  'inboxProgress.title': 'Processing Inbox',
+  'inboxProgress.counter': '{{current}} / {{total}}',
+  'inboxProgress.cancel': 'Cancel',
+  'inboxProgress.close': 'Close',
+  'inboxProgress.completeTitle': 'Inbox Processing Complete',
+  'inboxProgress.cancelledTitle': 'Inbox Processing Cancelled',
+  'inboxProgress.errorTitle': 'Inbox Processing Failed',
+  'inboxProgress.processed': 'Processed: {{count}}',
+  'inboxProgress.skipped': 'Skipped: {{count}}',
+  'inboxProgress.errors': 'Errors: {{count}}',
+  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance Settings',
 
@@ -193,6 +210,8 @@ const en = {
   'settings.saveModeDesc': 'Choose how Quick Ask answers are saved.',
   'settings.saveModeTimestamp': 'Timestamp filename (separate file per question)',
   'settings.saveModeDailyNote': 'Daily Note (append to one file per day)',
+  'settings.maxTokens': 'Max Response Tokens',
+  'settings.maxTokensDesc': 'Maximum tokens for AI response (1024–16384). Higher values allow longer answers but cost more.',
   'settings.dailyNoteLimit': 'Daily Note Size Limit (KB)',
   'settings.dailyNoteLimitDesc': 'Create a new file when Daily Note exceeds this size.',
 

@@ -22,11 +22,13 @@ export interface QuickAskResult {
   readonly question: string;
   readonly answer: string;
   readonly contextChunksUsed: ReadonlyArray<NoteChunk>;
+  readonly referencedNotes: ReadonlyArray<NotePath>;
   readonly savedTo: NotePath;
   readonly suggestedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
   readonly tokenUsage: TokenUsage;
   readonly timestamp: Timestamp;
+  readonly truncated: boolean;
 }
 
 /**

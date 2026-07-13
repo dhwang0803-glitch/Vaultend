@@ -6,11 +6,25 @@ import { ClockPort } from '../ports/ClockPort';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NotePath } from '../../domain/values/NotePath';
 
+export interface InboxProgressInfo {
+  readonly current: number;
+  readonly total: number;
+  readonly currentNotePath: NotePath;
+}
+
+export type InboxProgressCallback = (info: InboxProgressInfo) => void;
+
+export interface InboxProcessOptions {
+  readonly onProgress?: InboxProgressCallback;
+  readonly signal?: AbortSignal;
+}
+
 export interface InboxProcessResult {
   readonly processedCount: number;
   readonly skippedCount: number;
   readonly results: ReadonlyArray<OrganizeResult>;
   readonly errors: ReadonlyArray<{ path: NotePath; error: string }>;
+  readonly cancelled?: boolean;
 }
 
 export class RunInboxProcessUseCase {
@@ -30,7 +44,7 @@ export class RunInboxProcessUseCase {
    * 3. 각 미처리 노트에 대해 OrganizeNoteUseCase 실행
    * 4. 처리 결과 집계 및 반환
    */
-  async execute(): Promise<InboxProcessResult> {
+  async execute(options?: InboxProcessOptions): Promise<InboxProcessResult> {
     const settings = await this.config.getSettings();
     const inboxFolder = settings.inboxFolder;
 
@@ -46,8 +60,21 @@ export class RunInboxProcessUseCase {
 
     const results: OrganizeResult[] = [];
     const errors: Array<{ path: NotePath; error: string }> = [];
+    let cancelled = false;
 
-    for (const notePath of unprocessedNotes) {
+    for (let i = 0; i < unprocessedNotes.length; i++) {
+      if (options?.signal?.aborted) {
+        cancelled = true;
+        break;
+      }
+
+      const notePath = unprocessedNotes[i];
+      options?.onProgress?.({
+        current: i + 1,
+        total: unprocessedNotes.length,
+        currentNotePath: notePath,
+      });
+
       try {
         const result = await this.organizeNote.execute(
           notePath,
@@ -55,8 +82,10 @@ export class RunInboxProcessUseCase {
         );
         results.push(result);
 
-        // Mark as processed
-        await this.vault.updateFrontmatter(notePath, { processed: true });
+        const stillExists = await this.vault.exists(notePath);
+        if (stillExists) {
+          await this.vault.updateFrontmatter(notePath, { processed: true });
+        }
       } catch (err) {
         errors.push({
           path: notePath,
@@ -70,6 +99,7 @@ export class RunInboxProcessUseCase {
       skippedCount: inboxNotes.length - unprocessedNotes.length,
       results,
       errors,
+      cancelled,
     };
   }
 }

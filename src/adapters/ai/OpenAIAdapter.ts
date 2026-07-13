@@ -63,10 +63,11 @@ export class OpenAIAdapter implements AIProviderPort {
 
     const parsed = await this.parseJsonWithRetry(completionResponse.content, prompt);
 
+    const folder = (parsed.folder as string) || undefined;
     return {
-      category: (parsed.category as string) ?? '미분류',
+      category: (parsed.category as string) ?? folder ?? '미분류',
       suggestedTags: (parsed.tags as string[]) ?? [],
-      suggestedFolder: parsed.folder as string | undefined,
+      suggestedFolder: folder,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTagName } from '../TagName';
+import { createTagName, sanitizeTagName } from '../TagName';
 
 describe('createTagName', () => {
   it('#이 있는 태그를 그대로 생성한다', () => {
@@ -44,5 +44,35 @@ describe('createTagName', () => {
 
   it('#만 있으면 거부한다', () => {
     expect(() => createTagName('#')).toThrow('유효하지 않은 태그');
+  });
+});
+
+describe('sanitizeTagName', () => {
+  it('공백을 하이픈으로 치환한다', () => {
+    expect(sanitizeTagName('#코드 시각화')).toBe('#코드-시각화');
+  });
+
+  it('여러 공백을 단일 하이픈으로 치환한다', () => {
+    expect(sanitizeTagName('#my  long  tag')).toBe('#my-long-tag');
+  });
+
+  it('특수문자를 하이픈으로 치환한다', () => {
+    expect(sanitizeTagName('#tag@name!')).toBe('#tag-name');
+  });
+
+  it('#이 없으면 추가한다', () => {
+    expect(sanitizeTagName('project')).toBe('#project');
+  });
+
+  it('이미 유효한 태그는 그대로 반환한다', () => {
+    expect(sanitizeTagName('#valid-tag')).toBe('#valid-tag');
+  });
+
+  it('한국어 + 공백 혼합을 처리한다', () => {
+    expect(sanitizeTagName('웹 개발 기초')).toBe('#웹-개발-기초');
+  });
+
+  it('선행/후행 공백을 제거한다', () => {
+    expect(sanitizeTagName('  #trimmed  ')).toBe('#trimmed');
   });
 });

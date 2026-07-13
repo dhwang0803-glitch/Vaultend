@@ -86,7 +86,7 @@ describe('PromptTemplates', () => {
     it('JSON 형식 가이드를 포함한다', () => {
       const result = PromptTemplates.classifyAndTag('내용', []);
       expect(result).toContain('JSON');
-      expect(result).toContain('category');
+      expect(result).toContain('folder');
       expect(result).toContain('tags');
     });
   });

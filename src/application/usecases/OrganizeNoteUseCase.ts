@@ -1,5 +1,5 @@
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
-import { createTagName } from '../../domain/values/TagName';
+import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
@@ -86,23 +86,30 @@ export class OrganizeNoteUseCase {
     // Link suggestions — based on other note titles and content
     const suggestedLinks = this.findRelevantLinks(note.content, allNotes, notePath);
 
-    // Folder suggestion — validate against actual vault folders
+    // Folder suggestion — prefer existing folders, allow new folder creation
     const currentFolder = (notePath as string).includes('/')
       ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
       : '';
     const rawFolder = classification.suggestedFolder;
-    const suggestedFolder = rawFolder &&
-      rawFolder !== currentFolder &&
-      folderSet.has(rawFolder)
+    const suggestedFolder = rawFolder && rawFolder !== currentFolder
       ? rawFolder
       : undefined;
+
+    const sanitizedTags = newSuggestedTags
+      .map(t => sanitizeTagName(t))
+      .filter(t => /^#[\w가-힣\-/]+$/.test(t))
+      .filter(t => !currentTagsLower.has(t.toLowerCase()));
+    const uniqueSanitized = [...new Set(sanitizedTags)];
+
+    const isNewFolder = suggestedFolder ? !folderSet.has(suggestedFolder) : false;
 
     const result: OrganizeResult = {
       noteId: note.id,
       classifiedCategory: classification.category,
-      addedTags: newSuggestedTags.map(t => createTagName(t)),
+      addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
       suggestedMoveTarget: suggestedFolder,
+      isNewFolder,
       summary: classification.summary,
       tokenUsage: classification.tokenUsage,
     };
@@ -185,7 +192,7 @@ export class OrganizeNoteUseCase {
       action: 'classify',
       notePath,
       timestamp: createTimestamp(Date.now()),
-      description: `Organized: category=${result.classifiedCategory}, tags=${result.addedTags.length}`,
+      description: `Organized: folder=${result.suggestedMoveTarget ?? 'keep'}, tags=${result.addedTags.length}`,
     });
   }
 }

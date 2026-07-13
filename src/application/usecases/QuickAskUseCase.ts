@@ -1,6 +1,6 @@
 import { QuickAskRequest, QuickAskResult } from '../../domain/models/QuickAskModels';
 import { NoteChunk } from '../../domain/models/NoteChunk';
-import { TagName, createTagName } from '../../domain/values/TagName';
+import { TagName, createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
@@ -65,19 +65,33 @@ export class QuickAskUseCase {
 
     // 4. Parse response — extract tags/links
     const suggestedTags: ReadonlyArray<TagName> = request.autoTag
-      ? (await this.aiProvider.callClassification({
-          text: aiResponse.content,
-          task: 'suggest-tags',
-          existingTags: settings.knownTags,
-        })).suggestedTags.map(t => createTagName(t))
+      ? [...new Set(
+          (await this.aiProvider.callClassification({
+            text: aiResponse.content,
+            task: 'suggest-tags',
+            existingTags: settings.knownTags,
+          })).suggestedTags
+            .map(t => sanitizeTagName(t))
+            .filter(t => /^#[\w가-힣\-/]+$/.test(t)),
+        )].map(t => createTagName(t))
       : [];
 
-    const suggestedLinks = request.autoLink
+    // Derive referenced note paths from context (deduplicated)
+    const referencedNotes: ReadonlyArray<NotePath> = [...new Set(filteredChunks.map(sr => sr.notePath))];
+
+    let suggestedLinks: ReadonlyArray<NotePath> = request.autoLink
       ? this.extractLinkSuggestions(aiResponse.content)
       : [];
 
+    // Auto-add reference note links when AI didn't suggest any (#64)
+    if (request.autoLink && suggestedLinks.length === 0 && referencedNotes.length > 0) {
+      suggestedLinks = [...referencedNotes];
+    }
+
     // 5. Save note
-    const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags]);
+    const truncated = aiResponse.finishReason === 'length';
+    const allNotes = suggestedLinks.length > 0 ? await this.vault.listNotes() : [];
+    const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], suggestedLinks, truncated, allNotes);
     const savedPath = await this.saveNote.execute({
       content,
       target: request.saveTarget,
@@ -104,11 +118,13 @@ export class QuickAskUseCase {
       question: request.question,
       answer: aiResponse.content,
       contextChunksUsed,
+      referencedNotes,
       savedTo: savedPath,
       suggestedTags,
       suggestedLinks,
       tokenUsage: aiResponse.tokenUsage,
       timestamp: now,
+      truncated,
     };
   }
 
@@ -210,7 +226,58 @@ export class QuickAskUseCase {
     return links;
   }
 
-  private formatAnswer(question: string, answer: string, _tags: ReadonlyArray<TagName>): string {
-    return `## Question\n\n${question}\n\n## Answer\n\n${answer}`;
+  private formatAnswer(
+    question: string,
+    answer: string,
+    _tags: ReadonlyArray<TagName>,
+    links: ReadonlyArray<NotePath>,
+    truncated: boolean,
+    allNotes: ReadonlyArray<NotePath>,
+  ): string {
+    // Strip markdown URL links from AI response to prevent broken links in vault
+    const cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+    let result = `## Question\n\n${question}\n\n## Answer\n\n${cleanedAnswer}`;
+
+    if (truncated) {
+      result += '\n\n> [!warning] Response truncated due to token limit.';
+    }
+
+    if (links.length > 0) {
+      const linkLines = links.map(lp => this.resolveWikilink(lp, allNotes));
+      result += `\n\n## References\n\n${linkLines.join('\n')}`;
+    }
+
+    return result;
+  }
+
+  private resolveWikilink(linkPath: NotePath, allNotes: ReadonlyArray<NotePath>): string {
+    const pathStr = linkPath as string;
+    const basename = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
+
+    const duplicates = allNotes.filter(n => {
+      const other = (n as string).split('/').pop()?.replace(/\.md$/, '');
+      return other === basename;
+    });
+
+    if (duplicates.length <= 1) {
+      return `- [[${basename}]]`;
+    }
+
+    const parts = pathStr.replace(/\.md$/, '').split('/');
+    if (parts.length <= 1) {
+      return `- [[${basename}]]`;
+    }
+
+    const parentSlug = `${parts[parts.length - 2]}/${basename}`;
+    const stillAmbiguous = duplicates.filter(n => {
+      const rel = (n as string).replace(/\.md$/, '');
+      return rel.endsWith(parentSlug);
+    });
+
+    if (stillAmbiguous.length > 1) {
+      return `- [[${pathStr.replace(/\.md$/, '')}]]`;
+    }
+
+    return `- [[${parentSlug}]]`;
   }
 }

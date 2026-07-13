@@ -45,7 +45,6 @@ export class OrganizeResultModal extends Modal {
       cls: 'organize-note-name',
     });
 
-    this.renderCategory(contentEl);
     if (this.result.summary) {
       this.renderSummary(contentEl);
     }
@@ -53,15 +52,6 @@ export class OrganizeResultModal extends Modal {
     this.renderLinks(contentEl);
     this.renderMove(contentEl);
     this.renderFooter(contentEl);
-  }
-
-  private renderCategory(container: HTMLElement): void {
-    const section = container.createDiv('organize-section');
-    section.createEl('h4', { text: t('organize.category') });
-    section.createEl('span', {
-      text: this.result.classifiedCategory,
-      cls: 'organize-category-badge',
-    });
   }
 
   private renderSummary(container: HTMLElement): void {
@@ -180,21 +170,28 @@ export class OrganizeResultModal extends Modal {
     const section = container.createDiv('organize-section');
     section.createEl('h4', { text: t('organize.suggestedMove') });
 
-    const folders = this.context.existingFolders;
+    const folders = [...this.context.existingFolders];
 
-    if (folders.length === 0) {
-      section.createEl('p', { text: t('organize.noMove'), cls: 'organize-empty' });
-      return;
-    }
+    // If AI suggested a new folder not in the existing list, add it with "(New)" label
+    const aiFolder = this.selectedFolder;
+    const isNewFolder = this.result.isNewFolder ?? (aiFolder ? !folders.includes(aiFolder) : false);
 
     const selectEl = section.createEl('select', { cls: 'organize-folder-select' });
 
     const noneOption = selectEl.createEl('option', { text: t('organize.keepCurrent'), value: '' });
     if (!this.selectedFolder) noneOption.selected = true;
 
+    if (isNewFolder) {
+      const newOpt = selectEl.createEl('option', {
+        text: `${aiFolder} (New)`,
+        value: aiFolder,
+      });
+      newOpt.selected = true;
+    }
+
     for (const folder of folders) {
       const opt = selectEl.createEl('option', { text: folder, value: folder });
-      if (folder === this.selectedFolder) opt.selected = true;
+      if (folder === this.selectedFolder && !isNewFolder) opt.selected = true;
     }
 
     selectEl.addEventListener('change', () => {

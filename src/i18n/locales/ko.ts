@@ -17,12 +17,13 @@ const ko: { [K in keyof typeof en]: string } = {
   // ─── Notices ───
   'notice.clipboardSaved': '클립보드 내용을 저장했습니다: {{path}}',
   'notice.clipboardFailed': '클립보드 캡처 실패: {{error}}',
-  'notice.organizeResult': '분류: {{category}} | 태그: {{tags}}',
+  'notice.organizeResult': '폴더: {{folder}} | 태그: {{tags}}',
   'notice.organizeFailed': '노트 정리 실패: {{error}}',
   'notice.inboxStarted': 'Inbox 처리를 시작합니다...',
   'notice.inboxComplete': 'Inbox 처리 완료: {{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
   'notice.inboxFailed': 'Inbox 처리 실패: {{error}}',
   'notice.inboxDetected': 'Inbox: {{count}}개 파일 변경 감지',
+  'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
   'notice.actionFailed': '적용 실패: {{error}}',
@@ -140,6 +141,9 @@ const ko: { [K in keyof typeof en]: string } = {
   'quickAsk.tokens': '토큰: {{count}}',
   'quickAsk.cost': '비용: ${{amount}}',
   'quickAsk.tags': '태그: {{tags}}',
+  'quickAsk.suggestedTags': '제안 태���: {{tags}}',
+  'quickAsk.references': '참조된 노트',
+  'quickAsk.truncated': '⚠ 토큰 제한으로 응답이 잘렸습니다. 더 구체적인 질문을 시도해보세요.',
 
   // ─── Organize Result Modal ───
   'organize.title': '노트 정리',
@@ -168,6 +172,19 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
 
+  // ─── Inbox Progress Modal ───
+  'inboxProgress.title': 'Inbox 처리 중',
+  'inboxProgress.counter': '{{current}} / {{total}}',
+  'inboxProgress.cancel': '취소',
+  'inboxProgress.close': '닫기',
+  'inboxProgress.completeTitle': 'Inbox 처리 완료',
+  'inboxProgress.cancelledTitle': 'Inbox 처리 취소됨',
+  'inboxProgress.errorTitle': 'Inbox 처리 실패',
+  'inboxProgress.processed': '처리됨: {{count}}',
+  'inboxProgress.skipped': '건너뜀: {{count}}',
+  'inboxProgress.errors': '오류: {{count}}',
+  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance 설정',
 
@@ -195,6 +212,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.saveModeDesc': 'Quick Ask 답변의 저장 방식을 선택합니다.',
   'settings.saveModeTimestamp': '타임스탬프 파일명 (질문마다 별도 파일)',
   'settings.saveModeDailyNote': 'Daily Note (하루치를 하나의 파일에 추가)',
+  'settings.maxTokens': '최대 응답 토큰',
+  'settings.maxTokensDesc': 'AI 응답의 최대 토큰 수 (1024–16384). 높을수록 긴 답변이 가능하지만 비용이 증가합니다.',
   'settings.dailyNoteLimit': 'Daily Note 용량 제한 (KB)',
   'settings.dailyNoteLimitDesc': 'Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.',
 
