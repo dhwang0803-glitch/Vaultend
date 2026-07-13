@@ -82,7 +82,8 @@ export class QuickAskUseCase {
 
     // 5. Save note
     const truncated = aiResponse.finishReason === 'length';
-    const allNotes = await this.vault.listNotes();
+    const needsAllNotes = referencedNotes.length > 0 || aiResponse.content.includes('[[');
+    const allNotes = needsAllNotes ? await this.vault.listNotes() : [];
     const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], referencedNotes, truncated, allNotes);
     const savedPath = await this.saveNote.execute({
       content,
@@ -252,7 +253,7 @@ export class QuickAskUseCase {
     const noteBasenames = new Set(
       allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
     );
-    cleanedAnswer = cleanedAnswer.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias?: string) => {
+    cleanedAnswer = cleanedAnswer.replace(/\[\[([^\]\r\n|]+)(?:\|([^\]\r\n]+))?\]\]/g, (_match, target: string, alias?: string) => {
       const withoutFragment = target.trim().split('#')[0];
       const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
       if (noteBasenames.has(basename)) {
