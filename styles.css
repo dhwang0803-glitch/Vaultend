@@ -101,6 +101,48 @@
   text-decoration: underline;
 }
 
+.knowledge-maintenance-quick-ask .quick-ask-references a.is-active {
+  font-weight: 600;
+  color: var(--text-accent-hover);
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-preview {
+  margin-top: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-preview-close {
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-preview-close:hover {
+  color: var(--text-normal);
+}
+
+.knowledge-maintenance-quick-ask .quick-ask-preview-body {
+  padding: 12px;
+  font-size: var(--font-ui-small);
+}
+
 /* Inbox Status View */
 .inbox-stats {
   padding: 8px 0;
