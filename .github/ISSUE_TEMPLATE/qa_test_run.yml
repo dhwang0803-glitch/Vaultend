@@ -14,7 +14,7 @@ body:
     id: version
     attributes:
       label: Plugin Version
-      placeholder: "0.3.11"
+      placeholder: "0.4.1"
     validations:
       required: true
 
@@ -22,7 +22,7 @@ body:
     id: obsidian-version
     attributes:
       label: Obsidian Version
-      placeholder: "1.7.2"
+      placeholder: "1.12.7"
     validations:
       required: true
 
@@ -62,24 +62,26 @@ body:
     attributes:
       label: "1. Quick Ask"
       options:
-        - label: "TC-1.1: 기본 질의 → 응답 표시 + 토큰/비용 + 저장 파일 버튼"
+        - label: "TC-1.1: 기본 질의 → 응답 + 토큰/비용 + Referenced Notes + 저장 버튼"
         - label: "TC-1.2: Ctrl+Enter 단축키 동작"
         - label: "TC-1.3: 빈 질문 → 에러 Notice"
-        - label: "TC-1.4: 태그 자동 추출 (vault 기존 태그 재사용)"
+        - label: "TC-1.4: 태그 자동 추출 (vault 기존 태그 재사용, 공백→하이픈 sanitize)"
         - label: "TC-1.5: 링크 자동 추출 ([[wikilink]])"
-        - label: "TC-1.6: Daily Note 모드 저장"
+        - label: "TC-1.6: Daily Note 모드 저장 + 깨진 링크 방지 (마크다운 URL→plain text)"
         - label: "TC-1.7: Hybrid Search — 키워드 없는 의미적 질문에 관련 노트 포함"
+        - label: "TC-1.8: 토큰 제한 경고 (잘림 감지 시 배너 표시)"
+        - label: "TC-1.9: BM25 검색 인덱스 (시작 시 빌드, incremental 갱신)"
 
   - type: checkboxes
     id: organize
     attributes:
       label: "2. Organize Current Note"
       options:
-        - label: "TC-2.1: 기본 분류 → 모달 (카테고리/요약/태그/링크/폴더)"
-        - label: "TC-2.2: 태그 제안 품질 (vault 기존 태그 재사용, hallucination 없음)"
-        - label: "TC-2.3: 태그 수동 추가/제거"
+        - label: "TC-2.1: 기본 분류 → 모달 (요약/태그/링크/폴더, 새 폴더 시 (New) 표시)"
+        - label: "TC-2.2: 태그 제안 품질 (vault 재사용, hallucination 없음, 공백→하이픈 sanitize)"
+        - label: "TC-2.3: 태그 수동 추가/제거 (chip UI)"
         - label: "TC-2.4: 링크 제안 (실제 존재하는 노트)"
-        - label: "TC-2.5: 폴더 이동 드롭다운 (실제 폴더 목록)"
+        - label: "TC-2.5: 폴더 이동 (AI 항상 추천, 새 폴더 (New) 라벨, 자동 생성)"
         - label: "TC-2.6: Apply All → frontmatter 태그 + 링크 + 이동"
         - label: "TC-2.7: 토큰/비용 표시"
         - label: "TC-2.8: 빈 vault 태그 생성 (3개+)"
@@ -96,16 +98,22 @@ body:
         - label: "TC-3.5: 빈 파일 탐지"
         - label: "TC-3.6: 태그 없는 파일 탐지"
         - label: "TC-3.7: 제외 폴더 동작"
-        - label: "TC-3.8: Smart Scheduling (dirty set 비면 스킵)"
+        - label: "TC-3.8: Smart Scheduling (dirty set 비면 스킵 + 첫 실행 보장)"
 
   - type: checkboxes
     id: inbox
     attributes:
       label: "4. Inbox Process"
       options:
-        - label: "TC-4.1: 기본 처리 → Notice (processed/skipped/errors)"
-        - label: "TC-4.2: 자동 감지 (Inbox Watcher)"
-        - label: "TC-4.3: Confidence Gating (low confidence → 미적용)"
+        - label: "TC-4.1: 프로그레스 모달 (프로그레스 바 + 카운터 + 현재 노트명)"
+        - label: "TC-4.2: 취소 (Cancel/ESC → 부분 결과 요약)"
+        - label: "TC-4.3: 이중 실행 방지 (모달 열린 상태에서 재실행 차단)"
+        - label: "TC-4.4: 자동 감지 (Inbox Watcher, 자체 이벤트 억제)"
+        - label: "TC-4.5: 이벤트 큐잉 (처리 중 새 이벤트 → 완료 후 재실행, MAX_RERUN=3)"
+        - label: "TC-4.6: 모달 이벤트 드레인 (모달 종료 시 큐잉된 이벤트 자동 처리)"
+        - label: "TC-4.7: 에러 표시 (API 실패 시 에러 타이틀 + 메시지)"
+        - label: "TC-4.8: 노트 이동 후 정합성 (이동된 노트 processed 마킹)"
+        - label: "TC-4.9: Confidence Gating (low confidence → 미적용)"
 
   - type: checkboxes
     id: others
@@ -119,6 +127,7 @@ body:
         - label: "TC-7.2: Privacy Rules (folder-exclude)"
         - label: "TC-7.3: content-redact 규칙"
         - label: "TC-7.4: Locale 전환 (en/ko)"
+        - label: "TC-7.5: Max Response Tokens 슬라이더 (512~16384)"
 
   - type: checkboxes
     id: edge-cases

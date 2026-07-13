@@ -1,6 +1,6 @@
 # Noluma 실환경 QA 테스트 플랜
 
-> 대상 버전: v0.3.11+  
+> 대상 버전: v0.4.1+  
 > 테스트 환경: Obsidian Desktop (Windows/Mac), BRAT 설치  
 > 전제: Settings에서 AI Provider API 키 설정 완료
 
@@ -85,14 +85,16 @@ Vault/
 | 확인 | ✅ vault에 동일 이름 파일이 여러 개 있으면 폴더 접두사가 붙는지 (예: `[[projects/hooks]]`) |
 | 기대 (AI 링크) | AI가 [[wikilink]]를 응답에 직접 포함하면 그것이 suggestedLinks로 우선 사용됨 |
 
-### TC-1.6: Daily Note 모드 저장
+### TC-1.6: Daily Note 모드 저장 + 깨진 링크 방지
 
 | 항목 | 내용 |
 |------|------|
 | 설정 | Save Mode → `daily-note` |
-| 실행 | Quick Ask → 질문 |
+| 실행 | Quick Ask → 외부 URL을 참조할 법한 질문 (예: "React 공식 문서 링크 알려줘") |
 | 기대 | Daily Note에 섹션으로 추가됨 (기존 내용 유지) |
-| 확인 | ✅ 파일 사이즈 리밋 초과 시 새 파일 생성되는지 (예: `2026-07-13-2.md`) |
+| 확인 | ✅ 파일 사이즈 리밋 초과 시 새 파일 생성되는지 (예: `2026-07-14-2.md`) |
+| 확인 | ✅ AI 응답의 마크다운 URL 링크 `[text](http...)` 가 vault에 깨진 링크를 생성하지 않는지 |
+| 확인 | ✅ 저장된 파일에서 Obsidian의 "깨진 링크" 목록에 외부 URL이 나타나지 않는지 |
 
 ### TC-1.7: Hybrid Search (Embedding + BM25)
 
@@ -137,16 +139,18 @@ Vault/
 |------|------|
 | 준비 | Inbox에 태그/분류 없는 노트 열기 |
 | 실행 | Command Palette → "Organize Current Note" |
-| 기대 | 모달 표시: 카테고리, 요약, 제안 태그, 제안 링크, 이동 폴더 |
+| 기대 | 모달 표시: 요약, 제안 태그, 제안 링크, 이동 폴더 (카테고리 없음) |
 | 확인 | ✅ "Analyzing..." Notice → 모달 전환 |
+| 확인 | ✅ AI가 항상 폴더를 추천하며, 새 폴더인 경우 "(New)" 표시가 붙는지 |
 
-### TC-2.2: 태그 제안 품질
+### TC-2.2: 태그 제안 품질 + sanitize
 
 | 항목 | 내용 |
 |------|------|
 | 확인 | 제안 태그가 vault 기존 태그를 재사용하는지 |
 | 확인 | 노트 내용과 무관한 태그(hallucination)가 없는지 |
 | 확인 | 태그 수가 3~5개 범위인지 |
+| 확인 | ✅ AI가 공백이 포함된 태그를 제안해도 저장 시 공백이 하이픈으로 변환되는지 (예: "machine learning" → "machine-learning") |
 
 ### TC-2.3: 태그 수동 추가/제거
 
@@ -166,8 +170,11 @@ Vault/
 
 | 항목 | 내용 |
 |------|------|
+| 확인 | AI가 항상 이동 폴더를 추천하는지 (folder 필드가 항상 존재) |
 | 확인 | 드롭다운에 vault의 실제 폴더 목록이 표시되는지 |
+| 확인 | AI가 추천한 폴더가 vault에 없으면 "(New)" 라벨이 표시되는지 |
 | 확인 | "Keep current" 옵션이 기본 선택인지 (suggestedMove 없을 때) |
+| 확인 | ✅ (New) 폴더 선택 후 Apply 시 해당 폴더가 자동 생성되고 노트가 이동되는지 |
 
 ### TC-2.6: Apply All
 
@@ -249,36 +256,100 @@ Vault/
 | 준비 | Archive/ 폴더에 고아/빈 노트 배치 |
 | 기대 | Archive 내 파일이 결과에 나타나지 않음 |
 
-### TC-3.8: Smart Scheduling
+### TC-3.8: Smart Scheduling + 첫 실행 보장
 
 | 항목 | 내용 |
 |------|------|
 | 설정 | Smart Scheduling = true, Interval = 30분 |
 | 실행 | 아무 노트도 수정하지 않고 30분 대기 (또는 타이머 확인) |
 | 기대 | dirty set이 비어있으면 스캔을 건너뜀 (콘솔 로그 확인) |
+| 확인 | ✅ `lastScanTimestamp`가 null (한 번도 실행한 적 없음)이면 dirty set이 비어있어도 첫 스캔이 실행되는지 |
+| 확인 | ✅ 첫 실행 후에는 dirty set이 비어있을 때 정상적으로 건너뛰는지 |
 
 ---
 
 ## 4. Inbox Process (자동 분류)
 
-### TC-4.1: 기본 처리
+### TC-4.1: 프로그레스 모달 기본 처리
 
 | 항목 | 내용 |
 |------|------|
 | 준비 | Inbox/ 폴더에 미분류 노트 3개 배치 |
 | 실행 | Command Palette → "Run Inbox Process" |
-| 기대 | Notice: "3 processed, 0 skipped, 0 errors" |
-| 확인 | ✅ 각 노트에 태그가 추가되었는지 |
+| 기대 | **프로그레스 모달** 표시 (Notice 아님) |
+| 확인 | ✅ 모달에 프로그레스 바가 표시되고 처리 진행에 따라 채워지는지 |
+| 확인 | ✅ 카운터 "1 / 3", "2 / 3", "3 / 3" 실시간 갱신되는지 |
+| 확인 | ✅ 현재 처리 중인 노트 이름이 표시되는지 |
+| 확인 | ✅ 완료 시 요약 화면 표시: "Processed: 3", "Skipped: 0" |
+| 확인 | ✅ 각 노트에 태그가 추가되고 frontmatter에 `processed: true` 마킹되는지 |
 
-### TC-4.2: 자동 감지 (Inbox Watcher)
+### TC-4.2: 취소 (Cancel / ESC)
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | Inbox/ 폴더에 미분류 노트 5개 이상 배치 |
+| 실행 | "Run Inbox Process" → 처리 중 Cancel 버튼 클릭 (또는 ESC) |
+| 기대 | 현재 노트 처리 완료 후 중단, 요약 화면에 "Inbox Processing Cancelled" 타이틀 |
+| 확인 | ✅ 취소 전까지 처리된 노트 수와 남은 미처리 노트 수가 합산 정확한지 |
+| 확인 | ✅ 취소 후 다시 "Run Inbox Process" 실행하면 나머지 노트만 처리하는지 |
+
+### TC-4.3: 이중 실행 방지
+
+| 항목 | 내용 |
+|------|------|
+| 실행 | "Run Inbox Process"로 모달 열린 상태에서 다시 "Run Inbox Process" 실행 |
+| 기대 | Notice: "Inbox processing is already running." |
+| 확인 | ✅ 두 번째 모달이 열리지 않고, 기존 모달이 정상 계속 동작하는지 |
+
+### TC-4.4: 자동 감지 (Inbox Watcher)
 
 | 항목 | 내용 |
 |------|------|
 | 설정 | Auto-Apply Inbox = true |
 | 실행 | Inbox/ 폴더에 새 노트 생성 |
-| 기대 | 자동으로 분류 실행 (몇 초 뒤 태그 추가됨) |
+| 기대 | 자동으로 분류 실행 (몇 초 뒤 태그 추가됨), "file changes detected" 알림 없음 |
+| 확인 | ✅ 자체 처리로 발생한 vault 이벤트가 추가 알림을 트리거하지 않는지 |
 
-### TC-4.3: Confidence Gating
+### TC-4.5: 처리 중 새 노트 도착 (이벤트 큐잉)
+
+| 항목 | 내용 |
+|------|------|
+| 설정 | Auto-Apply Inbox = true |
+| 준비 | Inbox에 노트 3개 배치 |
+| 실행 | 자동 처리가 진행되는 동안 Inbox에 새 노트 1개 추가 |
+| 기대 | 현재 배치 완료 후 새 노트도 자동 처리됨 (최대 3회 재실행) |
+| 확인 | ✅ 새로 추가된 노트에도 태그가 추가되었는지 |
+
+### TC-4.6: 모달 처리 중 새 노트 도착
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | Inbox에 노트 3개 배치 |
+| 실행 | "Run Inbox Process" 모달로 처리 중, Inbox에 새 노트 1개 추가 |
+| 기대 | 모달 처리 완료 → 모달 닫힌 후 큐잉된 이벤트가 백그라운드로 자동 처리됨 |
+| 확인 | ✅ 새 노트가 누락되지 않고 처리되는지 |
+
+### TC-4.7: 에러 표시
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | Inbox에 노트 3개 배치 (1개는 처리 중 에러 유발 가능한 상태) |
+| 실행 | "Run Inbox Process" |
+| 기대 | 완료 화면에 "Errors: 1" 표시 + 에러 리스트에 노트명과 에러 메시지 |
+| 확인 | ✅ 에러 난 노트 외의 나머지는 정상 처리되는지 |
+
+### TC-4.8: 노트 이동 후 processed 마킹
+
+| 항목 | 내용 |
+|------|------|
+| 설정 | Auto-Apply Inbox = true |
+| 준비 | Inbox에 노트 배치 (AI가 다른 폴더로 이동 제안할 만한 내용) |
+| 실행 | "Run Inbox Process" |
+| 기대 | 노트가 이동된 후에도 에러 없이 정상 완료 |
+| 확인 | ✅ 이동된 노트의 frontmatter에 `processed: true`가 있는지 |
+| 확인 | ✅ 원래 경로에 NoteNotFoundError가 발생하지 않는지 (콘솔 확인) |
+
+### TC-4.9: Confidence Gating
 
 | 항목 | 내용 |
 |------|------|
@@ -404,4 +475,47 @@ Vault/
 |-----|------|------|
 | TC-1.1 | PASS / FAIL | |
 | TC-1.2 | PASS / FAIL | |
-| ... | ... | ... |
+| TC-1.3 | PASS / FAIL | |
+| TC-1.4 | PASS / FAIL | |
+| TC-1.5 | PASS / FAIL | |
+| TC-1.6 | PASS / FAIL | |
+| TC-1.7 | PASS / FAIL | |
+| TC-1.8 | PASS / FAIL | |
+| TC-1.9 | PASS / FAIL | |
+| TC-2.1 | PASS / FAIL | |
+| TC-2.2 | PASS / FAIL | |
+| TC-2.3 | PASS / FAIL | |
+| TC-2.4 | PASS / FAIL | |
+| TC-2.5 | PASS / FAIL | |
+| TC-2.6 | PASS / FAIL | |
+| TC-2.7 | PASS / FAIL | |
+| TC-2.8 | PASS / FAIL | |
+| TC-3.1 | PASS / FAIL | |
+| TC-3.2 | PASS / FAIL | |
+| TC-3.3 | PASS / FAIL | |
+| TC-3.4 | PASS / FAIL | |
+| TC-3.5 | PASS / FAIL | |
+| TC-3.6 | PASS / FAIL | |
+| TC-3.7 | PASS / FAIL | |
+| TC-3.8 | PASS / FAIL | |
+| TC-4.1 | PASS / FAIL | |
+| TC-4.2 | PASS / FAIL | |
+| TC-4.3 | PASS / FAIL | |
+| TC-4.4 | PASS / FAIL | |
+| TC-4.5 | PASS / FAIL | |
+| TC-4.6 | PASS / FAIL | |
+| TC-4.7 | PASS / FAIL | |
+| TC-4.8 | PASS / FAIL | |
+| TC-4.9 | PASS / FAIL | |
+| TC-5.1 | PASS / FAIL | |
+| TC-6.1 | PASS / FAIL | |
+| TC-6.2 | PASS / FAIL | |
+| TC-7.1 | PASS / FAIL | |
+| TC-7.2 | PASS / FAIL | |
+| TC-7.3 | PASS / FAIL | |
+| TC-7.4 | PASS / FAIL | |
+| TC-7.5 | PASS / FAIL | |
+| TC-8.1 | PASS / FAIL | |
+| TC-8.2 | PASS / FAIL | |
+| TC-8.3 | PASS / FAIL | |
+| TC-8.4 | PASS / FAIL | |
