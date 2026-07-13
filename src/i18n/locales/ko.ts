@@ -23,6 +23,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.inboxComplete': 'Inbox 처리 완료: {{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
   'notice.inboxFailed': 'Inbox 처리 실패: {{error}}',
   'notice.inboxDetected': 'Inbox: {{count}}개 파일 변경 감지',
+  'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
   'notice.actionFailed': '적용 실패: {{error}}',
@@ -170,6 +171,18 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.nothingToApply': '적용할 항목이 없습니다.',
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
+
+  // ─── Inbox Progress Modal ───
+  'inboxProgress.title': 'Inbox 처리 중',
+  'inboxProgress.counter': '{{current}} / {{total}}',
+  'inboxProgress.cancel': '취소',
+  'inboxProgress.close': '닫기',
+  'inboxProgress.completeTitle': 'Inbox 처리 완료',
+  'inboxProgress.cancelledTitle': 'Inbox 처리 취소됨',
+  'inboxProgress.processed': '처리됨: {{count}}',
+  'inboxProgress.skipped': '건너뜀: {{count}}',
+  'inboxProgress.errors': '오류: {{count}}',
+  'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance 설정',

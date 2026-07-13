@@ -21,6 +21,7 @@ const en = {
   'notice.inboxComplete': 'Inbox complete: {{processed}} processed, {{skipped}} skipped, {{errors}} errors',
   'notice.inboxFailed': 'Inbox processing failed: {{error}}',
   'notice.inboxDetected': 'Inbox: {{count}} file changes detected',
+  'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
   'notice.actionFailed': 'Action failed: {{error}}',
@@ -168,6 +169,18 @@ const en = {
   'organize.nothingToApply': 'Nothing to apply.',
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
+
+  // ─── Inbox Progress Modal ───
+  'inboxProgress.title': 'Processing Inbox',
+  'inboxProgress.counter': '{{current}} / {{total}}',
+  'inboxProgress.cancel': 'Cancel',
+  'inboxProgress.close': 'Close',
+  'inboxProgress.completeTitle': 'Inbox Processing Complete',
+  'inboxProgress.cancelledTitle': 'Inbox Processing Cancelled',
+  'inboxProgress.processed': 'Processed: {{count}}',
+  'inboxProgress.skipped': 'Skipped: {{count}}',
+  'inboxProgress.errors': 'Errors: {{count}}',
+  'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance Settings',
