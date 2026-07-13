@@ -579,7 +579,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      console.log(`Knowledge Maintenance: search index built (${indexed} notes)`);
+      const totalNotes = notes.length;
+      console.log(`Knowledge Maintenance: search index built (${indexed}/${totalNotes} notes indexed)`);
+      if (indexed < totalNotes) {
+        console.log(`  [KM-DEBUG] Skipped ${totalNotes - indexed} notes (no chunks or read failed)`);
+      }
     } catch (err) {
       console.error('Knowledge Maintenance: search index build failed', err);
     }

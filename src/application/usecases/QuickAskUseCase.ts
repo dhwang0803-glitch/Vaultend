@@ -51,6 +51,13 @@ export class QuickAskUseCase {
     );
     const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
 
+    console.log(`[KM-DEBUG] After privacy filter: ${contextChunks.length} → ${filteredChunks.length} chunks`);
+    if (filteredChunks.length !== contextChunks.length) {
+      const blocked = contextChunks.filter((_, i) => !allowedChecks[i]);
+      for (const b of blocked) console.log(`  [KM-DEBUG] BLOCKED by privacy: ${b.notePath}`);
+    }
+    console.log(`[KM-DEBUG] Final context notes: ${[...new Set(filteredChunks.map(c => c.notePath))].join(', ')}`);
+
     // 3. Call AI after content-redact
     const redactedChunks = filteredChunks.map(sr => ({
       ...sr,
@@ -131,6 +138,12 @@ export class QuickAskUseCase {
   private async hybridSearch(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
     const FETCH_SIZE = 20;
     const bm25Results = await this.searchIndex.search(query, FETCH_SIZE);
+
+    console.log(`[KM-DEBUG] hybridSearch query="${query}"`);
+    console.log(`[KM-DEBUG] BM25 results (${bm25Results.length}):`);
+    for (const r of bm25Results) {
+      console.log(`  [KM-DEBUG]   ${r.notePath} score=${r.score.toFixed(3)} heading="${r.chunk.headingPath}" text=${(r.chunk.text as string).substring(0, 80)}...`);
+    }
 
     if (!this.embedding?.isReady() || !this.vectorStore) {
       return bm25Results.slice(0, maxResults);
