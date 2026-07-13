@@ -11,6 +11,9 @@ export class QuickAskModal extends Modal {
   private lastResult: QuickAskResult | null = null;
   private isAsking = false;
   private readonly renderComponent = new Component();
+  private previewContainer: HTMLElement | null = null;
+  private activeRefLink: HTMLElement | null = null;
+  private previewRequestId = 0;
 
   constructor(
     app: App,
@@ -124,13 +127,13 @@ export class QuickAskModal extends Modal {
         const link = li.createEl('a', { text: displayName, cls: 'internal-link' });
         link.addEventListener('click', async (e) => {
           e.preventDefault();
-          const file = this.app.vault.getAbstractFileByPath(pathStr);
-          if (file instanceof TFile) {
-            await this.app.workspace.getLeaf('tab').openFile(file);
-          }
+          await this.showNotePreview(pathStr, link);
         });
       }
     }
+
+    this.previewContainer = this.resultContainer.createDiv('quick-ask-preview');
+    this.previewContainer.style.display = 'none';
 
     const footerEl = this.resultContainer.createDiv('quick-ask-footer');
 
@@ -162,6 +165,56 @@ export class QuickAskModal extends Modal {
     new ButtonComponent(actionsEl)
       .setButtonText(t('btn.close'))
       .onClick(() => this.close());
+  }
+
+  private async showNotePreview(pathStr: string, linkEl: HTMLElement): Promise<void> {
+    if (!this.previewContainer) return;
+
+    if (this.activeRefLink) {
+      this.activeRefLink.removeClass('is-active');
+    }
+
+    if (this.activeRefLink === linkEl && this.previewContainer.style.display !== 'none') {
+      this.previewContainer.style.display = 'none';
+      this.activeRefLink = null;
+      return;
+    }
+
+    this.activeRefLink = linkEl;
+    linkEl.addClass('is-active');
+    const requestId = ++this.previewRequestId;
+
+    const file = this.app.vault.getAbstractFileByPath(pathStr);
+    if (!(file instanceof TFile)) {
+      if (requestId !== this.previewRequestId) return;
+      this.previewContainer.empty();
+      this.previewContainer.style.display = 'block';
+      this.previewContainer.createEl('p', { text: `Note not found: ${pathStr}`, cls: 'maintenance-result-error' });
+      return;
+    }
+
+    const content = await this.app.vault.cachedRead(file);
+    if (requestId !== this.previewRequestId) return;
+    const displayName = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
+
+    this.previewContainer.empty();
+    this.previewContainer.style.display = 'block';
+
+    const header = this.previewContainer.createDiv('quick-ask-preview-header');
+    header.createEl('strong', { text: displayName });
+    const closeBtn = header.createEl('span', { text: '×', cls: 'quick-ask-preview-close' });
+    closeBtn.addEventListener('click', () => {
+      this.previewContainer!.style.display = 'none';
+      if (this.activeRefLink) {
+        this.activeRefLink.removeClass('is-active');
+        this.activeRefLink = null;
+      }
+    });
+
+    const body = this.previewContainer.createDiv('quick-ask-preview-body');
+    await MarkdownRenderer.render(this.app, content, body, pathStr, this.renderComponent);
+
+    this.previewContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private resolveDisplayName(pathStr: string, allRefs: ReadonlyArray<import('../domain/values/NotePath').NotePath>): string {
