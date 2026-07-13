@@ -80,6 +80,10 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     }
   }
 
+  isEmpty(): boolean {
+    return this.entries.size === 0;
+  }
+
   async clear(): Promise<void> {
     this.entries.clear();
     this.dirty = true;

@@ -242,39 +242,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- Search (Advanced) ---
-    containerEl.createEl('h3', { text: t('settings.search') });
-
-    new Setting(containerEl)
-      .setName(t('settings.rrfEmbeddingWeight'))
-      .setDesc(t('settings.rrfEmbeddingWeightDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('2.0')
-          .setValue(String(this.settings!.rrfEmbeddingWeight))
-          .onChange(async (value) => {
-            const parsed = parseFloat(value);
-            if (!isNaN(parsed) && parsed >= 0.1 && parsed <= 10) {
-              await this.config.updateSettings({ rrfEmbeddingWeight: parsed });
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName(t('settings.rrfK'))
-      .setDesc(t('settings.rrfKDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('60')
-          .setValue(String(this.settings!.rrfK))
-          .onChange(async (value) => {
-            const parsed = parseInt(value, 10);
-            if (!isNaN(parsed) && parsed >= 1 && parsed <= 200) {
-              await this.config.updateSettings({ rrfK: parsed });
-            }
-          });
-      });
-
     // --- Privacy ---
     containerEl.createEl('h3', { text: t('settings.privacy') });
     containerEl.createEl('p', {

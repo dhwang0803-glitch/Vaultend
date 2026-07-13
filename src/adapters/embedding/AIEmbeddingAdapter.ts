@@ -18,7 +18,6 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
 
       const response = await this.aiProvider.callEmbedding({
         texts: ['test'],
-        model: settings.embeddingsModel,
       });
 
       this.dimension = response.dimension;
@@ -37,20 +36,16 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
 
   async embed(text: string): Promise<Float32Array> {
     if (!this.ready) throw new Error('Embedding not initialized');
-    const settings = await this.config.getSettings();
     const response = await this.aiProvider.callEmbedding({
       texts: [text],
-      model: settings.embeddingsModel,
     });
     return response.embeddings[0];
   }
 
   async embedBatch(texts: string[]): Promise<Float32Array[]> {
     if (!this.ready) throw new Error('Embedding not initialized');
-    const settings = await this.config.getSettings();
     const response = await this.aiProvider.callEmbedding({
       texts,
-      model: settings.embeddingsModel,
     });
     return [...response.embeddings];
   }

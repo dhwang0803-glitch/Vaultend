@@ -167,6 +167,51 @@ ${noteContent}
 관련 노트가 없으면 빈 배열 []을 반환하세요.`;
   },
 
+  extractSearchKeywords(question: string): string {
+    const lang = detectContentLanguage(question);
+
+    if (lang === 'en') {
+      return `Extract the core search keywords from the user's question below.
+Your goal is to produce short, precise keywords that will work well in a BM25 keyword search engine.
+
+Rules:
+1. Extract entity names, proper nouns, and key concepts as-is (do not translate or paraphrase).
+2. Remove filler words, particles, and conversational phrases.
+3. If the question references a person/character name, include the exact name.
+4. Return 1-5 keywords, ordered by importance.
+5. Respond ONLY with a JSON object: {"keywords": ["word1", "word2"]}. No explanation.
+
+Question: ${question}
+
+Example:
+Question: "Tell me about the relationship between Alice and Bob"
+Answer: {"keywords": ["Alice", "Bob", "relationship"]}
+
+Answer:`;
+    }
+
+    return `아래 사용자 질문에서 핵심 검색 키워드를 추출하세요.
+BM25 키워드 검색 엔진에서 잘 동작할 짧고 정확한 키워드를 만들어야 합니다.
+
+규칙:
+1. 고유명사, 인물명, 핵심 개념은 원형 그대로 추출하세요 (조사 제거).
+2. "알려줘", "찾아줘", "대해서" 같은 대화체 표현은 제거하세요.
+3. 인물/캐릭터 이름이 있으면 반드시 이름 원형을 포함하세요.
+4. 1~5개 키워드를 중요도 순으로 반환하세요.
+5. 반드시 JSON 객체로만 응답하세요: {"keywords": ["키워드1", "키워드2"]}. 설명 금지.
+
+질문: ${question}
+
+예시:
+질문: "서울에서 열리는 축제에 대해 알려줘"
+답변: {"keywords": ["서울", "축제"]}
+
+질문: "프로젝트 일정이랑 담당자가 누구야?"
+답변: {"keywords": ["프로젝트", "일정", "담당자"]}
+
+답변:`;
+  },
+
   summarize(noteContent: string): string {
     const lang = detectContentLanguage(noteContent);
 

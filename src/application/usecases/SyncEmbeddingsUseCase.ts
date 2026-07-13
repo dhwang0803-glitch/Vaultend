@@ -2,6 +2,7 @@ import { EmbeddingPort } from '../ports/EmbeddingPort';
 import { VectorStorePort } from '../ports/VectorStorePort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { ChangeTrackingPort } from '../ports/ChangeTrackingPort';
+import { NotePath } from '../../domain/values/NotePath';
 
 export class SyncEmbeddingsUseCase {
   constructor(
@@ -45,6 +46,23 @@ export class SyncEmbeddingsUseCase {
 
     await this.vectorStore.flush();
     return { indexed, skipped };
+  }
+
+  async syncSingle(notePath: NotePath): Promise<void> {
+    if (!this.embedding.isReady()) return;
+
+    await this.vectorStore.remove(notePath);
+
+    const note = await this.vault.readNote(notePath);
+    if (!note) return;
+
+    for (let i = 0; i < note.chunks.length; i++) {
+      const chunkText = note.chunks[i].text as string;
+      if (chunkText.trim().length < 10) continue;
+      const vector = await this.embedding.embed(chunkText);
+      await this.vectorStore.upsert(notePath, note.chunks[i].startLine, vector);
+    }
+    await this.vectorStore.flush();
   }
 
   async rebuildAll(): Promise<number> {

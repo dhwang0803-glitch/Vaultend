@@ -13,6 +13,7 @@ import { ClockPort } from '../ports/ClockPort';
 import { PrivacyRule, isNoteAllowedByRules, applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { PromptTemplates } from '../PromptTemplates';
 import { SaveNoteUseCase } from './SaveNoteUseCase';
+import { preprocessQueryTokens } from '../../domain/services/KoreanParticleStripper';
 
 export class QuickAskUseCase {
   constructor(
@@ -50,13 +51,6 @@ export class QuickAskUseCase {
       contextChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
     );
     const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
-
-    console.log(`[KM-DEBUG] After privacy filter: ${contextChunks.length} → ${filteredChunks.length} chunks`);
-    if (filteredChunks.length !== contextChunks.length) {
-      const blocked = contextChunks.filter((_, i) => !allowedChecks[i]);
-      for (const b of blocked) console.log(`  [KM-DEBUG] BLOCKED by privacy: ${b.notePath}`);
-    }
-    console.log(`[KM-DEBUG] Final context notes: ${[...new Set(filteredChunks.map(c => c.notePath))].join(', ')}`);
 
     // 3. Call AI after content-redact
     const redactedChunks = filteredChunks.map(sr => ({
@@ -136,14 +130,10 @@ export class QuickAskUseCase {
   }
 
   private async hybridSearch(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
+    const searchQuery = await this.buildSearchQuery(query);
     const FETCH_SIZE = 20;
-    const bm25Results = await this.searchIndex.search(query, FETCH_SIZE);
 
-    console.log(`[KM-DEBUG] hybridSearch query="${query}"`);
-    console.log(`[KM-DEBUG] BM25 results (${bm25Results.length}):`);
-    for (const r of bm25Results) {
-      console.log(`  [KM-DEBUG]   ${r.notePath} score=${r.score.toFixed(3)} heading="${r.chunk.headingPath}" text=${(r.chunk.text as string).substring(0, 80)}...`);
-    }
+    const bm25Results = await this.searchIndex.search(searchQuery, FETCH_SIZE);
 
     if (!this.embedding?.isReady() || !this.vectorStore) {
       return bm25Results.slice(0, maxResults);
@@ -209,6 +199,39 @@ export class QuickAskUseCase {
     } catch {
       return bm25Results.slice(0, maxResults);
     }
+  }
+
+  private async buildSearchQuery(userQuery: string): Promise<string> {
+    try {
+      const prompt = PromptTemplates.extractSearchKeywords(userQuery);
+      const response = await this.aiProvider.callCompletion({
+        prompt,
+        maxTokens: 100,
+        temperature: 0,
+        jsonMode: true,
+      });
+
+      const parsed: unknown = JSON.parse(response.content);
+      const keywords = Array.isArray(parsed)
+        ? parsed
+        : (parsed && typeof parsed === 'object' && 'keywords' in parsed && Array.isArray((parsed as Record<string, unknown>).keywords))
+          ? (parsed as Record<string, unknown>).keywords as unknown[]
+          : null;
+      if (keywords && keywords.length > 0 && keywords.every(k => typeof k === 'string')) {
+        const cleaned = (keywords as string[])
+          .map(k => k.trim())
+          .filter(k => k.length > 0)
+          .slice(0, 5);
+        if (cleaned.length > 0) {
+          return cleaned.join(' ');
+        }
+      }
+    } catch {
+      // AI unavailable or parse error — fall through to particle strip
+    }
+
+    const tokens = preprocessQueryTokens(userQuery);
+    return tokens.join(' ');
   }
 
   private buildPrompt(question: string, chunks: ReadonlyArray<SearchResult>): string {

@@ -22,6 +22,7 @@ import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
+import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
@@ -84,7 +85,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
   inboxConfidenceThreshold: 0,
   embeddingsEnabled: false,
-  embeddingsModel: 'text-embedding-3-small',
+  embeddingsModel: '',
   rrfEmbeddingWeight: 4.0,
   rrfK: 20,
   privacyRules: [],
@@ -120,6 +121,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private captureClipboardUseCase!: CaptureClipboardUseCase;
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
+  private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -167,9 +169,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.app.workspace.onLayoutReady(async () => {
       await this.buildSearchIndex();
 
-      if (this.settings.embeddingsEnabled) {
+      if (this.settings.aiApiKey) {
         await this.vectorStoreAdapter.load();
         await this.embeddingAdapter.initialize();
+
+        if (this.embeddingAdapter.isReady()) {
+          this.syncEmbeddingsBackground();
+        }
       }
 
       this.runCatchUp();
@@ -236,8 +242,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter, this.vaultAdapter, this.searchIndex,
       this.historyAdapter, this.configPort, this.clockAdapter,
       this.saveNoteUseCase,
-      this.settings.embeddingsEnabled ? this.embeddingAdapter : undefined,
-      this.settings.embeddingsEnabled ? this.vectorStoreAdapter : undefined,
+      this.embeddingAdapter,
+      this.vectorStoreAdapter,
     );
 
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
@@ -265,6 +271,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.applyMaintenanceActionUseCase = new ApplyMaintenanceActionUseCase(
       this.vaultAdapter, this.historyAdapter, this.clockAdapter,
+    );
+
+    this.syncEmbeddingsUseCase = new SyncEmbeddingsUseCase(
+      this.embeddingAdapter, this.vectorStoreAdapter,
+      this.vaultAdapter, this.changeTracker,
     );
   }
 
@@ -493,14 +504,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       if (pathStr.endsWith('.md')) {
         this.changeTracker.markDirty(event.path);
 
-        // Incremental search index update
+        // Incremental search index update (BM25 + embeddings)
         if (event.type === 'delete') {
           this.searchIndex.remove(event.path);
+          this.vectorStoreAdapter.remove(event.path).catch(() => {});
         } else if (event.type === 'rename') {
-          if (event.oldPath) this.searchIndex.remove(event.oldPath);
+          if (event.oldPath) {
+            this.searchIndex.remove(event.oldPath);
+            this.vectorStoreAdapter.remove(event.oldPath).catch(() => {});
+          }
           this.indexSingleNote(event.path);
+          this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
         } else if (event.type === 'create' || event.type === 'modify') {
           this.indexSingleNote(event.path);
+          this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
         }
       }
 
@@ -567,6 +584,22 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     };
   }
 
+  private async syncEmbeddingsBackground(): Promise<void> {
+    try {
+      if (this.vectorStoreAdapter.isEmpty()) {
+        const count = await this.syncEmbeddingsUseCase.rebuildAll();
+        console.log(`Knowledge Maintenance: embedding index built (${count} notes)`);
+      } else {
+        const result = await this.syncEmbeddingsUseCase.execute();
+        if (result.indexed > 0) {
+          console.log(`Knowledge Maintenance: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
+        }
+      }
+    } catch {
+      // Embedding sync is best-effort
+    }
+  }
+
   private async buildSearchIndex(): Promise<void> {
     try {
       await this.searchIndex.rebuild();
@@ -579,11 +612,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      const totalNotes = notes.length;
-      console.log(`Knowledge Maintenance: search index built (${indexed}/${totalNotes} notes indexed)`);
-      if (indexed < totalNotes) {
-        console.log(`  [KM-DEBUG] Skipped ${totalNotes - indexed} notes (no chunks or read failed)`);
-      }
+      console.log(`Knowledge Maintenance: search index built (${indexed}/${notes.length} notes indexed)`);
     } catch (err) {
       console.error('Knowledge Maintenance: search index build failed', err);
     }

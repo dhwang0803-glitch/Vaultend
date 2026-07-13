@@ -235,9 +235,10 @@ describe('QuickAskUseCase', () => {
         autoLink: false,
       });
 
-      const callArgs = (ai.callCompletion as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(callArgs.prompt).toContain('[REDACTED]');
-      expect(callArgs.prompt).not.toContain('password:abc123');
+      const calls = (ai.callCompletion as ReturnType<typeof vi.fn>).mock.calls;
+      const answerCall = calls[calls.length - 1][0];
+      expect(answerCall.prompt).toContain('[REDACTED]');
+      expect(answerCall.prompt).not.toContain('password:abc123');
     });
   });
 

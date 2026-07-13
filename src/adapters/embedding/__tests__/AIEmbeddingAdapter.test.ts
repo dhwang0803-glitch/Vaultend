@@ -36,7 +36,6 @@ describe('AIEmbeddingAdapter', () => {
     expect(adapter.getDimension()).toBe(3);
     expect(mockAI.callEmbedding).toHaveBeenCalledWith({
       texts: ['test'],
-      model: 'text-embedding-3-small',
     });
   });
 
