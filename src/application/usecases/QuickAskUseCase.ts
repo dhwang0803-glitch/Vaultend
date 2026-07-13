@@ -80,36 +80,16 @@ export class QuickAskUseCase {
     // Derive referenced note paths from context (deduplicated)
     const referencedNotes: ReadonlyArray<NotePath> = [...new Set(filteredChunks.map(sr => sr.notePath))];
 
-    let suggestedLinks: ReadonlyArray<NotePath> = request.autoLink
-      ? this.extractLinkSuggestions(aiResponse.content)
-      : [];
-
-    const allNotes = request.autoLink ? await this.vault.listNotes() : [];
-
-    if (suggestedLinks.length > 0) {
-      const noteBasenames = new Set(
-        allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
-      );
-      suggestedLinks = suggestedLinks.filter(link => {
-        const withoutFragment = (link as string).split('#')[0];
-        const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
-        return noteBasenames.has(basename);
-      });
-    }
-
-    // Auto-add reference note links when AI didn't suggest any (#64)
-    if (request.autoLink && suggestedLinks.length === 0 && referencedNotes.length > 0) {
-      suggestedLinks = [...referencedNotes];
-    }
-
     // 5. Save note
     const truncated = aiResponse.finishReason === 'length';
-    const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], suggestedLinks, truncated, allNotes);
+    const needsAllNotes = referencedNotes.length > 0 || aiResponse.content.includes('[[');
+    const allNotes = needsAllNotes ? await this.vault.listNotes() : [];
+    const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], referencedNotes, truncated, allNotes);
     const savedPath = await this.saveNote.execute({
       content,
       target: request.saveTarget,
       tags: suggestedTags,
-      links: suggestedLinks,
+      links: referencedNotes,
     });
 
     // 6. Record history
@@ -134,7 +114,7 @@ export class QuickAskUseCase {
       referencedNotes,
       savedTo: savedPath,
       suggestedTags,
-      suggestedLinks,
+      suggestedLinks: referencedNotes,
       tokenUsage: aiResponse.tokenUsage,
       timestamp: now,
       truncated,
@@ -258,36 +238,37 @@ export class QuickAskUseCase {
     return isNoteAllowedByRules(result.notePath as string, tags, frontmatterKeys, rules);
   }
 
-  private extractLinkSuggestions(content: string): ReadonlyArray<NotePath> {
-    const wikiLinkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-    const links: NotePath[] = [];
-    const seen = new Set<string>();
-    let match: RegExpExecArray | null;
-
-    while ((match = wikiLinkPattern.exec(content)) !== null) {
-      const linkTarget = match[1].trim();
-      if (!seen.has(linkTarget)) {
-        seen.add(linkTarget);
-        links.push(linkTarget as NotePath);
-      }
-    }
-    return links;
-  }
-
   private formatAnswer(
     question: string,
     answer: string,
-    _tags: ReadonlyArray<TagName>,
+    tags: ReadonlyArray<TagName>,
     links: ReadonlyArray<NotePath>,
     truncated: boolean,
     allNotes: ReadonlyArray<NotePath>,
   ): string {
     // Strip markdown URL links from AI response to prevent broken links in vault
-    const cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+    let cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+
+    // Strip wikilinks that don't exist in vault (AI hallucinated/modified names)
+    const noteBasenames = new Set(
+      allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
+    );
+    cleanedAnswer = cleanedAnswer.replace(/\[\[([^\]\r\n|]+)(?:\|([^\]\r\n]+))?\]\]/g, (_match, target: string, alias?: string) => {
+      const withoutFragment = target.trim().split('#')[0];
+      const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
+      if (noteBasenames.has(basename)) {
+        return _match;
+      }
+      return alias ?? target.trim();
+    });
     let result = `## Question\n\n${question}\n\n## Answer\n\n${cleanedAnswer}`;
 
     if (truncated) {
       result += '\n\n> [!warning] Response truncated due to token limit.';
+    }
+
+    if (tags.length > 0) {
+      result += `\n\n**Tags:** ${tags.join(' ')}`;
     }
 
     if (links.length > 0) {
