@@ -12,6 +12,15 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.7] - 2026-07-14
+
+### Fixed
+- **Auto Maintenance 결과 표시**: 자동 스캔 결과가 UI에 표시되지 않던 버그 수정.
+- **자동/수동 스캔 경합 방지**: 수동 스캔 중 자동 결과 무시, 자동 스캔 중복 실행 방지.
+- **UI 강제 노출 제거**: 자동 스캔 시 View 강제 오픈 대신 Notice 알림만 표시.
+
+---
+
 ## [0.4.6] - 2026-07-14
 
 ### Fixed
