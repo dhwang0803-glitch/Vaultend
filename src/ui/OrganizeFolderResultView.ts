@@ -64,10 +64,24 @@ export class OrganizeFolderResultView extends ItemView {
   private onHistoryChanged(undoneId?: string): void {
     if (!undoneId || this.entries.length === 0) return;
     const entry = this.entries.find(e => e.historyEntryId === undoneId);
-    if (!entry) return;
+    if (!entry || entry.status !== 'applied') return;
     entry.status = 'pending';
     entry.historyEntryId = undefined;
-    this.render();
+
+    entry.container.removeClass('organize-folder-entry-applied');
+    if (!this.autoApplyMode) {
+      entry.checkbox.style.display = '';
+    }
+    const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
+    if (undoBtn) undoBtn.remove();
+    if (!this.autoApplyMode) {
+      entry.setting.addButton(btn =>
+        btn.setButtonText(t('organizeFolder.applyNote'))
+          .setCta()
+          .onClick(() => this.applyEntry(entry)),
+      );
+    }
+    entry.setting.setDesc(entry.result.notePath as string);
   }
 
   async onClose(): Promise<void> {
