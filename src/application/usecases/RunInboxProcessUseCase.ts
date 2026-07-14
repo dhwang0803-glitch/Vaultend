@@ -47,7 +47,8 @@ export class RunInboxProcessUseCase {
    */
   async execute(options?: InboxProcessOptions): Promise<InboxProcessResult> {
     const settings = await this.config.getSettings();
-    const inboxFolder = options?.folder ?? settings.inboxFolder;
+    const rawFolder = options?.folder ?? settings.inboxFolder;
+    const inboxFolder = rawFolder === '/' ? undefined : rawFolder;
 
     const inboxNotes = await this.vault.listNotes(inboxFolder);
     const unprocessedNotes = [];
