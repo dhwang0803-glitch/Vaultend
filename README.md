@@ -364,13 +364,13 @@ Add rules in the Privacy section. Each rule has:
 
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 2. BRAT settings → **Add Beta Plugin**
-3. Enter: `dhwang0803-glitch/Noluma`
+3. Enter: `dhwang0803-glitch/Vaultend`
 4. Enable **Vaultend** in Community Plugins
 5. Configure AI provider and API key
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Noluma/releases)
+1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Vaultend/releases)
 2. Create `.obsidian/plugins/vaultend/` in your vault
 3. Copy the 3 files into that directory
 4. Restart Obsidian → enable the plugin
@@ -379,8 +379,8 @@ Add rules in the Privacy section. Each rule has:
 ### Build from Source
 
 ```bash
-git clone https://github.com/dhwang0803-glitch/Noluma.git
-cd Noluma
+git clone https://github.com/dhwang0803-glitch/Vaultend.git
+cd Vaultend
 npm install
 npm run build
 ```
