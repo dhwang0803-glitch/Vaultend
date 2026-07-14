@@ -39,6 +39,7 @@ import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
+import type { MaintenancePlan } from './domain/models/OrganizeModels';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
@@ -126,6 +127,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
+  private isMaintenanceRunning = false;
   private isInboxProcessing = false;
   private hasQueuedInboxEvents = false;
 
@@ -569,6 +571,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     this.maintenanceInterval = window.setInterval(async () => {
+      if (this.isMaintenanceRunning) return;
+      this.isMaintenanceRunning = true;
       try {
         if (this.settings.smartScheduling) {
           const lastScan = await this.changeTracker.getLastScanTimestamp();
@@ -577,12 +581,33 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             if (dirtySet.size === 0) return;
           }
         }
-        await this.runMaintenanceUseCase.execute();
+        const plan = await this.runMaintenanceUseCase.execute();
+        this.showMaintenancePlanIfNeeded(plan);
       } catch (err) {
         console.error('Knowledge Maintenance: scheduled maintenance failed', err);
+      } finally {
+        this.isMaintenanceRunning = false;
       }
     }, ms);
     this.registerInterval(this.maintenanceInterval);
+  }
+
+  private showMaintenancePlanIfNeeded(plan: MaintenancePlan): void {
+    const totalIssues = plan.orphanNotes.length
+      + plan.duplicateCandidates.length
+      + plan.brokenLinks.length
+      + plan.missingTags.length
+      + plan.emptyNotes.length
+      + plan.untaggedNotes.length;
+    if (totalIssues === 0) return;
+
+    const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const view = leaves[0].view as MaintenanceResultView;
+      if (view.isScanInProgress()) return;
+      view.showPlan(plan);
+    }
+    new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
   }
 
   private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {
