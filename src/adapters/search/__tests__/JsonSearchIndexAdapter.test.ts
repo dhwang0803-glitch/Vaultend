@@ -181,7 +181,7 @@ describe('JsonSearchIndexAdapter (MiniSearch)', () => {
       await adapter.index(np('note.md'), [makeChunk('content')]);
 
       expect(vault.writeFileRaw).toHaveBeenCalledWith(
-        '.knowledge-maintenance/search-index.json',
+        '.vaultend/search-index.json',
         expect.any(String),
       );
     });

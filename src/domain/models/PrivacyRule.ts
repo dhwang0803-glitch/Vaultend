@@ -59,7 +59,7 @@ export function applyContentRedaction(
       const regex = new RegExp(rule.pattern, 'gi');
       result = result.replace(regex, '[REDACTED]');
     } catch {
-      console.warn(`[Knowledge Maintenance] content-redact 패턴 오류, 건너뜀: "${rule.pattern}"`);
+      console.warn(`[Vaultend] content-redact 패턴 오류, 건너뜀: "${rule.pattern}"`);
     }
   }
   return result;

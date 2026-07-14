@@ -2,7 +2,7 @@ import { VectorStorePort, VectorSearchResult } from '../../application/ports/Vec
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 
-const EMBEDDINGS_PATH = '.knowledge-maintenance/embeddings.json';
+const EMBEDDINGS_PATH = '.vaultend/embeddings.json';
 const SCHEMA_VERSION = 1;
 
 interface StoredEntry {

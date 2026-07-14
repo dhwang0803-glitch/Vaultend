@@ -47,7 +47,7 @@ describe('JsonVectorStoreAdapter', () => {
     await adapter.flush();
 
     expect(mockVault.writeFileRaw).toHaveBeenCalledWith(
-      '.knowledge-maintenance/embeddings.json',
+      '.vaultend/embeddings.json',
       expect.any(String),
     );
 

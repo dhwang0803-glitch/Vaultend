@@ -2,7 +2,7 @@ import type en from './en';
 
 const ko: { [K in keyof typeof en]: string } = {
   // ─── Plugin ───
-  'plugin.name': 'Knowledge Maintenance',
+  'plugin.name': 'Vaultend',
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
@@ -195,7 +195,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
-  'settings.title': 'Knowledge Maintenance 설정',
+  'settings.title': 'Vaultend 설정',
 
   'settings.language': '언어',
   'settings.locale': '표시 언어',

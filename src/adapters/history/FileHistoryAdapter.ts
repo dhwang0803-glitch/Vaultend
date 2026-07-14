@@ -10,10 +10,10 @@ import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
  * 파일 기반 변경 이력 어댑터.
  *
  * 이력을 Vault 내 JSON 파일로 관리한다.
- * 경로: .knowledge-maintenance/history/YYYY-MM.json (월별 분할)
+ * 경로: .vaultend/history/YYYY-MM.json (월별 분할)
  */
 export class FileHistoryAdapter implements HistoryPort {
-  private static readonly HISTORY_FOLDER = '.knowledge-maintenance/history';
+  private static readonly HISTORY_FOLDER = '.vaultend/history';
 
   constructor(
     private readonly vault: VaultAccessPort,
@@ -122,7 +122,7 @@ export class FileHistoryAdapter implements HistoryPort {
     try {
       return JSON.parse(raw) as HistoryEntry[];
     } catch {
-      console.warn(`[Knowledge Maintenance] History file parse failed: ${filePath}`);
+      console.warn(`[Vaultend] History file parse failed: ${filePath}`);
       return [];
     }
   }

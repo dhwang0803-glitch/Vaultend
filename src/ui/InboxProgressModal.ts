@@ -22,7 +22,7 @@ export class InboxProgressModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('knowledge-maintenance-inbox-progress');
+    contentEl.addClass('vaultend-inbox-progress');
 
     const title = this.targetFolder
       ? t('inboxProgress.folderTitle', { folder: this.targetFolder })
@@ -91,7 +91,7 @@ export class InboxProgressModal extends Modal {
   private renderResult(result: InboxProcessResult): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('knowledge-maintenance-inbox-progress');
+    contentEl.addClass('vaultend-inbox-progress');
 
     const title = result.cancelled
       ? t('inboxProgress.cancelledTitle')
@@ -136,7 +136,7 @@ export class InboxProgressModal extends Modal {
   private renderError(err: unknown): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('knowledge-maintenance-inbox-progress');
+    contentEl.addClass('vaultend-inbox-progress');
 
     contentEl.createEl('h2', { text: t('inboxProgress.errorTitle') });
     contentEl.createEl('p', {

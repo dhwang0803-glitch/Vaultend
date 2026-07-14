@@ -1,8 +1,8 @@
 /* Knowledge Maintenance Plugin Styles */
 
 /* Quick Ask Modal — 넓은 모달 + 마크다운 렌더링 */
-.modal.mod-confirm-dialog:has(.knowledge-maintenance-quick-ask),
-.modal:has(.knowledge-maintenance-quick-ask) {
+.modal.mod-confirm-dialog:has(.vaultend-quick-ask),
+.modal:has(.vaultend-quick-ask) {
   width: 700px;
   max-width: 90vw;
   max-height: 85vh;
@@ -10,26 +10,26 @@
   flex-direction: column;
 }
 
-.knowledge-maintenance-quick-ask {
+.vaultend-quick-ask {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex: 1;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-input textarea {
+.vaultend-quick-ask .quick-ask-input textarea {
   width: 100%;
   min-height: 80px;
   resize: vertical;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-buttons {
+.vaultend-quick-ask .quick-ask-buttons {
   margin: 8px 0;
   display: flex;
   gap: 8px;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-result {
+.vaultend-quick-ask .quick-ask-result {
   margin-top: 12px;
   padding: 16px;
   background: var(--background-secondary);
@@ -40,12 +40,12 @@
   max-height: 50vh;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-answer {
+.vaultend-quick-ask .quick-ask-answer {
   margin-bottom: 12px;
   line-height: 1.7;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-footer {
+.vaultend-quick-ask .quick-ask-footer {
   padding-top: 10px;
   border-top: 1px solid var(--background-modifier-border);
   display: flex;
@@ -53,18 +53,18 @@
   gap: 8px;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-meta {
+.vaultend-quick-ask .quick-ask-meta {
   color: var(--text-muted);
   font-size: var(--font-smallest);
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-actions {
+.vaultend-quick-ask .quick-ask-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-truncation-warning {
+.vaultend-quick-ask .quick-ask-truncation-warning {
   padding: 10px 14px;
   margin-bottom: 10px;
   background: var(--background-modifier-error);
@@ -75,38 +75,38 @@
   line-height: 1.4;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references {
+.vaultend-quick-ask .quick-ask-references {
   margin-top: 12px;
   padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
   font-size: var(--font-ui-small);
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references ul {
+.vaultend-quick-ask .quick-ask-references ul {
   margin: 4px 0 0 0;
   padding-left: 16px;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references li {
+.vaultend-quick-ask .quick-ask-references li {
   margin: 2px 0;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references a {
+.vaultend-quick-ask .quick-ask-references a {
   color: var(--text-accent);
   cursor: pointer;
   text-decoration: none;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references a:hover {
+.vaultend-quick-ask .quick-ask-references a:hover {
   text-decoration: underline;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-references a.is-active {
+.vaultend-quick-ask .quick-ask-references a.is-active {
   font-weight: 600;
   color: var(--text-accent-hover);
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-preview {
+.vaultend-quick-ask .quick-ask-preview {
   margin-top: 12px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
@@ -114,7 +114,7 @@
   overflow-y: auto;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-preview-header {
+.vaultend-quick-ask .quick-ask-preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -126,7 +126,7 @@
   z-index: 1;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-preview-close {
+.vaultend-quick-ask .quick-ask-preview-close {
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -134,11 +134,11 @@
   padding: 0 4px;
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-preview-close:hover {
+.vaultend-quick-ask .quick-ask-preview-close:hover {
   color: var(--text-normal);
 }
 
-.knowledge-maintenance-quick-ask .quick-ask-preview-body {
+.vaultend-quick-ask .quick-ask-preview-body {
   padding: 12px;
   font-size: var(--font-ui-small);
 }
@@ -154,17 +154,17 @@
 }
 
 /* Maintenance Log View */
-.knowledge-maintenance-empty {
+.vaultend-empty {
   color: var(--text-muted);
   font-style: italic;
 }
 
-.knowledge-maintenance-log-list {
+.vaultend-log-list {
   list-style: none;
   padding: 0;
 }
 
-.knowledge-maintenance-log-list li {
+.vaultend-log-list li {
   padding: 6px 0;
   border-bottom: 1px solid var(--background-modifier-border);
   font-size: var(--font-ui-small);
@@ -359,7 +359,7 @@
 }
 
 /* Organize Result Modal */
-.modal:has(.knowledge-maintenance-organize-result) {
+.modal:has(.vaultend-organize-result) {
   width: 560px;
   max-width: 90vw;
   max-height: 80vh;
@@ -367,7 +367,7 @@
   flex-direction: column;
 }
 
-.knowledge-maintenance-organize-result {
+.vaultend-organize-result {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -514,12 +514,12 @@
 }
 
 /* Inbox Progress Modal */
-.modal:has(.knowledge-maintenance-inbox-progress) {
+.modal:has(.vaultend-inbox-progress) {
   width: 480px;
   max-width: 90vw;
 }
 
-.knowledge-maintenance-inbox-progress {
+.vaultend-inbox-progress {
   display: flex;
   flex-direction: column;
   gap: 12px;

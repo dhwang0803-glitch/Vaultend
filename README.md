@@ -1,8 +1,8 @@
-# Knowledge Maintenance — Obsidian Plugin
+# Vaultend — Obsidian Plugin
 
 > Focus on writing. Let AI handle the organization.
 
-An AI-powered knowledge maintenance engine for Obsidian. Automatically classify, tag, link, and maintain your vault — with full privacy control and undo safety.
+An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag, link, and organize your notes — with full privacy control and undo safety.
 
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.7.2+-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -38,7 +38,7 @@ An AI-powered knowledge maintenance engine for Obsidian. Automatically classify,
 ## Quick Start
 
 1. Install the plugin (see [Installation](#installation))
-2. Go to **Settings → Knowledge Maintenance → AI Provider**
+2. Go to **Settings → Vaultend → AI Provider**
 3. Select your provider (OpenAI or Google Gemini) and enter your API key
 4. Open the Command Palette (`Ctrl/Cmd + P`) and try **Quick Ask**
 
@@ -287,7 +287,7 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 
 ## Settings
 
-Access via **Settings → Community Plugins → Knowledge Maintenance**.
+Access via **Settings → Community Plugins → Vaultend**.
 
 ### Language
 
@@ -356,7 +356,7 @@ Add rules in the Privacy section. Each rule has:
 ### From Community Plugins (coming soon)
 
 1. Open **Settings → Community Plugins → Browse**
-2. Search "Knowledge Maintenance"
+2. Search "Vaultend"
 3. Click **Install**, then **Enable**
 4. Configure your AI provider in Settings
 
@@ -365,13 +365,13 @@ Add rules in the Privacy section. Each rule has:
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 2. BRAT settings → **Add Beta Plugin**
 3. Enter: `dhwang0803-glitch/Noluma`
-4. Enable **Knowledge Maintenance** in Community Plugins
+4. Enable **Vaultend** in Community Plugins
 5. Configure AI provider and API key
 
 ### Manual
 
 1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Noluma/releases)
-2. Create `.obsidian/plugins/knowledge-maintenance/` in your vault
+2. Create `.obsidian/plugins/vaultend/` in your vault
 3. Copy the 3 files into that directory
 4. Restart Obsidian → enable the plugin
 5. Configure AI provider and API key
@@ -389,11 +389,11 @@ Copy `main.js`, `manifest.json`, `styles.css` to your vault's plugin directory.
 
 ### Mobile
 
-The same 3 files go in `.obsidian/plugins/knowledge-maintenance/`.
+The same 3 files go in `.obsidian/plugins/vaultend/`.
 
 - **With Obsidian Sync**: Install on desktop — it syncs automatically
-- **Android**: `Internal Storage/Documents/Obsidian/[Vault]/.obsidian/plugins/knowledge-maintenance/`
-- **iOS**: Files app → Obsidian → [Vault] → `.obsidian/plugins/knowledge-maintenance/`
+- **Android**: `Internal Storage/Documents/Obsidian/[Vault]/.obsidian/plugins/vaultend/`
+- **iOS**: Files app → Obsidian → [Vault] → `.obsidian/plugins/vaultend/`
 
 ---
 
