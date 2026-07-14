@@ -6,7 +6,7 @@
 ## 최상위 구조
 
 ```
-obsidian-knowledge-maintenance/
+Vaultend/
 ├── src/                    # 플러그인 소스 (Clean Architecture)
 │   ├── domain/             #   도메인 레이어 (values, models, errors, services)
 │   ├── application/        #   앱 레이어 (ports, usecases)

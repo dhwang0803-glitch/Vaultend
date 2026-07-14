@@ -33,7 +33,7 @@ npm run build
 ### 3-1. BM25-only (API 불필요)
 
 ```bash
-npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Noluma\Inbox"
+npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Vaultend\Inbox"
 ```
 
 **기대 결과:**
@@ -45,7 +45,7 @@ npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Noluma
 
 ```bash
 npx tsx src/benchmark/vault-benchmark.ts \
-  --vault "C:\Users\daewo\obsidian\Noluma\Inbox" \
+  --vault "C:\Users\daewo\obsidian\Vaultend\Inbox" \
   --embed \
   --provider gemini \
   --model gemini-embedding-001 \
@@ -66,7 +66,7 @@ npx tsx src/benchmark/vault-benchmark.ts \
 
 ```bash
 npx tsx src/benchmark/vault-benchmark.ts \
-  --vault "C:\Users\daewo\obsidian\Noluma\Inbox" \
+  --vault "C:\Users\daewo\obsidian\Vaultend\Inbox" \
   --embed \
   --provider gemini \
   --sweep

@@ -1,4 +1,4 @@
-# Noluma 실환경 QA 테스트 플랜
+# Vaultend 실환경 QA 테스트 플랜
 
 > 대상 버전: v0.4.1+  
 > 테스트 환경: Obsidian Desktop (Windows/Mac), BRAT 설치  

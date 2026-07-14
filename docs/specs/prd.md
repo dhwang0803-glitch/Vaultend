@@ -1,16 +1,16 @@
-# Noluma — Product Requirements Document
+# Vaultend — Product Requirements Document
 
-- **제품명**: Noluma
+- **제품명**: Vaultend
 - **형태**: Obsidian Community Plugin (Desktop + iOS + Android)
 - **작성일**: 2026-07-06
 - **상태**: Active (Phase 1 구현 중)
-- **GitHub**: https://github.com/dhwang0803-glitch/Noluma
+- **GitHub**: https://github.com/dhwang0803-glitch/Vaultend
 
 ---
 
 ## 1. 제품 정의
 
-> **Obsidian vault를 위한 Knowledge Maintenance Engine — 원샷 AI 질의·자동 저장, inbox 자동 정리, vault 유지보수 자동화를 하나의 플러그인으로 제공한다.**
+> **Obsidian vault를 위한 AI-powered maintenance 플러그인 — 원샷 AI 질의·자동 저장, inbox 자동 정리, vault 유지보수 자동화를 하나의 플러그인으로 제공한다.**
 
 AI 채팅 앱이 아니다. 사용자가 질문하면 vault 맥락을 반영한 답변을 생성하고 즉시 저장하며, inbox에 쌓이는 노트를 자동 분류·태깅·이동하고, vault 전체의 건강 상태를 유지·관리하는 "정리 엔진"이다.
 
@@ -163,7 +163,7 @@ AI 채팅 앱이 아니다. 사용자가 질문하면 vault 맥락을 반영한 
 
 - 모든 자동 수정에 대해: 변경 유형, 변경 전/후 상태, 타임스탬프
 - 되돌리기 (undo) 지원: 개별 또는 배치 단위
-- 저장: `.knowledge-maintenance/history/YYYY-MM.json` (월별 분할)
+- 저장: `.knowledge-maintenance/history/YYYY-MM.json` (월별 분할, 폴더명은 레거시 — 향후 `.vaultend/`로 마이그레이션 예정)
 
 ### F6: 설정 UI
 
@@ -257,7 +257,7 @@ AI 채팅 앱이 아니다. 사용자가 질문하면 vault 맥락을 반영한 
 
 ## 11. 경쟁 포지셔닝
 
-| 경쟁 제품 | 강점 | Noluma 차별점 |
+| 경쟁 제품 | 강점 | Vaultend 차별점 |
 |----------|------|-------------|
 | Obsidian Copilot (330k+ DL) | AI 채팅, vault QA | Copilot이 안 하는 "정리/유지보수" 자동화 |
 | Smart Connections | 시맨틱 검색, 관련 노트 제안 | 검색을 넘어선 자동 분류/이동/태깅 파이프라인 |

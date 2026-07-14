@@ -55,7 +55,7 @@
 | D6 | 프롬프트 관리 | PromptTemplates로 통합 예정. 어댑터 인라인 프롬프트 제거 예정 |
 | D7 | runCatchUp | 현재 단순 버전 유지 |
 | D8 | Notice import | 현재 방식 유지, 향후 통일 |
-| D9 | 제품명 | **Noluma** 확정. 옛 이름(KM Plugin, Vaulta) 사용 금지 |
+| D9 | 제품명 | **Vaultend** 확정. 옛 이름(KM Plugin, Vaulta, Noluma) 사용 금지 |
 
 ---
 
@@ -139,18 +139,15 @@
     : { kind: 'new-note', title: createNoteTitle('Quick Ask'), folder: createNotePath(this.settings.defaultSaveFolder + '/untitled.md') };
 ```
 
-### R6. constants.ts를 SSOT로
+### R6. constants.ts를 SSOT로 — ✅ 해결됨
 
 ```
-❌ 현재 상태:
-  constants.ts: MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log'
-  MaintenanceLogView.ts: export const MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log'  ← 중복!
-  
-  constants.ts: HISTORY_FOLDER = '.knowledge-maintenance/history'
-  FileHistoryAdapter.ts: private static readonly HISTORY_FOLDER = '.knowledge-maintenance/history'  ← 중복!
+✅ 현재 상태 (해결됨):
+  constants.ts: MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log'  (SSOT, 값은 레거시)
+  MaintenanceLogView.ts: import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants'
 
-✅ 올바른 패턴:
-  constants.ts에서만 정의, 나머지는 import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants'
+  constants.ts: HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`  (SSOT)
+  FileHistoryAdapter.ts: import { HISTORY_FOLDER } from '../../constants'
 ```
 
 ---
