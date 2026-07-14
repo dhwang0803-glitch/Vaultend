@@ -11,6 +11,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     app: App,
     private readonly plugin: Plugin,
     private readonly config: ConfigPort,
+    private readonly onMaintenanceSettingsChanged?: () => void,
   ) {
     super(app, plugin);
   }
@@ -170,6 +171,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .setValue(this.settings!.maintenanceEnabled)
           .onChange(async (value) => {
             await this.config.updateSettings({ maintenanceEnabled: value });
+            this.onMaintenanceSettingsChanged?.();
           });
       });
 
@@ -184,6 +186,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             const parsed = parseInt(value, 10);
             if (!isNaN(parsed) && parsed > 0) {
               await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
+              this.onMaintenanceSettingsChanged?.();
             }
           });
       });

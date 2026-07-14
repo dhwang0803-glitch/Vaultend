@@ -12,6 +12,20 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.6] - 2026-07-14
+
+### Fixed
+- **Auto Maintenance scheduler**: Settings 변경 시 스케줄러가 즉시 재시작 (기존: 플러그인 재시작 필요).
+- **Maintenance Undo**: Apply 액션(링크 제거, 고아 삭제 등)도 복원 가능하도록 확장.
+- **Batch restore safety**: 이미 적용된 파괴적 작업의 재실행 방지 (`BatchEntry.status` 상태 관리).
+- **Delete orphan edge case**: 존재하지 않는 노트 삭제 시 빈 파일 생성 방지 (null 반환).
+- **Restore button double-click**: 복원 버튼 클릭 즉시 비활성화로 중복 실행 방지.
+
+### Changed
+- **Undo/Redo → per-item Restore**: 툴바 Undo/Redo 버튼 제거, 적용된 항목 우측에 개별 "복원" 버튼 + 배치 "선택 복원" 버튼으로 전환.
+
+---
+
 ## [0.4.5] - 2026-07-14
 
 ### Changed

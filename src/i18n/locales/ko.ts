@@ -26,11 +26,14 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
+  'notice.noChangeNeeded': '적용할 변경이 없습니다',
   'notice.actionFailed': '적용 실패: {{error}}',
   'notice.noSelection': '선택된 항목이 없습니다',
   'notice.batchResult': '{{success}}건 적용, {{failed}}건 실패',
   'notice.batchComplete': '{{count}}건 적용 완료',
   'notice.batchDismissed': '{{count}}건 무시 처리',
+  'notice.batchRestored': '{{count}}건 복원 완료',
+  'notice.batchRestoreResult': '{{success}}건 복원, {{failed}}건 실패',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault 유지보수',
@@ -45,6 +48,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'maintenance.lastScan': '마지막 스캔: {{time}}',
   'maintenance.vaultClean': 'Vault 상태가 양호합니다.',
   'maintenance.applied': '적용됨',
+  'maintenance.restored': '복원됨',
 
   // Issue type labels
   'issue.emptyNotes': '빈 노트 ({{count}})',
@@ -92,6 +96,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedArchive': '선택 아카이브',
   'batch.selectedDelete': '선택 삭제',
   'batch.selectedDismiss': '선택 무시',
+  'batch.selectedRestore': '선택 복원',
   'batch.selectedRemoveLinks': '선택 링크 제거',
   'batch.selectedApplyTags': '선택 태그 적용',
 

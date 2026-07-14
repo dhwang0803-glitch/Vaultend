@@ -154,7 +154,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. Register settings tab
-    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
+      this.scheduleMaintenanceIfEnabled();
+    }));
 
     // 7. Register folder context menu
     this.registerFolderContextMenu();
@@ -558,6 +560,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private scheduleMaintenanceIfEnabled(): void {
+    if (this.maintenanceInterval !== null) {
+      window.clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
+    }
+
     if (!this.settings.maintenanceEnabled) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
