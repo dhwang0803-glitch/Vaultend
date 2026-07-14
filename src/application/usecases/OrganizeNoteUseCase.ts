@@ -10,6 +10,7 @@ import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { PromptTemplates } from '../PromptTemplates';
+import { getLocale } from '../../i18n';
 
 export class OrganizeNoteUseCase {
   constructor(
@@ -55,6 +56,11 @@ export class OrganizeNoteUseCase {
     const vaultTagEntries = await this.vault.listAllTags();
     const vaultTags = vaultTagEntries.slice(0, MAX_TAGS).map(e => e.tag);
 
+    // Extract current folder for AI context
+    const currentFolder = (notePath as string).includes('/')
+      ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
+      : '';
+
     // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
@@ -63,6 +69,8 @@ export class OrganizeNoteUseCase {
       existingTags: vaultTags,
       currentNoteTags: currentTags,
       existingFolders,
+      currentFolder: currentFolder || undefined,
+      locale: getLocale(),
     });
 
     // Confidence gating — if below threshold, return minimal result
@@ -91,9 +99,6 @@ export class OrganizeNoteUseCase {
     const suggestedLinks = linkResult.links;
 
     // Folder suggestion — prefer existing folders, allow new folder creation
-    const currentFolder = (notePath as string).includes('/')
-      ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
-      : '';
     const rawFolder = classification.suggestedFolder;
     const suggestedFolder = rawFolder && rawFolder !== currentFolder
       ? rawFolder

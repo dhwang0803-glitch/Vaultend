@@ -347,6 +347,17 @@ export class OrganizeFolderResultView extends ItemView {
       detailsEl.createEl('p', { text: result.summary, cls: 'organize-folder-summary-text' });
     }
 
+    // Per-note token usage
+    if (result.tokenUsage.totalTokens > 0) {
+      detailsEl.createEl('span', {
+        text: t('organizeFolder.tokenNote' as Parameters<typeof t>[0], {
+          count: result.tokenUsage.totalTokens,
+          cost: result.tokenUsage.estimatedCostUsd.toFixed(4),
+        }),
+        cls: 'organize-folder-token-note',
+      });
+    }
+
     if (!hasChanges) {
       detailsEl.createEl('p', {
         text: t('organizeFolder.noChanges'),

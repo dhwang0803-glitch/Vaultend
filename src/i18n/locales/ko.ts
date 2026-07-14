@@ -150,6 +150,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.skipped': '건너뜀',
   'organizeFolder.noChanges': '제안된 변경이 없습니다',
   'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
+  'organizeFolder.tokenNote': '{{count}} 토큰 · ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',

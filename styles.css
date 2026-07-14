@@ -165,6 +165,13 @@
   font-size: var(--font-ui-smaller);
 }
 
+.organize-folder-token-note {
+  display: inline-block;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  margin-top: 2px;
+}
+
 .organize-folder-progress {
   padding: 12px;
   background: var(--background-secondary);

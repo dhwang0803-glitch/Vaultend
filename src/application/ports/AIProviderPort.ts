@@ -27,6 +27,8 @@ export interface ClassificationRequest {
   readonly existingCategories?: ReadonlyArray<string>;
   readonly currentNoteTags?: ReadonlyArray<string>;
   readonly existingFolders?: ReadonlyArray<string>;
+  readonly currentFolder?: string;
+  readonly locale?: 'en' | 'ko';
 }
 
 export interface ClassificationResponse {

@@ -148,6 +148,7 @@ const en = {
   'organizeFolder.skipped': 'Skipped',
   'organizeFolder.noChanges': 'No changes suggested',
   'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
+  'organizeFolder.tokenNote': '{{count}} tokens · ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',
