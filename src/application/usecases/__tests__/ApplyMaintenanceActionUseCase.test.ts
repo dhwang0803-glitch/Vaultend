@@ -36,8 +36,10 @@ describe('ApplyMaintenanceActionUseCase', () => {
       });
 
       const action: MaintenanceAction = { kind: 'delete-orphan', notePath: np('orphan.md') };
-      await uc.execute(action);
+      const result = await uc.execute(action);
 
+      expect(result).not.toBeNull();
+      expect(result!.undoable).toBe(true);
       expect(vault.deleteNote).toHaveBeenCalledWith(np('orphan.md'));
       expect(history.record).toHaveBeenCalledTimes(1);
 
@@ -45,6 +47,7 @@ describe('ApplyMaintenanceActionUseCase', () => {
       expect(entry.action).toBe('delete');
       expect(entry.previousContent).toBe('# Orphan');
       expect(entry.notePath).toBe(np('orphan.md'));
+      expect(entry.id).toBe(result!.entryId);
     });
 
     it('존재하지 않는 노트도 삭제를 시도하고 이력에 빈 previousContent를 기록한다', async () => {
@@ -105,18 +108,19 @@ describe('ApplyMaintenanceActionUseCase', () => {
       );
     });
 
-    it('소스 노트가 없으면 아무 것도 하지 않는다', async () => {
+    it('소스 노트가 없으면 null을 반환한다', async () => {
       const { uc, vault, history } = createUseCase({
         readNote: vi.fn().mockResolvedValue(null),
       });
 
-      await uc.execute({
+      const result = await uc.execute({
         kind: 'remove-broken-link',
         sourcePath: np('gone.md'),
         targetLink: 'x',
         lineNumber: 1,
       });
 
+      expect(result).toBeNull();
       expect(vault.writeNote).not.toHaveBeenCalled();
       expect(history.record).not.toHaveBeenCalled();
     });
@@ -140,11 +144,13 @@ describe('ApplyMaintenanceActionUseCase', () => {
   });
 
   describe('create-missing-note', () => {
-    it('빈 노트를 생성하고 이력에 기록한다', async () => {
+    it('빈 노트를 생성하고 이력에 기록한다 (undoable=false)', async () => {
       const { uc, vault, history } = createUseCase();
 
-      await uc.execute({ kind: 'create-missing-note', targetLink: 'new-topic' });
+      const result = await uc.execute({ kind: 'create-missing-note', targetLink: 'new-topic' });
 
+      expect(result).not.toBeNull();
+      expect(result!.undoable).toBe(false);
       expect(vault.writeNote).toHaveBeenCalledWith(np('new-topic.md'), '# new-topic\n');
       const entry = (history.record as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(entry.action).toBe('create');
@@ -167,11 +173,12 @@ describe('ApplyMaintenanceActionUseCase', () => {
       expect(vault.writeNote).toHaveBeenCalledWith(np('missing.md'), '# missing\n');
     });
 
-    it('fragment만 있는 링크(#only)는 무시한다', async () => {
+    it('fragment만 있는 링크(#only)는 null을 반환한다', async () => {
       const { uc, vault } = createUseCase();
 
-      await uc.execute({ kind: 'create-missing-note', targetLink: '#only-heading' });
+      const result = await uc.execute({ kind: 'create-missing-note', targetLink: '#only-heading' });
 
+      expect(result).toBeNull();
       expect(vault.writeNote).not.toHaveBeenCalled();
     });
   });

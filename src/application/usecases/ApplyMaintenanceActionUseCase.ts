@@ -6,6 +6,11 @@ import { ClockPort } from '../ports/ClockPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { TagName } from '../../domain/values/TagName';
 
+export interface ApplyResult {
+  readonly entryId: string;
+  readonly undoable: boolean;
+}
+
 export class ApplyMaintenanceActionUseCase {
   constructor(
     private readonly vault: VaultAccessPort,
@@ -13,7 +18,7 @@ export class ApplyMaintenanceActionUseCase {
     private readonly clock: ClockPort,
   ) {}
 
-  async execute(action: MaintenanceAction): Promise<void> {
+  async execute(action: MaintenanceAction): Promise<ApplyResult | null> {
     switch (action.kind) {
       case 'delete-orphan':
         return this.deleteOrphan(action.notePath);
@@ -30,7 +35,7 @@ export class ApplyMaintenanceActionUseCase {
     }
   }
 
-  private async deleteOrphan(notePath: NotePath): Promise<void> {
+  private async deleteOrphan(notePath: NotePath): Promise<ApplyResult> {
     const note = await this.vault.readNote(notePath);
     const previousContent = note?.content ?? '';
 
@@ -45,15 +50,16 @@ export class ApplyMaintenanceActionUseCase {
       previousContent,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: true };
   }
 
-  private async removeBrokenLink(sourcePath: NotePath, targetLink: string, lineNumber: number): Promise<void> {
+  private async removeBrokenLink(sourcePath: NotePath, targetLink: string, lineNumber: number): Promise<ApplyResult | null> {
     const note = await this.vault.readNote(sourcePath);
-    if (!note) return;
+    if (!note) return null;
 
     const lines = note.content.split('\n');
     const targetLineIdx = lineNumber - 1;
-    if (targetLineIdx < 0 || targetLineIdx >= lines.length) return;
+    if (targetLineIdx < 0 || targetLineIdx >= lines.length) return null;
 
     const wikiLinkPattern = new RegExp(`\\[\\[${this.escapeRegex(targetLink)}(\\|[^\\]]+)?\\]\\]`, 'g');
     lines[targetLineIdx] = lines[targetLineIdx].replace(wikiLinkPattern, targetLink);
@@ -70,12 +76,13 @@ export class ApplyMaintenanceActionUseCase {
       previousContent: note.content,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: true };
   }
 
-  private async createMissingNote(targetLink: string): Promise<void> {
+  private async createMissingNote(targetLink: string): Promise<ApplyResult | null> {
     const hashIdx = targetLink.indexOf('#');
     const baseName = hashIdx !== -1 ? targetLink.substring(0, hashIdx) : targetLink;
-    if (!baseName) return;
+    if (!baseName) return null;
 
     const normalized = baseName.endsWith('.md') ? baseName : `${baseName}.md`;
     const notePath = createNotePath(normalized);
@@ -91,16 +98,17 @@ export class ApplyMaintenanceActionUseCase {
       description: `누락 노트 생성: ${baseName}`,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: false };
   }
 
-  private async applyMissingTags(notePath: NotePath, tags: ReadonlyArray<TagName>): Promise<void> {
+  private async applyMissingTags(notePath: NotePath, tags: ReadonlyArray<TagName>): Promise<ApplyResult | null> {
     const note = await this.vault.readNote(notePath);
-    if (!note) return;
+    if (!note) return null;
 
     const frontmatterTags = this.extractFrontmatterTags(note.content);
     const allExisting = note.metadata.tags.map(t => t as string);
     const newTags = tags.filter(t => !allExisting.includes(t as string));
-    if (newTags.length === 0) return;
+    if (newTags.length === 0) return null;
 
     const updatedFmTags = [...frontmatterTags, ...newTags.map(t => t as string)];
     await this.vault.updateFrontmatter(notePath, { tags: updatedFmTags });
@@ -114,9 +122,10 @@ export class ApplyMaintenanceActionUseCase {
       previousContent: note.content,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: true };
   }
 
-  private async archiveNote(notePath: NotePath, targetFolder: string): Promise<void> {
+  private async archiveNote(notePath: NotePath, targetFolder: string): Promise<ApplyResult> {
     const basename = (notePath as string).split('/').pop() ?? '';
     const destPath = createNotePath(`${targetFolder}/${basename}`);
     await this.vault.moveNote(notePath, destPath);
@@ -129,9 +138,10 @@ export class ApplyMaintenanceActionUseCase {
       description: `노트 아카이브: ${notePath as string} → ${targetFolder}/`,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: false };
   }
 
-  private async dismiss(issueType: string, identifier: string): Promise<void> {
+  private async dismiss(issueType: string, identifier: string): Promise<ApplyResult> {
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
       action: 'dismiss',
@@ -140,6 +150,7 @@ export class ApplyMaintenanceActionUseCase {
       description: `이슈 무시: [${issueType}] ${identifier}`,
     };
     await this.history.record(entry);
+    return { entryId: entry.id, undoable: false };
   }
 
   private extractFrontmatterTags(content: string): string[] {

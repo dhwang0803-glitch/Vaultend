@@ -24,6 +24,7 @@ const en = {
   'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
+  'notice.noChangeNeeded': 'No changes to apply',
   'notice.actionFailed': 'Action failed: {{error}}',
   'notice.noSelection': 'No items selected',
   'notice.batchResult': '{{success}} applied, {{failed}} failed',

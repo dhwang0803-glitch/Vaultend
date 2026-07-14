@@ -1,6 +1,6 @@
 import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
-import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
+import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
@@ -26,10 +26,9 @@ interface BatchEntry {
   identifier: string;
 }
 
-interface UndoRecord {
-  type: 'dismiss';
-  dismissKey: string;
-}
+type UndoRecord =
+  | { type: 'dismiss'; dismissKey: string }
+  | { type: 'apply'; historyEntryId: string };
 
 interface FilterState {
   issueTypes: Set<MaintenanceIssueType>;
@@ -40,6 +39,7 @@ interface FilterState {
 export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
+  private undoInProgress = false;
   private readonly dismissedIds = new Set<string>();
   private readonly undoStack: UndoRecord[] = [];
   private readonly redoStack: UndoRecord[] = [];
@@ -660,7 +660,15 @@ export class MaintenanceResultView extends ItemView {
 
   private async executeAction(action: MaintenanceAction, setting: Setting): Promise<void> {
     try {
-      await this.applyAction.execute(action);
+      const result: ApplyResult | null = await this.applyAction.execute(action);
+      if (!result) {
+        new Notice(t('notice.noChangeNeeded'));
+        return;
+      }
+      if (result.undoable) {
+        this.undoStack.push({ type: 'apply', historyEntryId: result.entryId });
+        this.redoStack.length = 0;
+      }
       setting.settingEl.addClass('maintenance-result-applied');
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
       const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
@@ -683,13 +691,21 @@ export class MaintenanceResultView extends ItemView {
     let success = 0;
     let failed = 0;
     const applied = new Set<BatchEntry>();
+    this.redoStack.length = 0;
     for (const entry of selected) {
       try {
         let action = entry.action;
         if (action.kind === 'archive-note' && !action.targetFolder) {
           action = { ...action, targetFolder: archiveFolder };
         }
-        await this.applyAction.execute(action);
+        const result = await this.applyAction.execute(action);
+        if (!result) {
+          failed++;
+          continue;
+        }
+        if (result.undoable) {
+          this.undoStack.push({ type: 'apply', historyEntryId: result.entryId });
+        }
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
         entry.checkbox.remove();
@@ -745,7 +761,8 @@ export class MaintenanceResultView extends ItemView {
     if (success > 0) this.render();
   }
 
-  private undo(): void {
+  private async undo(): Promise<void> {
+    if (this.undoInProgress) return;
     const record = this.undoStack.pop();
     if (!record) return;
 
@@ -754,6 +771,18 @@ export class MaintenanceResultView extends ItemView {
       this.redoStack.push(record);
       new Notice(t('undo.success'));
       this.render();
+    } else if (record.type === 'apply') {
+      this.undoInProgress = true;
+      try {
+        await this.historyPort.undo(record.historyEntryId);
+        new Notice(t('undo.success'));
+        this.render();
+      } catch (err) {
+        this.undoStack.push(record);
+        new Notice(t('undo.failed', { error: localizeError(err) }));
+      } finally {
+        this.undoInProgress = false;
+      }
     }
   }
 

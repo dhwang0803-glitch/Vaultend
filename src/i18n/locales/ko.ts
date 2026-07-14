@@ -26,6 +26,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
+  'notice.noChangeNeeded': '적용할 변경이 없습니다',
   'notice.actionFailed': '적용 실패: {{error}}',
   'notice.noSelection': '선택된 항목이 없습니다',
   'notice.batchResult': '{{success}}건 적용, {{failed}}건 실패',
