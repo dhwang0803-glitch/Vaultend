@@ -18,7 +18,7 @@ An AI-powered knowledge maintenance engine for Obsidian. Automatically classify,
   - [Cost Transparency](#cost-transparency)
   - [Quick Ask](#quick-ask)
   - [Note Organizer](#note-organizer)
-  - [Inbox Processing](#inbox-processing)
+  - [Organize Folder](#organize-folder)
   - [Vault Maintenance](#vault-maintenance)
   - [Activity Log](#activity-log)
   - [Clipboard Capture](#clipboard-capture)
@@ -56,7 +56,7 @@ Every AI feature in this plugin shows **token usage and estimated cost** after e
 |---------|-------------------|
 | Quick Ask | Below the AI response |
 | Note Organizer | Bottom of the result modal |
-| Inbox Processing | Per-note in the activity log |
+| Organize Folder | Per-note in the activity log |
 
 This is a deliberate design choice: AI tools should be transparent about resource consumption.
 
@@ -116,29 +116,30 @@ Results open in an **interactive modal** where you can review and edit everythin
 
 ---
 
-### Inbox Processing
+### Organize Folder
 
-Automatically detect and process new notes landing in your Inbox folder. Internally runs the same AI classification as Note Organizer, but in batch mode with auto-apply.
+Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, and moves each note — just like Note Organizer, but in batch mode.
 
-<!-- TODO: screenshot of Inbox Status view -->
+<!-- TODO: screenshot of Organize Folder progress modal -->
+
+**How to use**:
+- **Command Palette**: `Ctrl/Cmd + P` → "Organize Folder" → select a folder from the fuzzy search modal
+- **Context menu**: Right-click a folder → "Organize Folder"
 
 **How it works**:
-1. Drop notes into your Inbox folder (default: `Inbox/`)
-2. The plugin watches for new files (2-second debounce)
+1. Select a target folder (any folder in your vault)
+2. The plugin scans all notes in that folder
 3. Each note gets sent to AI for classification
-4. AI returns: category, suggested tags, and target folder
+4. AI returns: suggested tags and target folder
 5. Tags are written to frontmatter, note is moved to the suggested folder
 
 **How AI decides tags and folders**:
 - **Tags**: AI reads the note content and references your vault's existing tags (collected dynamically from the metadata cache, sorted by frequency). It strongly prefers reusing existing tags to keep your vault consistent.
 - **Folder**: AI classifies the note's category (technology, personal, work, etc.) and maps it to an appropriate folder path. The mapping is inferred from your vault's existing folder structure.
 
-**Trigger methods**:
-- **Automatic**: Runs on file creation/modification in the Inbox folder
-- **Manual**: `Ctrl/Cmd + P` → "Process Inbox" (opens a progress modal with real-time counter, progress bar, and cancel button)
-- **Startup catch-up**: Processes any unprocessed notes when Obsidian launches
+**Progress modal**: Shows real-time progress bar, note counter, current note name, and cancel button.
 
-**Auto Apply setting**: When enabled, tags and folder moves happen automatically. When disabled, only classification is performed and results are logged.
+**Auto-watch**: When Auto Apply is enabled in Settings, notes created or modified in the configured Inbox folder are automatically processed in the background.
 
 **Status view**: Open with "Open Inbox Status" command — shows total/processed/unprocessed counts.
 
@@ -184,13 +185,12 @@ Each issue has contextual action buttons:
 | Action | Available for | Effect |
 |--------|--------------|--------|
 | Open | All | Open the note in editor |
-| Archive | Empty, Orphan | Move to archive folder |
+| Archive | Empty, Orphan | Move to archive folder (with restore support) |
 | Delete | Empty, Orphan | Delete permanently (with undo) |
 | Apply Tags | Missing Tags | Write suggested tags to frontmatter |
 | Remove Link | Broken Links | Convert `[[broken]]` to plain text |
-| Create Note | Broken Links | Create the missing target note |
 | Open Side by Side | Duplicates | Compare two notes in split view |
-| Dismiss | All | Hide from results (session-scoped) |
+| Dismiss | All | Strikethrough + Undo button (recoverable) |
 
 #### Batch Operations
 
@@ -199,13 +199,13 @@ Select multiple items and act on them at once:
 1. Check the **Select All** checkbox at the top of a section (or check individual items)
 2. Click an action button: **Archive Selected**, **Delete Selected**, **Dismiss Selected**, etc.
 
-#### Undo / Redo
+#### Undo & Restore
 
-Made a mistake? Use the **Undo** (↶) and **Redo** (↷) buttons in the toolbar.
+Made a mistake? Every action is recoverable:
 
-- Undo reverts the last dismiss action (items reappear)
-- Redo re-applies the dismissed state
-- Destructive actions (delete, archive) are recorded in the [Activity Log](#activity-log) with full content backup for restoration
+- **Dismiss**: Shows strikethrough text with an inline Undo button — click to restore the item immediately
+- **Delete**: Recorded in the [Activity Log](#activity-log) with full content backup. Click Restore in the log to bring the note back.
+- **Archive**: Recorded with the destination path. Click Restore in the log to move the note back to its original location.
 
 #### Automatic Scheduling
 
@@ -223,17 +223,16 @@ Track every action the plugin takes — and restore previous states.
 
 **What gets recorded**:
 - Note deletions (with previous content for restore)
-- Note archival
+- Note archival (with destination path for restore)
 - Tag additions
 - Link removals
-- Note creation (for broken link fixes)
 - Issue dismissals
 - Clipboard captures
 - Quick Ask saves
 - Note classifications
 - **Restorations** (when you use the Restore button)
 
-**Restore button**: Entries that modified or deleted content show a **Restore** button. Click it to revert the note to its state before the action. The restoration itself is also logged.
+**Restore button**: Entries that modified or deleted content show a red **Restore** button. Click it to revert the note to its state before the action. Archived notes are moved back to their original location. The restoration itself is also logged.
 
 **Refresh**: Click the ↻ button to reload the latest entries without restarting Obsidian.
 
@@ -274,9 +273,10 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 |---------|-------------|:-----------:|
 | Quick Ask | Ask AI with vault context | Yes |
 | Organize Current Note | Classify and tag the active note | Yes |
-| Process Inbox | Batch-process Inbox folder | Yes |
+| Organize Folder | Select a folder and batch-organize its notes | Yes |
 | Run Maintenance | Scan entire vault for issues | Partial |
 | Scan this folder for maintenance | Right-click context menu | Partial |
+| Organize Folder (context menu) | Right-click a folder to organize it | Yes |
 | Capture Clipboard | Save clipboard as note | No |
 | Open Maintenance Log | Show activity log sidebar | No |
 | Open Inbox Status | Show Inbox status sidebar | No |
@@ -459,8 +459,8 @@ main.ts          ← Composition Root
 
 | Area | Limitation |
 |------|-----------|
-| AI dependency | Quick Ask, Organizer, Inbox require an API key. Maintenance scan (orphans, broken links) works without AI. |
-| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Inbox). |
+| AI dependency | Quick Ask, Organizer, Organize Folder require an API key. Maintenance scan (orphans, broken links) works without AI. |
+| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Organize Folder). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
 | Duplicates | TF-IDF cosine similarity — may miss very short notes with insufficient term overlap. |
