@@ -7,7 +7,7 @@ import { HistoryPort } from '../application/ports/HistoryPort';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import { NotePath } from '../domain/values/NotePath';
 import { createTimestamp } from '../domain/values/Timestamp';
-import { ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
+import { ORGANIZE_FOLDER_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t } from '../i18n';
 import { localizeError } from './localizeError';
 
@@ -54,7 +54,20 @@ export class OrganizeFolderResultView extends ItemView {
   getIcon(): string { return 'wand'; }
 
   async onOpen(): Promise<void> {
+    this.registerEvent(
+      this.app.workspace.on(HISTORY_CHANGED_EVENT, (undoneId?: string) =>
+        this.onHistoryChanged(undoneId)),
+    );
     this.renderEmpty();
+  }
+
+  private onHistoryChanged(undoneId?: string): void {
+    if (!undoneId || this.entries.length === 0) return;
+    const entry = this.entries.find(e => e.historyEntryId === undoneId);
+    if (!entry) return;
+    entry.status = 'pending';
+    entry.historyEntryId = undefined;
+    this.render();
   }
 
   async onClose(): Promise<void> {
@@ -491,6 +504,7 @@ export class OrganizeFolderResultView extends ItemView {
       entry.historyEntryId = entryId;
       this.markEntryApplied(entry);
       new Notice(t('notice.actionApplied'));
+      this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
       return true;
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
@@ -520,8 +534,9 @@ export class OrganizeFolderResultView extends ItemView {
 
   private async undoEntry(entry: OrganizeFolderEntry): Promise<void> {
     if (!entry.historyEntryId) return;
+    const undoneId = entry.historyEntryId;
     try {
-      await this.historyPort.undo(entry.historyEntryId);
+      await this.historyPort.undo(undoneId);
       entry.status = 'pending';
       entry.historyEntryId = undefined;
 
@@ -536,6 +551,7 @@ export class OrganizeFolderResultView extends ItemView {
 
       entry.setting.setDesc(entry.result.notePath as string);
       new Notice(t('undo.success'));
+      this.app.workspace.trigger(HISTORY_CHANGED_EVENT, undoneId);
     } catch (err) {
       new Notice(t('undo.failed', { error: localizeError(err) }));
     }

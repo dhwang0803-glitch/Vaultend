@@ -2,6 +2,9 @@
  * 플러그인 전역 상수 정의.
  */
 
+/** Workspace 이벤트 */
+export const HISTORY_CHANGED_EVENT = 'vaultend:history-changed';
+
 /** 사이드바 뷰 타입 ID */
 export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
 export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';

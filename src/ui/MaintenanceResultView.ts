@@ -9,7 +9,7 @@ import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import { localizeError } from './localizeError';
-import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
+import { MAINTENANCE_RESULT_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
@@ -71,7 +71,22 @@ export class MaintenanceResultView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.registerEvent(
+      this.app.workspace.on(HISTORY_CHANGED_EVENT, (undoneId?: string) =>
+        this.onHistoryChanged(undoneId)),
+    );
     this.renderEmpty();
+  }
+
+  private onHistoryChanged(undoneId?: string): void {
+    if (!undoneId || !this.currentPlan) return;
+    for (const [key, id] of this.appliedEntries) {
+      if (id === undoneId) {
+        this.appliedEntries.delete(key);
+        this.render();
+        return;
+      }
+    }
   }
 
   refreshLocale(): void {
@@ -725,6 +740,7 @@ export class MaintenanceResultView extends ItemView {
       }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
+      this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
@@ -741,6 +757,7 @@ export class MaintenanceResultView extends ItemView {
           this.appliedEntries.delete(appliedKey);
           this.render();
           new Notice(t('undo.success'));
+          this.app.workspace.trigger(HISTORY_CHANGED_EVENT, historyEntryId);
         } catch (err) {
           btn.setDisabled(false);
           new Notice(t('undo.failed', { error: localizeError(err) }));
@@ -805,6 +822,7 @@ export class MaintenanceResultView extends ItemView {
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchComplete', { count: success });
     new Notice(msg);
+    if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
   }
 
   private async executeBatchWithAction(
@@ -868,6 +886,7 @@ export class MaintenanceResultView extends ItemView {
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchDismissed', { count: success });
     new Notice(msg);
+    if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
   }
 
   private async restoreBatch(entries: BatchEntry[]): Promise<void> {
@@ -895,7 +914,10 @@ export class MaintenanceResultView extends ItemView {
         ? t('notice.batchRestoreResult', { success, failed })
         : t('notice.batchRestored', { count: success });
       new Notice(msg);
-      if (success > 0) this.render();
+      if (success > 0) {
+        this.render();
+        this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+      }
     } finally {
       this.restoreInProgress = false;
     }
