@@ -12,6 +12,41 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.8] - 2026-07-14
+
+### Fixed
+- **Restore 후 Applied 상태 유실**: 개별/배치 복원 후 re-render 시 Applied 상태가 초기화되던 버그 수정 (`appliedEntries` Map으로 상태 추적).
+- **Restore 버튼 `.setWarning()` 제거**: 복원 버튼의 빨간 경고 스타일을 일반 스타일로 변경 (UX 개선).
+- **Auto Maintenance가 Restore 덮어쓰기**: 복원 중 자동 스캔이 View를 덮어쓰던 버그 수정 (`restoreInProgress` 플래그 도입).
+- **Smart Scheduling 첫 실행 건너뛰기**: 플러그인 로드 후 첫 자동 스캔이 Smart Scheduling에 의해 건너뛰어지던 버그 수정 (`firstRun` 플래그).
+- **Undo 후 재-Undo 방지**: History 복원 후 원본 엔트리의 `previousContent`를 제거하여 이중 복원 방지.
+- **스캔 시작 전 복원 중 체크 추가**: 자동 스캔이 `execute()` 전에 `isRestoreInProgress()`를 확인하도록 수정 (Codex 교차 검증 P2 수정).
+
+---
+
+## [0.4.7] - 2026-07-14
+
+### Fixed
+- **Auto Maintenance 결과 표시**: 자동 스캔 결과가 UI에 표시되지 않던 버그 수정.
+- **자동/수동 스캔 경합 방지**: 수동 스캔 중 자동 결과 무시, 자동 스캔 중복 실행 방지.
+- **UI 강제 노출 제거**: 자동 스캔 시 View 강제 오픈 대신 Notice 알림만 표시.
+
+---
+
+## [0.4.6] - 2026-07-14
+
+### Fixed
+- **Auto Maintenance scheduler**: Settings 변경 시 스케줄러가 즉시 재시작 (기존: 플러그인 재시작 필요).
+- **Maintenance Undo**: Apply 액션(링크 제거, 고아 삭제 등)도 복원 가능하도록 확장.
+- **Batch restore safety**: 이미 적용된 파괴적 작업의 재실행 방지 (`BatchEntry.status` 상태 관리).
+- **Delete orphan edge case**: 존재하지 않는 노트 삭제 시 빈 파일 생성 방지 (null 반환).
+- **Restore button double-click**: 복원 버튼 클릭 즉시 비활성화로 중복 실행 방지.
+
+### Changed
+- **Undo/Redo → per-item Restore**: 툴바 Undo/Redo 버튼 제거, 적용된 항목 우측에 개별 "복원" 버튼 + 배치 "선택 복원" 버튼으로 전환.
+
+---
+
 ## [0.4.5] - 2026-07-14
 
 ### Changed
