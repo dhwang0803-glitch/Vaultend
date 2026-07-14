@@ -35,7 +35,7 @@ export class OrganizeResultModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('knowledge-maintenance-organize-result');
+    contentEl.addClass('vaultend-organize-result');
 
     contentEl.createEl('h2', { text: t('organize.title') });
 

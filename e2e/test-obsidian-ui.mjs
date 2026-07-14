@@ -84,12 +84,12 @@ async function main() {
     else fail('Settings 모달 열림', 'modal not visible');
   } catch (e) { fail('Settings 모달 열림', e); }
 
-  // --- Test 3: Knowledge Maintenance 설정 탭 ---
+  // --- Test 3: Vaultend 설정 탭 ---
   try {
-    const pluginTab = page.locator('.vertical-tab-nav-item', { hasText: 'Knowledge Maintenance' });
+    const pluginTab = page.locator('.vertical-tab-nav-item', { hasText: 'Vaultend' });
     const exists = await pluginTab.count();
     if (exists > 0) {
-      pass('Knowledge Maintenance 설정 탭 존재');
+      pass('Vaultend 설정 탭 존재');
       await pluginTab.click();
       await sleep(500);
       await page.screenshot({ path: 'e2e/screenshot-plugin-settings.png' });
@@ -107,9 +107,9 @@ async function main() {
         else fail(label, `"${keyword}" not found`);
       }
     } else {
-      fail('Knowledge Maintenance 설정 탭 존재', 'tab not found — plugin may not be enabled');
+      fail('Vaultend 설정 탭 존재', 'tab not found — plugin may not be enabled');
     }
-  } catch (e) { fail('Knowledge Maintenance 설정 탭', e); }
+  } catch (e) { fail('Vaultend 설정 탭', e); }
 
   // Settings 닫기
   await page.keyboard.press('Escape');
@@ -119,7 +119,7 @@ async function main() {
   try {
     await page.keyboard.press('Control+p');
     await sleep(1000);
-    await page.keyboard.type('Knowledge Maintenance', { delay: 30 });
+    await page.keyboard.type('Vaultend', { delay: 30 });
     await sleep(800);
     await page.screenshot({ path: 'e2e/screenshot-commands.png' });
 
@@ -148,7 +148,7 @@ async function main() {
     await sleep(1500);
     await page.screenshot({ path: 'e2e/screenshot-quickask.png' });
 
-    const modal = page.locator('.knowledge-maintenance-quick-ask');
+    const modal = page.locator('.vaultend-quick-ask');
     if (await modal.count() > 0) {
       pass('Quick Ask 모달 열림');
       if (await modal.locator('textarea').count() > 0) pass('Quick Ask 텍스트 입력란');

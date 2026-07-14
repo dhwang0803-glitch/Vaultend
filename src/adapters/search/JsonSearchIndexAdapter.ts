@@ -23,7 +23,7 @@ const MINISEARCH_OPTIONS = {
 };
 
 export class JsonSearchIndexAdapter implements SearchIndexPort {
-  private static readonly INDEX_PATH = '.knowledge-maintenance/search-index.json';
+  private static readonly INDEX_PATH = '.vaultend/search-index.json';
 
   private miniSearch: MiniSearch<IndexedDocument>;
   private noteDocIds: Map<string, string[]> = new Map();

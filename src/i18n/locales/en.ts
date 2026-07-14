@@ -1,6 +1,6 @@
 const en = {
   // ─── Plugin ───
-  'plugin.name': 'Knowledge Maintenance',
+  'plugin.name': 'Vaultend',
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
@@ -194,7 +194,7 @@ const en = {
   'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
-  'settings.title': 'Knowledge Maintenance Settings',
+  'settings.title': 'Vaultend Settings',
 
   'settings.language': 'Language',
   'settings.locale': 'Display Language',

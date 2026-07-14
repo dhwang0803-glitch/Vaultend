@@ -27,7 +27,7 @@ export class QuickAskModal extends Modal {
     this.renderComponent.load();
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('knowledge-maintenance-quick-ask');
+    contentEl.addClass('vaultend-quick-ask');
 
     contentEl.createEl('h2', { text: t('quickAsk.title') });
 

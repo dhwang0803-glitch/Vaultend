@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the **Knowledge Maintenance** plugin for Obsidian are documented here.
+All notable changes to the **Vaultend** plugin for Obsidian are documented here.
 
 This project follows [Semantic Versioning](https://semver.org/).
 

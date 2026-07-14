@@ -133,7 +133,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private hasQueuedInboxEvents = false;
 
   async onload(): Promise<void> {
-    console.log('Knowledge Maintenance Plugin: loading');
+    console.log('Vaultend Plugin: loading');
 
     // 1. Load settings
     await this.loadSettings();
@@ -183,7 +183,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const provider = this.settings.aiProvider;
 
           if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
-            console.log('Knowledge Maintenance: embedding provider/dimension changed, rebuilding index');
+            console.log('Vaultend: embedding provider/dimension changed, rebuilding index');
             await this.vectorStoreAdapter.clear();
           }
           this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
@@ -196,7 +196,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   onunload(): void {
-    console.log('Knowledge Maintenance Plugin: unloading');
+    console.log('Vaultend Plugin: unloading');
 
     // Persist dirty set before shutdown
     this.changeTracker.persist();
@@ -609,7 +609,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         const plan = await this.runMaintenanceUseCase.execute();
         this.showMaintenancePlanIfNeeded(plan);
       } catch (err) {
-        console.error('Knowledge Maintenance: scheduled maintenance failed', err);
+        console.error('Vaultend: scheduled maintenance failed', err);
       } finally {
         this.isMaintenanceRunning = false;
       }
@@ -654,11 +654,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     try {
       if (this.vectorStoreAdapter.isEmpty()) {
         const count = await this.syncEmbeddingsUseCase.rebuildAll();
-        console.log(`Knowledge Maintenance: embedding index built (${count} notes)`);
+        console.log(`Vaultend: embedding index built (${count} notes)`);
       } else {
         const result = await this.syncEmbeddingsUseCase.execute();
         if (result.indexed > 0) {
-          console.log(`Knowledge Maintenance: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
+          console.log(`Vaultend: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
         }
       }
     } catch {
@@ -678,9 +678,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      console.log(`Knowledge Maintenance: search index built (${indexed}/${notes.length} notes indexed)`);
+      console.log(`Vaultend: search index built (${indexed}/${notes.length} notes indexed)`);
     } catch (err) {
-      console.error('Knowledge Maintenance: search index build failed', err);
+      console.error('Vaultend: search index build failed', err);
     }
   }
 
@@ -710,7 +710,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         runs++;
       } while (this.hasQueuedInboxEvents && runs < MAX_RERUN);
     } catch (err) {
-      console.error('Knowledge Maintenance: auto inbox processing failed', err);
+      console.error('Vaultend: auto inbox processing failed', err);
     } finally {
       this.isInboxProcessing = false;
     }

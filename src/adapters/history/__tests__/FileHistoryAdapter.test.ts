@@ -36,7 +36,7 @@ describe('FileHistoryAdapter', () => {
       await adapter.record(makeEntry());
 
       expect(vault.writeFileRaw).toHaveBeenCalledWith(
-        '.knowledge-maintenance/history/2024-07.json',
+        '.vaultend/history/2024-07.json',
         expect.any(String),
       );
       const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
@@ -67,7 +67,7 @@ describe('FileHistoryAdapter', () => {
       await adapter.record(makeEntry({ timestamp: ts(1735689600000) })); // 2025-01
 
       expect(vault.writeFileRaw).toHaveBeenCalledWith(
-        '.knowledge-maintenance/history/2025-01.json',
+        '.vaultend/history/2025-01.json',
         expect.any(String),
       );
     });
@@ -80,8 +80,8 @@ describe('FileHistoryAdapter', () => {
 
       const vault = createMockVault({
         listFiles: vi.fn().mockResolvedValue([
-          '.knowledge-maintenance/history/2024-01.json',
-          '.knowledge-maintenance/history/2024-02.json',
+          '.vaultend/history/2024-01.json',
+          '.vaultend/history/2024-02.json',
         ]),
         readFileRaw: vi.fn()
           .mockResolvedValueOnce(JSON.stringify(entries1))

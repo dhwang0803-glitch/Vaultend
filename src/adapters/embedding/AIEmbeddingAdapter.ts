@@ -24,7 +24,7 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
       this.ready = true;
       return true;
     } catch (err) {
-      console.error('Knowledge Maintenance: embedding initialization failed', err);
+      console.error('Vaultend: embedding initialization failed', err);
       this.ready = false;
       return false;
     }

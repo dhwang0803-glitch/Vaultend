@@ -49,7 +49,7 @@ export class MaintenanceLogView extends ItemView {
     if (entries.length === 0) {
       contentEl.createEl('p', {
         text: t('log.empty'),
-        cls: 'knowledge-maintenance-empty',
+        cls: 'vaultend-empty',
       });
       return;
     }

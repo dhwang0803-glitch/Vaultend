@@ -298,7 +298,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       tags: uniqueTags.map(t => {
         try { return createTagName(t); }
         catch {
-          console.warn(`[Knowledge Maintenance] 비정상 태그 감지, #untagged로 대체: "${t}"`);
+          console.warn(`[Vaultend] 비정상 태그 감지, #untagged로 대체: "${t}"`);
           return createTagName('#untagged');
         }
       }),

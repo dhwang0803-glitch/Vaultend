@@ -33,7 +33,7 @@ describe('i18n', () => {
 
     it('falls back to English for missing Korean keys', () => {
       setLocale('ko');
-      expect(t('plugin.name')).toBe('Knowledge Maintenance');
+      expect(t('plugin.name')).toBe('Vaultend');
     });
   });
 

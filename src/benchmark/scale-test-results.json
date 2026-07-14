@@ -1,0 +1,47 @@
+[
+  {
+    "docCount": 100,
+    "queryCount": 50,
+    "indexTimeMs": 9.818699999999978,
+    "avgSearchTimeMs": 0.1848259999999948,
+    "p95SearchTimeMs": 0.39229999999997744,
+    "maxSearchTimeMs": 1.4776999999999703,
+    "memoryMB": 2.5177459716796875
+  },
+  {
+    "docCount": 500,
+    "queryCount": 50,
+    "indexTimeMs": 17.58839999999998,
+    "avgSearchTimeMs": 0.2421240000000023,
+    "p95SearchTimeMs": 0.5792999999999893,
+    "maxSearchTimeMs": 1.4728000000000065,
+    "memoryMB": -1.2621688842773438
+  },
+  {
+    "docCount": 1000,
+    "queryCount": 50,
+    "indexTimeMs": 61.11519999999996,
+    "avgSearchTimeMs": 0.45969800000000194,
+    "p95SearchTimeMs": 1.1972000000000094,
+    "maxSearchTimeMs": 2.271500000000003,
+    "memoryMB": 0.6652679443359375
+  },
+  {
+    "docCount": 2000,
+    "queryCount": 50,
+    "indexTimeMs": 86.13329999999996,
+    "avgSearchTimeMs": 0.8214760000000046,
+    "p95SearchTimeMs": 2.811800000000062,
+    "maxSearchTimeMs": 3.4368999999999232,
+    "memoryMB": 6.191413879394531
+  },
+  {
+    "docCount": 5000,
+    "queryCount": 50,
+    "indexTimeMs": 511.1246,
+    "avgSearchTimeMs": 2.798057999999978,
+    "p95SearchTimeMs": 6.2456999999999425,
+    "maxSearchTimeMs": 14.307600000000093,
+    "memoryMB": 18.33411407470703
+  }
+]

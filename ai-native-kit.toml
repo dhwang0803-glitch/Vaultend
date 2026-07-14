@@ -1,5 +1,5 @@
 [project]
-name = "Obsidian Knowledge Maintenance Plugin"
+name = "Vaultend — Obsidian Plugin"
 main_branch = "main"
 dev_branch_prefix = "feat/"
 

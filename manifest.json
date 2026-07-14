@@ -1,9 +1,9 @@
 {
-  "id": "knowledge-maintenance",
-  "name": "Knowledge Maintenance",
+  "id": "vaultend",
+  "name": "Vaultend",
   "version": "0.4.9",
   "minAppVersion": "1.7.2",
-  "description": "AI-powered knowledge maintenance engine — auto-classify, tag, link, and maintain your vault",
+  "description": "AI-powered vault maintenance — auto-classify, tag, link, and organize your notes",
   "author": "dhwang0803",
   "authorUrl": "https://github.com/dhwang0803",
   "isDesktopOnly": false
