@@ -1,6 +1,6 @@
 # Noluma 실환경 QA 테스트 플랜
 
-> 대상 버전: v0.4.1+  
+> 대상 버전: v0.4.9+  
 > 테스트 환경: Obsidian Desktop (Windows/Mac), BRAT 설치  
 > 전제: Settings에서 AI Provider API 키 설정 완료
 
@@ -266,42 +266,91 @@ Vault/
 | 확인 | ✅ `lastScanTimestamp`가 null (한 번도 실행한 적 없음)이면 dirty set이 비어있어도 첫 스캔이 실행되는지 |
 | 확인 | ✅ 첫 실행 후에는 dirty set이 비어있을 때 정상적으로 건너뛰는지 |
 
+### TC-3.9: Dismiss 복구 (Undo 버튼)
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | Run Maintenance 실행하여 결과가 있는 상태 |
+| 실행 | 임의의 항목에서 "Dismiss" 버튼 클릭 |
+| 기대 | 항목이 사라지지 않고, **취소선** + **Undo 버튼**(빨간색)이 표시됨 |
+| 확인 | ✅ 취소선이 텍스트(제목/설명)에만 적용되고 버튼에는 적용되지 않는지 |
+| 확인 | ✅ Undo 클릭 시 항목이 원래 상태로 복원되는지 |
+| 확인 | ✅ 일괄 Dismiss도 동일한 취소선 + Undo 패턴으로 동작하는지 |
+
+### TC-3.10: Archive 복원 (원래 위치로 이동)
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | 고아 노트 또는 빈 노트가 탐지된 상태 |
+| 실행 | Archive 버튼 클릭 → Activity Log 열기 |
+| 기대 | 로그에 archive 항목이 기록되고, **빨간색 Restore 버튼** 표시 |
+| 확인 | ✅ Restore 클릭 시 노트가 원래 위치로 이동되는지 |
+| 확인 | ✅ 복원 후 로그에 "복원" 항목이 추가되는지 |
+
+### TC-3.11: Restore 버튼 UI
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | Delete 또는 Archive 액션을 실행한 후 Maintenance Results에서 확인 |
+| 실행 | 적용된 항목의 Restore 버튼 확인 |
+| 기대 | Restore 버튼이 **빨간색(warning)** 스타일이고 취소선에 가려지지 않음 |
+| 확인 | ✅ 취소선이 설명 텍스트에만 적용되고 Restore 버튼 텍스트에는 적용되지 않는지 |
+
 ---
 
-## 4. Inbox Process (자동 분류)
+## 4. Organize Folder (폴더 정리)
 
-### TC-4.1: 프로그레스 모달 기본 처리
+### TC-4.1: Command Palette에서 폴더 선택 + 처리
 
 | 항목 | 내용 |
 |------|------|
-| 준비 | Inbox/ 폴더에 미분류 노트 3개 배치 |
-| 실행 | Command Palette → "Run Inbox Process" |
-| 기대 | **프로그레스 모달** 표시 (Notice 아님) |
-| 확인 | ✅ 모달에 프로그레스 바가 표시되고 처리 진행에 따라 채워지는지 |
-| 확인 | ✅ 카운터 "1 / 3", "2 / 3", "3 / 3" 실시간 갱신되는지 |
-| 확인 | ✅ 현재 처리 중인 노트 이름이 표시되는지 |
-| 확인 | ✅ 완료 시 요약 화면 표시: "Processed: 3", "Skipped: 0" |
+| 준비 | 임의 폴더에 미분류 노트 3개 배치 |
+| 실행 | Command Palette → "Organize Folder" |
+| 기대 | **Fuzzy Search 폴더 선택 모달** 표시 |
+| 확인 | ✅ vault의 모든 폴더가 목록에 표시되는지 (하위 폴더 포함) |
+| 확인 | ✅ vault root가 "/ (Vault Root)" 로 표시되는지 |
+| 확인 | ✅ 폴더 선택 시 **프로그레스 모달** 표시 (모달 제목에 선택한 폴더명 포함) |
+| 확인 | ✅ 프로그레스 바, 카운터, 현재 노트명이 표시되는지 |
+| 확인 | ✅ 완료 시 요약 화면 표시 |
 | 확인 | ✅ 각 노트에 태그가 추가되고 frontmatter에 `processed: true` 마킹되는지 |
 
-### TC-4.2: 취소 (Cancel / ESC)
+### TC-4.2: 우클릭 컨텍스트 메뉴에서 폴더 정리
 
 | 항목 | 내용 |
 |------|------|
-| 준비 | Inbox/ 폴더에 미분류 노트 5개 이상 배치 |
-| 실행 | "Run Inbox Process" → 처리 중 Cancel 버튼 클릭 (또는 ESC) |
-| 기대 | 현재 노트 처리 완료 후 중단, 요약 화면에 "Inbox Processing Cancelled" 타이틀 |
+| 준비 | 미분류 노트가 있는 폴더 |
+| 실행 | 해당 폴더를 우클릭 → "Organize Folder" |
+| 기대 | 폴더 선택 없이 바로 **프로그레스 모달** 표시 (선택한 폴더 자동 적용) |
+| 확인 | ✅ 모달 제목에 우클릭한 폴더명이 표시되는지 |
+| 확인 | ✅ 해당 폴더의 노트만 처리되는지 |
+
+### TC-4.3: 취소 (Cancel / ESC)
+
+| 항목 | 내용 |
+|------|------|
+| 준비 | 미분류 노트 5개 이상이 있는 폴더 |
+| 실행 | "Organize Folder" → 처리 중 Cancel 버튼 클릭 (또는 ESC) |
+| 기대 | 현재 노트 처리 완료 후 중단, 요약 화면에 취소 타이틀 |
 | 확인 | ✅ 취소 전까지 처리된 노트 수와 남은 미처리 노트 수가 합산 정확한지 |
-| 확인 | ✅ 취소 후 다시 "Run Inbox Process" 실행하면 나머지 노트만 처리하는지 |
+| 확인 | ✅ 취소 후 다시 실행하면 나머지 노트만 처리하는지 |
 
-### TC-4.3: 이중 실행 방지
+### TC-4.4: 이중 실행 방지
 
 | 항목 | 내용 |
 |------|------|
-| 실행 | "Run Inbox Process"로 모달 열린 상태에서 다시 "Run Inbox Process" 실행 |
+| 실행 | "Organize Folder" 모달 열린 상태에서 다시 실행 |
 | 기대 | Notice: "Inbox processing is already running." |
 | 확인 | ✅ 두 번째 모달이 열리지 않고, 기존 모달이 정상 계속 동작하는지 |
 
-### TC-4.4: 자동 감지 (Inbox Watcher)
+### TC-4.5: Vault Root 선택 시 정상 동작
+
+| 항목 | 내용 |
+|------|------|
+| 실행 | "Organize Folder" → 목록에서 "/ (Vault Root)" 선택 |
+| 기대 | vault root 최상위 노트들이 정상 처리됨 (에러 없음) |
+| 확인 | ✅ 경로 정규화로 인한 오류가 발생하지 않는지 |
+
+### TC-4.6: 자동 감지 (Inbox Watcher)
 
 | 항목 | 내용 |
 |------|------|
@@ -310,31 +359,12 @@ Vault/
 | 기대 | 자동으로 분류 실행 (몇 초 뒤 태그 추가됨), "file changes detected" 알림 없음 |
 | 확인 | ✅ 자체 처리로 발생한 vault 이벤트가 추가 알림을 트리거하지 않는지 |
 
-### TC-4.5: 처리 중 새 노트 도착 (이벤트 큐잉)
-
-| 항목 | 내용 |
-|------|------|
-| 설정 | Auto-Apply Inbox = true |
-| 준비 | Inbox에 노트 3개 배치 |
-| 실행 | 자동 처리가 진행되는 동안 Inbox에 새 노트 1개 추가 |
-| 기대 | 현재 배치 완료 후 새 노트도 자동 처리됨 (최대 3회 재실행) |
-| 확인 | ✅ 새로 추가된 노트에도 태그가 추가되었는지 |
-
-### TC-4.6: 모달 처리 중 새 노트 도착
-
-| 항목 | 내용 |
-|------|------|
-| 준비 | Inbox에 노트 3개 배치 |
-| 실행 | "Run Inbox Process" 모달로 처리 중, Inbox에 새 노트 1개 추가 |
-| 기대 | 모달 처리 완료 → 모달 닫힌 후 큐잉된 이벤트가 백그라운드로 자동 처리됨 |
-| 확인 | ✅ 새 노트가 누락되지 않고 처리되는지 |
-
 ### TC-4.7: 에러 표시
 
 | 항목 | 내용 |
 |------|------|
-| 준비 | Inbox에 노트 3개 배치 (1개는 처리 중 에러 유발 가능한 상태) |
-| 실행 | "Run Inbox Process" |
+| 준비 | 대상 폴더에 노트 3개 배치 (1개는 처리 중 에러 유발 가능한 상태) |
+| 실행 | "Organize Folder" |
 | 기대 | 완료 화면에 "Errors: 1" 표시 + 에러 리스트에 노트명과 에러 메시지 |
 | 확인 | ✅ 에러 난 노트 외의 나머지는 정상 처리되는지 |
 
@@ -343,8 +373,8 @@ Vault/
 | 항목 | 내용 |
 |------|------|
 | 설정 | Auto-Apply Inbox = true |
-| 준비 | Inbox에 노트 배치 (AI가 다른 폴더로 이동 제안할 만한 내용) |
-| 실행 | "Run Inbox Process" |
+| 준비 | 대상 폴더에 노트 배치 (AI가 다른 폴더로 이동 제안할 만한 내용) |
+| 실행 | "Organize Folder" |
 | 기대 | 노트가 이동된 후에도 에러 없이 정상 완료 |
 | 확인 | ✅ 이동된 노트의 frontmatter에 `processed: true`가 있는지 |
 | 확인 | ✅ 원래 경로에 NoteNotFoundError가 발생하지 않는지 (콘솔 확인) |
@@ -380,13 +410,25 @@ Vault/
 | 실행 | Command Palette → "Open Maintenance Log" |
 | 기대 | 최근 실행 이력(시간, 액션, 설명) 목록 표시 |
 
-### TC-6.2: Undo
+### TC-6.2: Undo (콘텐츠 복원)
 
 | 항목 | 내용 |
 |------|------|
-| 전제 | Organize 또는 Inbox 처리로 변경된 노트가 있을 때 |
-| 실행 | Maintenance Log에서 "Undo" 버튼 클릭 |
+| 전제 | Organize 또는 Delete 처리로 변경된 노트가 있을 때 |
+| 실행 | Maintenance Log에서 **빨간색 Restore 버튼** 클릭 |
 | 기대 | 이전 상태로 복원됨, Notice "Undo 성공" |
+| 확인 | ✅ Restore 버튼이 빨간색(warning 스타일)인지 |
+
+### TC-6.3: Archive 복원
+
+| 항목 | 내용 |
+|------|------|
+| 전제 | Archive 액션으로 노트를 아카이브 폴더로 이동한 상태 |
+| 실행 | Maintenance Log에서 archive 항목의 **Restore 버튼** 클릭 |
+| 기대 | 노트가 아카이브 폴더에서 원래 위치로 이동됨 |
+| 확인 | ✅ 복원 후 원래 경로에 노트가 존재하는지 |
+| 확인 | ✅ 아카이브 폴더에서 해당 노트가 사라졌는지 |
+| 확인 | ✅ 로그에 "복원" 항목이 추가되는지 |
 
 ---
 
@@ -498,18 +540,22 @@ Vault/
 | TC-3.6 | PASS / FAIL | |
 | TC-3.7 | PASS / FAIL | |
 | TC-3.8 | PASS / FAIL | |
-| TC-4.1 | PASS / FAIL | |
-| TC-4.2 | PASS / FAIL | |
-| TC-4.3 | PASS / FAIL | |
-| TC-4.4 | PASS / FAIL | |
-| TC-4.5 | PASS / FAIL | |
-| TC-4.6 | PASS / FAIL | |
-| TC-4.7 | PASS / FAIL | |
-| TC-4.8 | PASS / FAIL | |
-| TC-4.9 | PASS / FAIL | |
+| TC-3.9 | PASS / FAIL | Dismiss 복구 |
+| TC-3.10 | PASS / FAIL | Archive 복원 |
+| TC-3.11 | PASS / FAIL | Restore 버튼 UI |
+| TC-4.1 | PASS / FAIL | Command Palette 폴더 선택 |
+| TC-4.2 | PASS / FAIL | 우클릭 컨텍스트 메뉴 |
+| TC-4.3 | PASS / FAIL | 취소 |
+| TC-4.4 | PASS / FAIL | 이중 실행 방지 |
+| TC-4.5 | PASS / FAIL | Vault Root 선택 |
+| TC-4.6 | PASS / FAIL | 자동 감지 |
+| TC-4.7 | PASS / FAIL | 에러 표시 |
+| TC-4.8 | PASS / FAIL | 노트 이동 후 마킹 |
+| TC-4.9 | PASS / FAIL | Confidence Gating |
 | TC-5.1 | PASS / FAIL | |
 | TC-6.1 | PASS / FAIL | |
-| TC-6.2 | PASS / FAIL | |
+| TC-6.2 | PASS / FAIL | 콘텐츠 복원 |
+| TC-6.3 | PASS / FAIL | Archive 복원 |
 | TC-7.1 | PASS / FAIL | |
 | TC-7.2 | PASS / FAIL | |
 | TC-7.3 | PASS / FAIL | |
