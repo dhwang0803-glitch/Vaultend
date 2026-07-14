@@ -214,6 +214,10 @@
 
 .maintenance-result-applied {
   opacity: 0.5;
+}
+
+.maintenance-result-applied .setting-item-name,
+.maintenance-result-applied .setting-item-description {
   text-decoration: line-through;
 }
 

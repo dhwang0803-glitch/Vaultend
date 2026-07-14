@@ -14,6 +14,7 @@ export class InboxProgressModal extends Modal {
     app: App,
     private readonly runInboxProcess: RunInboxProcessUseCase,
     private readonly onProcessingStateChange: (isProcessing: boolean) => void,
+    private readonly targetFolder?: string,
   ) {
     super(app);
   }
@@ -23,7 +24,10 @@ export class InboxProgressModal extends Modal {
     contentEl.empty();
     contentEl.addClass('knowledge-maintenance-inbox-progress');
 
-    contentEl.createEl('h2', { text: t('inboxProgress.title') });
+    const title = this.targetFolder
+      ? t('inboxProgress.folderTitle', { folder: this.targetFolder })
+      : t('inboxProgress.title');
+    contentEl.createEl('h2', { text: title });
 
     const status = contentEl.createDiv('inbox-progress-status');
     this.currentNoteEl = status.createEl('p', {
@@ -54,6 +58,7 @@ export class InboxProgressModal extends Modal {
     let result: InboxProcessResult;
     try {
       result = await this.runInboxProcess.execute({
+        folder: this.targetFolder,
         onProgress: (info) => {
           if (this.counterEl) {
             this.counterEl.textContent = t('inboxProgress.counter', {

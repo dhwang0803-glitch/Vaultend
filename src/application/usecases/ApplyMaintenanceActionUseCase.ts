@@ -136,9 +136,10 @@ export class ApplyMaintenanceActionUseCase {
       notePath,
       timestamp: this.clock.now(),
       description: `노트 아카이브: ${notePath as string} → ${targetFolder}/`,
+      metadata: { archivedTo: destPath as string },
     };
     await this.history.record(entry);
-    return { entryId: entry.id, undoable: false };
+    return { entryId: entry.id, undoable: true };
   }
 
   private async dismiss(issueType: string, identifier: string): Promise<ApplyResult> {

@@ -60,9 +60,12 @@ export class MaintenanceLogView extends ItemView {
       setting.setName(`[${time}] ${entry.action}`);
       setting.setDesc(entry.description);
 
-      if (entry.previousContent !== undefined) {
+      const canUndo = entry.previousContent !== undefined
+        || (entry.action === 'archive' && entry.metadata?.archivedTo);
+      if (canUndo) {
         setting.addButton(btn => btn
           .setButtonText(t('log.undo'))
+          .setWarning()
           .onClick(async () => {
             try {
               await this.historyPort.undo(entry.id);

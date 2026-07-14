@@ -31,6 +31,7 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
 import { InboxProgressModal } from './ui/InboxProgressModal';
+import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -436,24 +437,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'run-inbox-process',
-      name: t('command.runInbox'),
+      id: 'organize-folder',
+      name: t('command.organizeFolder'),
       callback: () => {
         if (this.isInboxProcessing) {
           new Notice(t('notice.inboxAlreadyRunning'));
           return;
         }
-        new InboxProgressModal(
-          this.app,
-          this.runInboxProcessUseCase,
-          (v) => {
-            this.isInboxProcessing = v;
-            if (!v && this.hasQueuedInboxEvents) {
-              this.hasQueuedInboxEvents = false;
-              this.runAutoInboxProcess();
-            }
-          },
-        ).open();
+        new FolderSuggestModal(this.app, (folder) => {
+          this.openOrganizeFolderModal(folder.path);
+        }).open();
       },
     });
 
@@ -487,6 +480,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
               }
             });
         });
+        menu.addItem(item => {
+          item
+            .setTitle(t('command.organizeFolder'))
+            .setIcon('wand')
+            .onClick(() => this.openOrganizeFolderModal(file.path));
+        });
       }),
     );
   }
@@ -503,6 +502,25 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       await leaf.setViewState({ type: viewType, active: true });
       this.app.workspace.revealLeaf(leaf);
     }
+  }
+
+  private openOrganizeFolderModal(folderPath: string): void {
+    if (this.isInboxProcessing) {
+      new Notice(t('notice.inboxAlreadyRunning'));
+      return;
+    }
+    new InboxProgressModal(
+      this.app,
+      this.runInboxProcessUseCase,
+      (v) => {
+        this.isInboxProcessing = v;
+        if (!v && this.hasQueuedInboxEvents) {
+          this.hasQueuedInboxEvents = false;
+          this.runAutoInboxProcess();
+        }
+      },
+      folderPath,
+    ).open();
   }
 
   private startInboxWatcher(): void {

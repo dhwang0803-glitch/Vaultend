@@ -508,15 +508,6 @@ export class MaintenanceResultView extends ItemView {
         )),
       );
 
-      settingEl.addButton(btn => btn
-        .setButtonText(t('btn.createNote'))
-        .onClick(() => this.executeAction(
-          { kind: 'create-missing-note', targetLink: item.targetLink },
-          settingEl,
-          brokenLinkKey,
-        )),
-      );
-
       this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`);
       this.applyPersistedState(entries[entries.length - 1]);
     }
@@ -667,8 +658,22 @@ export class MaintenanceResultView extends ItemView {
           identifier,
         });
         this.dismissedIds.add(`${issueType}:${identifier}`);
-        new Notice(t('notice.dismissed'));
-        this.render();
+
+        setting.settingEl.addClass('maintenance-result-applied');
+        setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+        setting.settingEl.querySelectorAll('.setting-editor-extra-setting-button').forEach(b => b.remove());
+        const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
+        if (cb) cb.remove();
+        setting.setDesc(t('notice.dismissed'));
+
+        setting.addButton(b => b
+          .setButtonText(t('log.undo'))
+          .setWarning()
+          .onClick(() => {
+            this.dismissedIds.delete(`${issueType}:${identifier}`);
+            this.render();
+          }),
+        );
       }),
     );
   }
@@ -707,6 +712,7 @@ export class MaintenanceResultView extends ItemView {
   private addRestoreButton(setting: Setting, historyEntryId: string, appliedKey: string): void {
     setting.addButton(btn => btn
       .setButtonText(t('log.undo'))
+      .setWarning()
       .onClick(async () => {
         btn.setDisabled(true);
         try {
@@ -781,7 +787,7 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private async dismissBatch(entries: BatchEntry[]): Promise<void> {
-    const selected = entries.filter(e => e.checkbox.checked);
+    const selected = entries.filter(e => e.checkbox.checked && e.status !== 'applied');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
       return;
@@ -795,7 +801,24 @@ export class MaintenanceResultView extends ItemView {
           issueType: entry.issueType,
           identifier: entry.identifier,
         });
-        this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
+        const dismissKey = `${entry.issueType}:${entry.identifier}`;
+        this.dismissedIds.add(dismissKey);
+
+        entry.setting.settingEl.addClass('maintenance-result-applied');
+        entry.setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+        entry.setting.settingEl.querySelectorAll('.setting-editor-extra-setting-button').forEach(b => b.remove());
+        entry.checkbox.remove();
+        entry.status = 'applied';
+        entry.setting.setDesc(t('notice.dismissed'));
+
+        entry.setting.addButton(b => b
+          .setButtonText(t('log.undo'))
+          .setWarning()
+          .onClick(() => {
+            this.dismissedIds.delete(dismissKey);
+            this.render();
+          }),
+        );
         success++;
       } catch {
         failed++;
@@ -805,7 +828,6 @@ export class MaintenanceResultView extends ItemView {
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchDismissed', { count: success });
     new Notice(msg);
-    if (success > 0) this.render();
   }
 
   private async restoreBatch(entries: BatchEntry[]): Promise<void> {

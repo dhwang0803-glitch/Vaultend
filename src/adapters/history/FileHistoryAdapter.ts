@@ -2,7 +2,7 @@ import { HistoryPort, HistoryFilter } from '../../application/ports/HistoryPort'
 import { HistoryEntry } from '../../domain/models/HistoryEntry';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { ClockPort } from '../../application/ports/ClockPort';
-import { NotePath } from '../../domain/values/NotePath';
+import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
 import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
 
@@ -68,8 +68,30 @@ export class FileHistoryAdapter implements HistoryPort {
     for (const filePath of historyFiles) {
       const entries = await this.loadMonthEntries(filePath as NotePath);
       const target = entries.find(e => e.id === entryId);
+      if (!target) continue;
 
-      if (target && target.previousContent !== undefined) {
+      if (target.action === 'archive' && target.metadata?.archivedTo) {
+        const archivedPath = createNotePath(target.metadata.archivedTo as string);
+        await this.vault.moveNote(archivedPath, target.notePath);
+
+        const idx = entries.indexOf(target);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { metadata: _cleared, ...rest } = target;
+        entries[idx] = rest as HistoryEntry;
+
+        entries.push({
+          id: crypto.randomUUID(),
+          action: 'restore' as const,
+          notePath: target.notePath,
+          timestamp: this.clock.now(),
+          description: `복원: ${target.notePath as string} (${target.action} 취소)`,
+        });
+
+        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        return;
+      }
+
+      if (target.previousContent !== undefined) {
         await this.vault.writeNote(target.notePath, target.previousContent);
 
         const idx = entries.indexOf(target);

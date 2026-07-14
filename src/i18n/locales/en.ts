@@ -7,7 +7,7 @@ const en = {
   'command.captureClipboard': 'Capture Clipboard',
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
-  'command.runInbox': 'Process Inbox',
+  'command.organizeFolder': 'Organize Folder',
   'command.openLog': 'Open Maintenance Log',
   'command.openInbox': 'Open Inbox Status',
   'command.scanFolder': 'Scan this folder for maintenance',
@@ -176,14 +176,18 @@ const en = {
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
 
+  // ─── Organize Folder ───
+  'organizeFolder.placeholder': 'Select a folder to organize...',
+
   // ─── Inbox Progress Modal ───
-  'inboxProgress.title': 'Processing Inbox',
+  'inboxProgress.title': 'Organizing Folder',
+  'inboxProgress.folderTitle': 'Organizing: {{folder}}',
   'inboxProgress.counter': '{{current}} / {{total}}',
   'inboxProgress.cancel': 'Cancel',
   'inboxProgress.close': 'Close',
-  'inboxProgress.completeTitle': 'Inbox Processing Complete',
-  'inboxProgress.cancelledTitle': 'Inbox Processing Cancelled',
-  'inboxProgress.errorTitle': 'Inbox Processing Failed',
+  'inboxProgress.completeTitle': 'Folder Organizing Complete',
+  'inboxProgress.cancelledTitle': 'Folder Organizing Cancelled',
+  'inboxProgress.errorTitle': 'Folder Organizing Failed',
   'inboxProgress.processed': 'Processed: {{count}}',
   'inboxProgress.skipped': 'Skipped: {{count}}',
   'inboxProgress.errors': 'Errors: {{count}}',

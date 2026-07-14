@@ -17,6 +17,7 @@ export type InboxProgressCallback = (info: InboxProgressInfo) => void;
 export interface InboxProcessOptions {
   readonly onProgress?: InboxProgressCallback;
   readonly signal?: AbortSignal;
+  readonly folder?: string;
 }
 
 export interface InboxProcessResult {
@@ -46,7 +47,7 @@ export class RunInboxProcessUseCase {
    */
   async execute(options?: InboxProcessOptions): Promise<InboxProcessResult> {
     const settings = await this.config.getSettings();
-    const inboxFolder = settings.inboxFolder;
+    const inboxFolder = options?.folder ?? settings.inboxFolder;
 
     const inboxNotes = await this.vault.listNotes(inboxFolder);
     const unprocessedNotes = [];
