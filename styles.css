@@ -310,6 +310,12 @@
   font-size: var(--font-ui-small);
 }
 
+.organize-folder-keep-current {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  font-style: italic;
+}
+
 .organize-folder-actions {
   padding: 4px 0;
 }

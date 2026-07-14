@@ -1,19 +1,29 @@
 import { ItemView, WorkspaceLeaf, Setting, Notice } from 'obsidian';
 import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
-import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants';
+import { MAINTENANCE_LOG_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
 import { localizeError } from './localizeError';
 
 export { MAINTENANCE_LOG_VIEW_TYPE };
 
 export class MaintenanceLogView extends ItemView {
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     leaf: WorkspaceLeaf,
     private readonly getHistory: GetHistoryUseCase,
     private readonly historyPort: HistoryPort,
   ) {
     super(leaf);
+  }
+
+  private scheduleRefresh(): void {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      this.refresh();
+    }, 300);
   }
 
   getViewType(): string {
@@ -29,6 +39,9 @@ export class MaintenanceLogView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.registerEvent(
+      this.app.workspace.on(HISTORY_CHANGED_EVENT, () => this.scheduleRefresh()),
+    );
     await this.refresh();
   }
 
@@ -70,7 +83,7 @@ export class MaintenanceLogView extends ItemView {
             try {
               await this.historyPort.undo(entry.id);
               new Notice(t('undo.success'));
-              await this.refresh();
+              this.app.workspace.trigger(HISTORY_CHANGED_EVENT, entry.id);
             } catch (err) {
               new Notice(t('undo.failed', { error: localizeError(err) }));
             }
@@ -81,6 +94,7 @@ export class MaintenanceLogView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.contentEl.empty();
   }
 }
