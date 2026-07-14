@@ -80,6 +80,15 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
+  isScanInProgress(): boolean {
+    return this.scanInProgress;
+  }
+
+  showPlan(plan: MaintenancePlan): void {
+    this.currentPlan = plan;
+    this.render();
+  }
+
   async triggerScan(): Promise<void> {
     if (this.scanInProgress) return;
     this.scanInProgress = true;
