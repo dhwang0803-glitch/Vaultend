@@ -63,7 +63,6 @@ export class MaintenanceLogView extends ItemView {
       if (entry.previousContent !== undefined) {
         setting.addButton(btn => btn
           .setButtonText(t('log.undo'))
-          .setWarning()
           .onClick(async () => {
             try {
               await this.historyPort.undo(entry.id);

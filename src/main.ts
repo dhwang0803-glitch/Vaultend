@@ -570,17 +570,24 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     if (!this.settings.maintenanceEnabled) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
+    let firstRun = true;
     this.maintenanceInterval = window.setInterval(async () => {
       if (this.isMaintenanceRunning) return;
+      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+      if (leaves.length > 0) {
+        const view = leaves[0].view as MaintenanceResultView;
+        if (view.isRestoreInProgress()) return;
+      }
       this.isMaintenanceRunning = true;
       try {
-        if (this.settings.smartScheduling) {
+        if (this.settings.smartScheduling && !firstRun) {
           const lastScan = await this.changeTracker.getLastScanTimestamp();
           if (lastScan !== null) {
             const dirtySet = await this.changeTracker.getDirtySet();
             if (dirtySet.size === 0) return;
           }
         }
+        firstRun = false;
         const plan = await this.runMaintenanceUseCase.execute();
         this.showMaintenancePlanIfNeeded(plan);
       } catch (err) {
@@ -605,6 +612,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     if (leaves.length > 0) {
       const view = leaves[0].view as MaintenanceResultView;
       if (view.isScanInProgress()) return;
+      if (view.isRestoreInProgress()) return;
       view.showPlan(plan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));

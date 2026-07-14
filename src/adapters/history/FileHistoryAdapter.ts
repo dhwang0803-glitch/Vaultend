@@ -72,13 +72,20 @@ export class FileHistoryAdapter implements HistoryPort {
       if (target && target.previousContent !== undefined) {
         await this.vault.writeNote(target.notePath, target.previousContent);
 
-        await this.record({
+        const idx = entries.indexOf(target);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { previousContent: _cleared, ...rest } = target;
+        entries[idx] = rest as HistoryEntry;
+
+        entries.push({
           id: crypto.randomUUID(),
-          action: 'restore',
+          action: 'restore' as const,
           notePath: target.notePath,
           timestamp: this.clock.now(),
           description: `복원: ${target.notePath as string} (${target.action} 취소)`,
         });
+
+        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
         return;
       }
     }

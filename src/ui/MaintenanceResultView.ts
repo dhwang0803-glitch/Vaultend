@@ -38,6 +38,8 @@ export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
   private readonly dismissedIds = new Set<string>();
+  private readonly appliedEntries = new Map<string, string>();
+  private restoreInProgress = false;
   private filterState: FilterState = {
     issueTypes: new Set(ALL_ISSUE_TYPES),
     severityLevels: new Set<SeverityLevel>(['critical', 'warning', 'info']),
@@ -84,8 +86,14 @@ export class MaintenanceResultView extends ItemView {
     return this.scanInProgress;
   }
 
+  isRestoreInProgress(): boolean {
+    return this.restoreInProgress;
+  }
+
   showPlan(plan: MaintenancePlan): void {
+    if (this.restoreInProgress) return;
     this.currentPlan = plan;
+    this.appliedEntries.clear();
     this.render();
   }
 
@@ -100,6 +108,7 @@ export class MaintenanceResultView extends ItemView {
 
     try {
       this.currentPlan = await this.runMaintenance.execute();
+      this.appliedEntries.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -124,6 +133,7 @@ export class MaintenanceResultView extends ItemView {
 
     try {
       this.currentPlan = await this.runMaintenance.execute({ folder: folderPath });
+      this.appliedEntries.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -372,7 +382,7 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
         .setCta()
-        .onClick(() => this.archiveWithConfig(item.notePath, settingEl)),
+        .onClick(() => this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath as string}`)),
       );
 
       settingEl.addButton(btn => btn
@@ -381,10 +391,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: item.notePath },
           settingEl,
+          `empty:${item.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'empty', item.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -418,6 +430,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'untagged', notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -451,10 +464,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
           settingEl,
+          `missing-tags:${item.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -482,11 +497,14 @@ export class MaintenanceResultView extends ItemView {
         status: 'pending',
       });
 
+      const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
+
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.removeLink'))
         .onClick(() => this.executeAction(
           { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
           settingEl,
+          brokenLinkKey,
         )),
       );
 
@@ -495,10 +513,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'create-missing-note', targetLink: item.targetLink },
           settingEl,
+          brokenLinkKey,
         )),
       );
 
       this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -536,7 +556,7 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
-        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl)),
+        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath as string}`)),
       );
 
       settingEl.addButton(btn => btn
@@ -545,10 +565,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
+          `orphan:${entry.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'orphan', entry.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -583,6 +605,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -621,7 +644,6 @@ export class MaintenanceResultView extends ItemView {
 
     batchSetting.addButton(btn => btn
       .setButtonText(t('batch.selectedRestore'))
-      .setWarning()
       .onClick(() => this.restoreBatch(entries)),
     );
   }
@@ -651,15 +673,16 @@ export class MaintenanceResultView extends ItemView {
     );
   }
 
-  private async archiveWithConfig(notePath: NotePath, setting: Setting): Promise<void> {
+  private async archiveWithConfig(notePath: NotePath, setting: Setting, appliedKey?: string): Promise<void> {
     const settings = await this.configPort.getSettings();
     await this.executeAction(
       { kind: 'archive-note', notePath, targetFolder: settings.maintenanceArchiveFolder },
       setting,
+      appliedKey,
     );
   }
 
-  private async executeAction(action: MaintenanceAction, setting: Setting): Promise<void> {
+  private async executeAction(action: MaintenanceAction, setting: Setting, appliedKey?: string): Promise<void> {
     try {
       const result: ApplyResult | null = await this.applyAction.execute(action);
       if (!result) {
@@ -670,8 +693,9 @@ export class MaintenanceResultView extends ItemView {
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
       const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
       if (cb) cb.remove();
-      if (result.undoable) {
-        this.addRestoreButton(setting, result.entryId);
+      if (result.undoable && appliedKey) {
+        this.appliedEntries.set(appliedKey, result.entryId);
+        this.addRestoreButton(setting, result.entryId, appliedKey);
       }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
@@ -680,17 +704,15 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
-  private addRestoreButton(setting: Setting, historyEntryId: string): void {
+  private addRestoreButton(setting: Setting, historyEntryId: string, appliedKey: string): void {
     setting.addButton(btn => btn
       .setButtonText(t('log.undo'))
-      .setWarning()
       .onClick(async () => {
         btn.setDisabled(true);
         try {
           await this.historyPort.undo(historyEntryId);
-          setting.settingEl.removeClass('maintenance-result-applied');
-          setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
-          setting.setDesc(t('maintenance.restored'));
+          this.appliedEntries.delete(appliedKey);
+          this.render();
           new Notice(t('undo.success'));
         } catch (err) {
           btn.setDisabled(false);
@@ -698,6 +720,19 @@ export class MaintenanceResultView extends ItemView {
         }
       }),
     );
+  }
+
+  private applyPersistedState(entry: BatchEntry): void {
+    const key = `${entry.issueType}:${entry.identifier}`;
+    const historyEntryId = this.appliedEntries.get(key);
+    if (!historyEntryId) return;
+    entry.status = 'applied';
+    entry.historyEntryId = historyEntryId;
+    entry.setting.settingEl.addClass('maintenance-result-applied');
+    entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+    entry.checkbox.checked = false;
+    entry.setting.setDesc(t('maintenance.applied'));
+    this.addRestoreButton(entry.setting, historyEntryId, key);
   }
 
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
@@ -725,9 +760,11 @@ export class MaintenanceResultView extends ItemView {
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
         entry.checkbox.checked = false;
         entry.status = 'applied';
+        const appliedKey = `${entry.issueType}:${entry.identifier}`;
         if (result.undoable) {
           entry.historyEntryId = result.entryId;
-          this.addRestoreButton(entry.setting, result.entryId);
+          this.appliedEntries.set(appliedKey, result.entryId);
+          this.addRestoreButton(entry.setting, result.entryId, appliedKey);
         } else {
           entry.checkbox.disabled = true;
         }
@@ -777,27 +814,29 @@ export class MaintenanceResultView extends ItemView {
       new Notice(t('notice.noSelection'));
       return;
     }
+    this.restoreInProgress = true;
     let success = 0;
     let failed = 0;
-    for (const entry of restorable) {
-      try {
-        await this.historyPort.undo(entry.historyEntryId!);
-        entry.setting.settingEl.removeClass('maintenance-result-applied');
-        entry.setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
-        entry.setting.setDesc(t('maintenance.restored'));
-        entry.checkbox.checked = false;
-        entry.checkbox.disabled = true;
-        entry.historyEntryId = undefined;
-        entry.status = 'restored';
-        success++;
-      } catch {
-        failed++;
+    try {
+      for (const entry of restorable) {
+        try {
+          await this.historyPort.undo(entry.historyEntryId!);
+          const appliedKey = `${entry.issueType}:${entry.identifier}`;
+          this.appliedEntries.delete(appliedKey);
+          entry.status = 'restored';
+          success++;
+        } catch {
+          failed++;
+        }
       }
+      const msg = failed > 0
+        ? t('notice.batchRestoreResult', { success, failed })
+        : t('notice.batchRestored', { count: success });
+      new Notice(msg);
+      if (success > 0) this.render();
+    } finally {
+      this.restoreInProgress = false;
     }
-    const msg = failed > 0
-      ? t('notice.batchRestoreResult', { success, failed })
-      : t('notice.batchRestored', { count: success });
-    new Notice(msg);
   }
 
   private async getArchiveFolder(): Promise<string> {
