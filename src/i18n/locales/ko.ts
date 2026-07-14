@@ -33,6 +33,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.batchComplete': '{{count}}건 적용 완료',
   'notice.batchDismissed': '{{count}}건 무시 처리',
   'notice.batchRestored': '{{count}}건 복원 완료',
+  'notice.batchRestoreResult': '{{success}}건 복원, {{failed}}건 실패',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault 유지보수',

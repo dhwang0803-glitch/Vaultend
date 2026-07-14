@@ -31,6 +31,7 @@ const en = {
   'notice.batchComplete': '{{count}} applied',
   'notice.batchDismissed': '{{count}} dismissed',
   'notice.batchRestored': '{{count}} restored',
+  'notice.batchRestoreResult': '{{success}} restored, {{failed}} failed',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault Maintenance',

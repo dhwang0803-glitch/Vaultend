@@ -35,9 +35,9 @@ export class ApplyMaintenanceActionUseCase {
     }
   }
 
-  private async deleteOrphan(notePath: NotePath): Promise<ApplyResult> {
+  private async deleteOrphan(notePath: NotePath): Promise<ApplyResult | null> {
     const note = await this.vault.readNote(notePath);
-    const previousContent = note?.content ?? '';
+    if (!note) return null;
 
     await this.vault.deleteNote(notePath);
 
@@ -47,7 +47,7 @@ export class ApplyMaintenanceActionUseCase {
       notePath,
       timestamp: this.clock.now(),
       description: `고아 노트 삭제: ${notePath as string}`,
-      previousContent,
+      previousContent: note.content,
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: true };

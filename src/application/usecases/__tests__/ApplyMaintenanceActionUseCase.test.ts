@@ -50,16 +50,16 @@ describe('ApplyMaintenanceActionUseCase', () => {
       expect(entry.id).toBe(result!.entryId);
     });
 
-    it('존재하지 않는 노트도 삭제를 시도하고 이력에 빈 previousContent를 기록한다', async () => {
+    it('존재하지 않는 노트는 null을 반환하고 삭제·기록하지 않는다', async () => {
       const { uc, vault, history } = createUseCase({
         readNote: vi.fn().mockResolvedValue(null),
       });
 
-      await uc.execute({ kind: 'delete-orphan', notePath: np('gone.md') });
+      const result = await uc.execute({ kind: 'delete-orphan', notePath: np('gone.md') });
 
-      expect(vault.deleteNote).toHaveBeenCalledWith(np('gone.md'));
-      const entry = (history.record as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(entry.previousContent).toBe('');
+      expect(result).toBeNull();
+      expect(vault.deleteNote).not.toHaveBeenCalled();
+      expect(history.record).not.toHaveBeenCalled();
     });
   });
 

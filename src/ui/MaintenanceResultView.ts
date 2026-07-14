@@ -25,6 +25,7 @@ interface BatchEntry {
   issueType: MaintenanceIssueType;
   identifier: string;
   historyEntryId?: string;
+  status: 'pending' | 'applied' | 'restored';
 }
 
 interface FilterState {
@@ -351,6 +352,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'empty',
         identifier: item.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -398,6 +400,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'untagged',
         identifier: notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -430,6 +433,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'missing-tags',
         identifier: item.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -466,6 +470,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'broken-link',
         identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -512,6 +517,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'orphan',
         identifier: entry.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -559,6 +565,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'duplicate',
         identifier: `${pair.noteA as string}|${pair.noteB as string}`,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -669,6 +676,7 @@ export class MaintenanceResultView extends ItemView {
       .setButtonText(t('log.undo'))
       .setWarning()
       .onClick(async () => {
+        btn.setDisabled(true);
         try {
           await this.historyPort.undo(historyEntryId);
           setting.settingEl.removeClass('maintenance-result-applied');
@@ -676,6 +684,7 @@ export class MaintenanceResultView extends ItemView {
           setting.setDesc(t('maintenance.restored'));
           new Notice(t('undo.success'));
         } catch (err) {
+          btn.setDisabled(false);
           new Notice(t('undo.failed', { error: localizeError(err) }));
         }
       }),
@@ -683,7 +692,7 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
-    const selected = entries.filter(e => e.checkbox.checked);
+    const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
       return;
@@ -706,10 +715,12 @@ export class MaintenanceResultView extends ItemView {
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
         entry.checkbox.checked = false;
-        entry.checkbox.disabled = true;
+        entry.status = 'applied';
         if (result.undoable) {
           entry.historyEntryId = result.entryId;
           this.addRestoreButton(entry.setting, result.entryId);
+        } else {
+          entry.checkbox.disabled = true;
         }
         entry.setting.setDesc(t('maintenance.applied'));
         success++;
@@ -752,7 +763,7 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private async restoreBatch(entries: BatchEntry[]): Promise<void> {
-    const restorable = entries.filter(e => e.checkbox.checked && e.historyEntryId);
+    const restorable = entries.filter(e => e.checkbox.checked && e.status === 'applied' && e.historyEntryId);
     if (restorable.length === 0) {
       new Notice(t('notice.noSelection'));
       return;
@@ -768,13 +779,14 @@ export class MaintenanceResultView extends ItemView {
         entry.checkbox.checked = false;
         entry.checkbox.disabled = true;
         entry.historyEntryId = undefined;
+        entry.status = 'restored';
         success++;
       } catch {
         failed++;
       }
     }
     const msg = failed > 0
-      ? t('notice.batchResult', { success, failed })
+      ? t('notice.batchRestoreResult', { success, failed })
       : t('notice.batchRestored', { count: success });
     new Notice(msg);
   }
