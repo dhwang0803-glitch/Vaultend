@@ -141,7 +141,7 @@ Log, Results, OrganizeFolder 뷰는 `vaultend:history-changed` 커스텀 workspa
   - `OrganizeFolderResultView`: `onHistoryChanged(undoneId?)` — undo 시 해당 entry를 DOM-only로 pending 복원 (전체 재렌더링 하지 않음)
 - **규칙**: 새 뷰가 history를 변경하면 반드시 `workspace.trigger(HISTORY_CHANGED_EVENT)` 호출. undo 시 `undoneId` 파라미터 전달.
 
-## 영속 파일 (`.knowledge-maintenance/`)
+## 영속 파일 (`.vaultend/`)
 
 | 파일 | 내용 | 어댑터 |
 |------|------|--------|

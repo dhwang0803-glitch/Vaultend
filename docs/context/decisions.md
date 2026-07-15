@@ -31,5 +31,5 @@
 > 형식: `- **<요약>** (YYYY-MM-DD, PR #NN): <무엇을 왜 바꿨는지 + 무엇을 supersede 하는지>`
 
 - **Codex 명세 대신 현재 코드 우선** (2026-07-06, ADR-0001): 초기 Codex 아키텍처 명세와 현재 코드를 전수 비교. 의도적 분기 9건, 회귀 위험 6건 식별. 스텁 구현 시 현재 코드 방식을 따르도록 기준선 수립.
-- **TF-IDF cosine → trigram Jaccard 교체** (2026-07-12, PR #49): 콘텐츠 중복 탐지에 trigram Jaccard 대신 TF-IDF cosine similarity 사용. threshold 0.6 (trigram 0.7보다 낮음 — TF-IDF가 더 discriminating). `TfIdfCorpus` 도메인 서비스로 구현, 코퍼스 통계는 `.knowledge-maintenance/tfidf-corpus.json`에 영속화 (폴더명 레거시).
-- **Change Tracking dirty set** (2026-07-12, PR #49): vault 파일 변경 이벤트 → dirty set 기록. 유지보수 스케줄러가 dirty set 비면 skip (smart scheduling). dirty set은 `.knowledge-maintenance/dirty-set.json`에 영속화 (폴더명 레거시). plugin unload 시 persist.
+- **TF-IDF cosine → trigram Jaccard 교체** (2026-07-12, PR #49): 콘텐츠 중복 탐지에 trigram Jaccard 대신 TF-IDF cosine similarity 사용. threshold 0.6 (trigram 0.7보다 낮음 — TF-IDF가 더 discriminating). `TfIdfCorpus` 도메인 서비스로 구현, 코퍼스 통계는 `.vaultend/tfidf-corpus.json`에 영속화.
+- **Change Tracking dirty set** (2026-07-12, PR #49): vault 파일 변경 이벤트 → dirty set 기록. 유지보수 스케줄러가 dirty set 비면 skip (smart scheduling). dirty set은 `.vaultend/dirty-set.json`에 영속화. plugin unload 시 persist.
