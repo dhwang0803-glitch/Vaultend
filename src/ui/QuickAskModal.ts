@@ -14,6 +14,7 @@ export class QuickAskModal extends Modal {
   private previewContainer: HTMLElement | null = null;
   private activeRefLink: HTMLElement | null = null;
   private previewRequestId = 0;
+  private viewportHandler: (() => void) | null = null;
 
   constructor(
     app: App,
@@ -53,11 +54,36 @@ export class QuickAskModal extends Modal {
 
     this.resultContainer = contentEl.createDiv('quick-ask-result');
     this.resultContainer.style.display = 'none';
+
+    this.setupMobileKeyboardHandler();
   }
 
   onClose(): void {
+    if (this.viewportHandler && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.viewportHandler);
+      this.viewportHandler = null;
+    }
+    this.containerEl.style.removeProperty('--vaultend-keyboard-offset');
     this.renderComponent.unload();
     this.contentEl.empty();
+  }
+
+  private setupMobileKeyboardHandler(): void {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    this.viewportHandler = () => {
+      const keyboardHeight = window.innerHeight - vv.height;
+      const modalEl = this.containerEl.querySelector('.modal') as HTMLElement | null;
+      if (!modalEl) return;
+      if (keyboardHeight > 100) {
+        modalEl.style.transform = `translateY(${-keyboardHeight / 2}px)`;
+      } else {
+        modalEl.style.removeProperty('transform');
+      }
+    };
+
+    vv.addEventListener('resize', this.viewportHandler);
   }
 
   private async handleAsk(): Promise<void> {
@@ -82,7 +108,6 @@ export class QuickAskModal extends Modal {
         question,
         maxContextChunks: 5,
         saveTarget: this.createSaveTarget(),
-        autoTag: true,
         autoLink: true,
       };
 

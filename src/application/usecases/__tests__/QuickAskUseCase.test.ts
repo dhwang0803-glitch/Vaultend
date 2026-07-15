@@ -67,7 +67,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -91,7 +91,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -104,7 +104,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -141,7 +141,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 10,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -167,7 +167,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 10,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -202,7 +202,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 10,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -238,7 +238,7 @@ describe('QuickAskUseCase', () => {
         question: 'TypeScript란?',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q-TypeScript' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -318,7 +318,7 @@ describe('QuickAskUseCase', () => {
         question: 'semantic query',
         maxContextChunks: 10,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -346,7 +346,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -372,7 +372,7 @@ describe('QuickAskUseCase', () => {
         question: 'long question',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -385,7 +385,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -408,7 +408,7 @@ describe('QuickAskUseCase', () => {
         question: 'React hooks?',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -430,7 +430,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -458,7 +458,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -468,34 +468,7 @@ describe('QuickAskUseCase', () => {
       expect(links).not.toContain('존재하지않는노트');
     });
 
-    it('autoTag=true면 저장 본문에 inline 태그가 포함된다', async () => {
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue({
-          suggestedTags: ['#typescript', '#guide'],
-          suggestedFolder: '',
-        }),
-      });
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
-      });
-      const config = createMockConfig({ knownTags: ['#typescript', '#guide'] });
-
-      const uc = createUseCase({ vault, ai, config });
-      await uc.execute({
-        question: 'test',
-        maxContextChunks: 5,
-        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: true,
-        autoLink: false,
-      });
-
-      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
-      const savedContent = writeCall[1] as string;
-      expect(savedContent).toContain('**Tags:**');
-      expect(savedContent).toContain('#typescript');
-    });
-
-    it('태그가 없으면 **Tags:** 라인이 출력되지 않는다', async () => {
+    it('태그 분류가 제거되어 **Tags:** 라인이 출력되지 않는다', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
       });
@@ -505,7 +478,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 
@@ -674,7 +647,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -710,7 +683,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -744,7 +717,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -778,7 +751,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: true,
       });
 
@@ -808,7 +781,7 @@ describe('QuickAskUseCase', () => {
         question: 'test',
         maxContextChunks: 5,
         saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
-        autoTag: false,
+
         autoLink: false,
       });
 

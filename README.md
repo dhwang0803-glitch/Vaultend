@@ -313,9 +313,54 @@ Access via **Settings → Community Plugins → Vaultend**.
 |---------|-------------|---------|
 | AI Provider | OpenAI or Google Gemini | OpenAI |
 | API Key | Your provider's API key | — |
-| Model | Model name | gpt-4o |
+| Model | Select from dropdown or enter custom model ID | gpt-4o |
 
 > Changes apply immediately — no restart needed.
+
+#### Supported Models
+
+The dropdown lists pre-defined models for each provider. You can also select **Custom** to enter any model ID manually.
+
+<details>
+<summary><b>OpenAI Models</b></summary>
+
+| Model ID | Description |
+|----------|-------------|
+| `gpt-5.6-sol` | Frontier model for complex professional work |
+| `gpt-5.6-terra` | Balances intelligence and cost |
+| `gpt-5.6-luna` | Optimized for cost-sensitive workloads |
+| `gpt-5.5` | Coding and professional work, 1M context window |
+| `gpt-5.4` | Affordable model for coding and professional work |
+| `gpt-5.4-mini` | Strong mini model for coding and subagents |
+| `gpt-5.4-nano` | Most economical GPT-5.4 option |
+| `gpt-4.1` | General purpose |
+| `gpt-4.1-mini` | Compact variant |
+| `gpt-4.1-nano` | Most economical GPT-4.1 option |
+| `gpt-4o` | Multimodal flagship (legacy, still supported) |
+| `gpt-4o-mini` | Compact multimodal (legacy, still supported) |
+| `o4-mini` | Reasoning model (compact) |
+| `o3-mini` | Compact reasoning |
+
+> Source: [OpenAI API Models Reference](https://developers.openai.com/api/docs/models) (retrieved 2026-07-15)
+
+</details>
+
+<details>
+<summary><b>Google Gemini Models</b></summary>
+
+| Model ID | Description |
+|----------|-------------|
+| `gemini-3.5-flash` | Most intelligent model; best for agentic and coding tasks |
+| `gemini-3.1-flash-lite` | Frontier-class performance at a fraction of the cost |
+| `gemini-2.5-pro` | Advanced model for complex tasks with deep reasoning |
+| `gemini-2.5-flash` | Best price-performance for high-volume tasks with reasoning |
+| `gemini-2.5-flash-lite` | Fastest and most budget-friendly multimodal model |
+
+> Source: [Gemini API Models Reference](https://ai.google.dev/gemini-api/docs/models) (retrieved 2026-07-15)
+
+</details>
+
+> **Note:** Model availability changes over time. If a listed model returns an error, check the official documentation links above for the latest status, or use the **Custom** option to enter a newer model ID. This list was last updated on **2026-07-15**.
 
 ### Inbox
 

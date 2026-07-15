@@ -224,7 +224,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.apiKey': 'API 키',
   'settings.apiKeyDesc': 'AI 공급자의 API 키를 입력합니다.',
   'settings.model': '모델',
-  'settings.modelDesc': '사용할 AI 모델을 입력합니다.',
+  'settings.modelDesc': '사용할 AI 모델을 선택합니다.',
+  'settings.modelCustom': '직접 입력',
 
   'settings.inbox': 'Inbox',
   'settings.inboxFolder': 'Inbox 폴더',

@@ -11,7 +11,6 @@ export interface QuickAskRequest {
   readonly question: string;
   readonly maxContextChunks: number;
   readonly saveTarget: SaveTarget;
-  readonly autoTag: boolean;
   readonly autoLink: boolean;
 }
 

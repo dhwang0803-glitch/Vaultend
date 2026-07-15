@@ -4,8 +4,39 @@ import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
 import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
 
+const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = {
+  openai: [
+    { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
+    { id: 'gpt-5.5', label: 'GPT-5.5' },
+    { id: 'gpt-5.4', label: 'GPT-5.4' },
+    { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+    { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
+    { id: 'gpt-4.1', label: 'GPT-4.1' },
+    { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'o4-mini', label: 'o4-mini' },
+    { id: 'o3-mini', label: 'o3-mini' },
+  ],
+  gemini: [
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+  ],
+};
+
+const CUSTOM_MODEL_VALUE = '__custom__';
+
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
+  private modelSettingEl: HTMLElement | null = null;
+  private modelAnchorEl: HTMLElement | null = null;
+  private isCustomMode = false;
 
   constructor(
     app: App,
@@ -60,6 +91,11 @@ export class PluginSettingTab extends ObsidianSettingTab {
             await this.config.updateSettings({
               aiProvider: value as 'openai' | 'gemini',
             });
+            this.settings = await this.config.getSettings();
+            this.isCustomMode = false;
+            if (this.modelSettingEl) {
+              this.renderModelSetting(this.modelSettingEl.parentElement!);
+            }
           });
       });
 
@@ -76,17 +112,10 @@ export class PluginSettingTab extends ObsidianSettingTab {
         text.inputEl.type = 'password';
       });
 
-    new Setting(containerEl)
-      .setName(t('settings.model'))
-      .setDesc(t('settings.modelDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('gpt-4o')
-          .setValue(this.settings!.aiModel)
-          .onChange(async (value) => {
-            await this.config.updateSettings({ aiModel: value });
-          });
-      });
+    this.modelAnchorEl = containerEl.createDiv();
+    this.modelAnchorEl.style.display = 'none';
+    this.isCustomMode = false;
+    this.renderModelSetting(containerEl);
 
     // --- Inbox ---
     containerEl.createEl('h3', { text: t('settings.inbox') });
@@ -335,6 +364,57 @@ export class PluginSettingTab extends ObsidianSettingTab {
       setting.setName(t('settings.ruleNumber', { number: index + 1 }));
     } else {
       setting.setName(rule.name);
+    }
+  }
+
+  private renderModelSetting(parentEl: HTMLElement): void {
+    if (this.modelSettingEl) {
+      this.modelSettingEl.remove();
+    }
+    this.modelSettingEl = parentEl.createDiv();
+
+    const provider = this.settings!.aiProvider;
+    const models = AI_MODELS[provider] ?? [];
+    const currentModel = this.settings!.aiModel;
+    const isKnownModel = models.some(m => m.id === currentModel);
+    const showCustomInput = this.isCustomMode || !isKnownModel;
+
+    const setting = new Setting(this.modelSettingEl)
+      .setName(t('settings.model'))
+      .setDesc(t('settings.modelDesc'));
+
+    setting.addDropdown(dropdown => {
+      for (const model of models) {
+        dropdown.addOption(model.id, model.label);
+      }
+      dropdown.addOption(CUSTOM_MODEL_VALUE, t('settings.modelCustom'));
+      dropdown.setValue(showCustomInput ? CUSTOM_MODEL_VALUE : currentModel);
+      dropdown.onChange(async (value) => {
+        if (value === CUSTOM_MODEL_VALUE) {
+          this.isCustomMode = true;
+          this.renderModelSetting(parentEl);
+          return;
+        }
+        this.isCustomMode = false;
+        await this.config.updateSettings({ aiModel: value });
+        this.settings = await this.config.getSettings();
+        this.renderModelSetting(parentEl);
+      });
+    });
+
+    if (showCustomInput) {
+      setting.addText(text => {
+        text
+          .setPlaceholder('model-id')
+          .setValue(isKnownModel ? '' : currentModel)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ aiModel: value });
+          });
+      });
+    }
+
+    if (this.modelAnchorEl && this.modelAnchorEl.parentElement === parentEl) {
+      parentEl.insertBefore(this.modelSettingEl, this.modelAnchorEl);
     }
   }
 

@@ -223,7 +223,8 @@ const en = {
   'settings.apiKey': 'API Key',
   'settings.apiKeyDesc': 'Enter the AI provider API key.',
   'settings.model': 'Model',
-  'settings.modelDesc': 'Enter the AI model to use.',
+  'settings.modelDesc': 'Select the AI model to use.',
+  'settings.modelCustom': 'Custom',
 
   'settings.inbox': 'Inbox',
   'settings.inboxFolder': 'Inbox Folder',

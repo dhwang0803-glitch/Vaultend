@@ -1,6 +1,6 @@
 import { QuickAskRequest, QuickAskResult } from '../../domain/models/QuickAskModels';
 import { NoteChunk } from '../../domain/models/NoteChunk';
-import { TagName, createTagName, sanitizeTagName } from '../../domain/values/TagName';
+import { TagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
@@ -64,20 +64,8 @@ export class QuickAskUseCase {
       temperature: settings.aiTemperature,
     });
 
-    // 4. Parse response — extract tags/links
-    const suggestedTags: ReadonlyArray<TagName> = request.autoTag
-      ? [...new Set(
-          (await this.aiProvider.callClassification({
-            text: aiResponse.content,
-            task: 'suggest-tags',
-            existingTags: settings.knownTags,
-          })).suggestedTags
-            .map(t => sanitizeTagName(t))
-            .filter(t => /^#[\w가-힣\-/]+$/.test(t)),
-        )].map(t => createTagName(t))
-      : [];
-
-    // Derive referenced note paths from context (deduplicated)
+    // 4. Derive referenced note paths from context (deduplicated)
+    const suggestedTags: ReadonlyArray<TagName> = [];
     const referencedNotes: ReadonlyArray<NotePath> = [...new Set(filteredChunks.map(sr => sr.notePath))];
 
     // 5. Save note
