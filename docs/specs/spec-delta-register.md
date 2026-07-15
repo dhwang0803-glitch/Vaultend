@@ -143,7 +143,7 @@
 
 ```
 ✅ 현재 상태 (해결됨):
-  constants.ts: MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log'  (SSOT, 값은 레거시)
+  constants.ts: MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log'  (SSOT)
   MaintenanceLogView.ts: import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants'
 
   constants.ts: HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`  (SSOT)

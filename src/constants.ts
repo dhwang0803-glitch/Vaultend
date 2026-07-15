@@ -15,6 +15,7 @@ export const PLUGIN_DATA_FOLDER = '.vaultend';
 export const SEARCH_INDEX_PATH = `${PLUGIN_DATA_FOLDER}/search-index.json`;
 export const DIRTY_SET_PATH = `${PLUGIN_DATA_FOLDER}/dirty-set.json`;
 export const TFIDF_CORPUS_PATH = `${PLUGIN_DATA_FOLDER}/tfidf-corpus.json`;
+export const EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/embeddings.json`;
 export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
 
 /** 기본 설정값 */

@@ -5,6 +5,7 @@ import { ClockPort } from '../../application/ports/ClockPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
 import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
+import { HISTORY_FOLDER } from '../../constants';
 
 /**
  * 파일 기반 변경 이력 어댑터.
@@ -13,8 +14,6 @@ import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
  * 경로: .vaultend/history/YYYY-MM.json (월별 분할)
  */
 export class FileHistoryAdapter implements HistoryPort {
-  private static readonly HISTORY_FOLDER = '.vaultend/history';
-
   constructor(
     private readonly vault: VaultAccessPort,
     private readonly clock: ClockPort,
@@ -22,7 +21,7 @@ export class FileHistoryAdapter implements HistoryPort {
 
   async record(entry: HistoryEntry): Promise<void> {
     const monthKey = this.getMonthKey(entry.timestamp);
-    const filePath = `${FileHistoryAdapter.HISTORY_FOLDER}/${monthKey}.json`;
+    const filePath = `${HISTORY_FOLDER}/${monthKey}.json`;
 
     const existing = await this.loadMonthEntries(filePath as NotePath);
     existing.push(entry);
@@ -32,7 +31,7 @@ export class FileHistoryAdapter implements HistoryPort {
 
   async list(filter?: HistoryFilter): Promise<ReadonlyArray<HistoryEntry>> {
     // Load all history files and apply filter
-    const historyFiles = await this.vault.listFiles(FileHistoryAdapter.HISTORY_FOLDER, 'json');
+    const historyFiles = await this.vault.listFiles(HISTORY_FOLDER, 'json');
     let allEntries: HistoryEntry[] = [];
 
     for (const filePath of historyFiles) {
@@ -63,7 +62,7 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   async undo(entryId: string): Promise<void> {
-    const historyFiles = await this.vault.listFiles(FileHistoryAdapter.HISTORY_FOLDER, 'json');
+    const historyFiles = await this.vault.listFiles(HISTORY_FOLDER, 'json');
 
     for (const filePath of historyFiles) {
       const entries = await this.loadMonthEntries(filePath as NotePath);

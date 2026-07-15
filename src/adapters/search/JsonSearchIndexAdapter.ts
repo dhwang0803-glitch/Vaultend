@@ -5,6 +5,7 @@ import { NotePath } from '../../domain/values/NotePath';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { HeadingPath } from '../../domain/values/HeadingPath';
 import { ChunkText } from '../../domain/values/ChunkText';
+import { SEARCH_INDEX_PATH } from '../../constants';
 
 interface IndexedDocument {
   id: string;
@@ -23,8 +24,6 @@ const MINISEARCH_OPTIONS = {
 };
 
 export class JsonSearchIndexAdapter implements SearchIndexPort {
-  private static readonly INDEX_PATH = '.vaultend/search-index.json';
-
   private miniSearch: MiniSearch<IndexedDocument>;
   private noteDocIds: Map<string, string[]> = new Map();
   private dirty = false;
@@ -114,7 +113,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     if (this.loaded) return;
     this.loaded = true;
 
-    const raw = await this.vault.readFileRaw(JsonSearchIndexAdapter.INDEX_PATH);
+    const raw = await this.vault.readFileRaw(SEARCH_INDEX_PATH);
     if (raw) {
       try {
         const data = JSON.parse(raw);
@@ -144,7 +143,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     };
 
     await this.vault.writeFileRaw(
-      JsonSearchIndexAdapter.INDEX_PATH,
+      SEARCH_INDEX_PATH,
       JSON.stringify(serialized),
     );
     this.dirty = false;

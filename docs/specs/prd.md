@@ -163,7 +163,7 @@ AI 채팅 앱이 아니다. 사용자가 질문하면 vault 맥락을 반영한 
 
 - 모든 자동 수정에 대해: 변경 유형, 변경 전/후 상태, 타임스탬프
 - 되돌리기 (undo) 지원: 개별 또는 배치 단위
-- 저장: `.knowledge-maintenance/history/YYYY-MM.json` (월별 분할, 폴더명은 레거시 — 향후 `.vaultend/`로 마이그레이션 예정)
+- 저장: `.vaultend/history/YYYY-MM.json` (월별 분할)
 
 ### F6: 설정 UI
 
