@@ -166,6 +166,12 @@ const ko: { [K in keyof typeof en]: string } = {
   'quickAsk.suggestedTags': '제안 태���: {{tags}}',
   'quickAsk.references': '참조된 노트',
   'quickAsk.truncated': '⚠ 응답이 토큰 제한으로 잘렸습니다. Settings → Max Response Tokens 값을 늘려보세요.',
+  'quickAsk.sendButton': '전송',
+  'quickAsk.saveConversation': '대화 저장',
+  'quickAsk.saved': '저장 완료',
+  'quickAsk.noResults': 'vault에서 관련 노트를 찾지 못했습니다. 관련 노트를 작성한 후 다시 질문해 보세요.',
+  'quickAsk.turnLimit': '대화 길이 제한에 도달했습니다. 새 대화를 시작하세요.',
+  'quickAsk.chatPlaceholder': '메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)',
 
   // ─── Organize Result Modal ───
   'organize.title': '노트 정리',

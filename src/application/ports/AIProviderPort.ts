@@ -6,12 +6,18 @@ export interface AIProviderPort {
   callEmbedding(request: EmbeddingRequest): Promise<EmbeddingResponse>;
 }
 
+export interface ChatMessageInput {
+  readonly role: 'user' | 'assistant' | 'system';
+  readonly content: string;
+}
+
 export interface CompletionRequest {
   readonly prompt: string;
   readonly systemPrompt?: string;
   readonly maxTokens: number;
   readonly temperature: number;
   readonly jsonMode?: boolean;
+  readonly messages?: ReadonlyArray<ChatMessageInput>;
 }
 
 export interface CompletionResponse {

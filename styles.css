@@ -1,10 +1,11 @@
 /* Vaultend Plugin Styles */
 
-/* Quick Ask Modal — 넓은 모달 + 마크다운 렌더링 */
+/* Quick Ask Modal — Chat UI */
 .modal.mod-confirm-dialog:has(.vaultend-quick-ask),
 .modal:has(.vaultend-quick-ask) {
   width: 700px;
   max-width: 90vw;
+  height: 80vh;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -15,36 +16,84 @@
   flex-direction: column;
   overflow: hidden;
   flex: 1;
+  gap: 0;
 }
 
-.vaultend-quick-ask .quick-ask-input textarea {
-  width: 100%;
-  min-height: 80px;
-  resize: vertical;
+.vaultend-quick-ask h2 {
+  margin: 0 0 8px 0;
+  padding: 0;
+  flex-shrink: 0;
 }
 
-.vaultend-quick-ask .quick-ask-buttons {
-  margin: 8px 0;
-  display: flex;
-  gap: 8px;
-}
-
-.vaultend-quick-ask .quick-ask-result {
-  margin-top: 12px;
-  padding: 16px;
-  background: var(--background-secondary);
-  border-radius: 6px;
-  overflow-y: auto;
+/* Chat message area */
+.vaultend-quick-ask .quick-ask-chat {
   flex: 1;
-  min-height: 200px;
-  max-height: 50vh;
+  overflow-y: auto;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100px;
 }
 
+.vaultend-quick-ask .quick-ask-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  line-height: 1.6;
+  font-size: var(--font-ui-small);
+  word-wrap: break-word;
+}
+
+.vaultend-quick-ask .quick-ask-msg-user {
+  align-self: flex-end;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-bottom-right-radius: 4px;
+}
+
+.vaultend-quick-ask .quick-ask-msg-user p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.vaultend-quick-ask .quick-ask-msg-assistant {
+  align-self: flex-start;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border-bottom-left-radius: 4px;
+}
+
+.vaultend-quick-ask .quick-ask-msg-content {
+  line-height: 1.7;
+}
+
+.vaultend-quick-ask .quick-ask-msg-content p:first-child {
+  margin-top: 0;
+}
+
+.vaultend-quick-ask .quick-ask-msg-content p:last-child {
+  margin-bottom: 0;
+}
+
+.vaultend-quick-ask .quick-ask-msg-error {
+  align-self: center;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  max-width: 95%;
+  font-size: var(--font-ui-smaller);
+}
+
+.vaultend-quick-ask .quick-ask-msg-error p {
+  margin: 0;
+}
+
+/* Loading indicator inside chat */
 .vaultend-quick-ask .quick-ask-loading {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 20px 0;
+  padding: 10px 14px;
 }
 
 .vaultend-quick-ask .quick-ask-loading-dots {
@@ -84,17 +133,60 @@
   }
 }
 
-.vaultend-quick-ask .quick-ask-answer {
-  margin-bottom: 12px;
-  line-height: 1.7;
+/* Truncation warning */
+.vaultend-quick-ask .quick-ask-truncation-warning {
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  border-radius: 4px;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-.vaultend-quick-ask .quick-ask-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--background-modifier-border);
+/* Input bar — bottom fixed */
+.vaultend-quick-ask .quick-ask-input-bar {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   gap: 8px;
+  align-items: flex-end;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vaultend-quick-ask .quick-ask-chat-input {
+  flex: 1;
+  resize: none;
+  min-height: 36px;
+  max-height: 120px;
+  padding: 8px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.vaultend-quick-ask .quick-ask-chat-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+/* Status bar */
+.vaultend-quick-ask .quick-ask-status-bar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  gap: 8px;
+}
+
+.vaultend-quick-ask .quick-ask-status-meta {
+  flex: 1;
 }
 
 .vaultend-quick-ask .quick-ask-meta {
@@ -102,28 +194,31 @@
   font-size: var(--font-smallest);
 }
 
-.vaultend-quick-ask .quick-ask-actions {
+.vaultend-quick-ask .quick-ask-status-actions {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  gap: 6px;
+  align-items: center;
 }
 
-.vaultend-quick-ask .quick-ask-truncation-warning {
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  background: var(--background-modifier-error);
-  color: var(--text-on-accent);
-  border-radius: 4px;
+.vaultend-quick-ask .quick-ask-saved-label {
+  color: var(--text-success);
   font-size: var(--font-ui-small);
   font-weight: 600;
-  line-height: 1.4;
 }
 
+/* References — collapsible inside chat */
 .vaultend-quick-ask .quick-ask-references {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px 12px;
   font-size: var(--font-ui-small);
+  background: var(--background-secondary-alt);
+  border-radius: 8px;
+  align-self: stretch;
+}
+
+.vaultend-quick-ask .quick-ask-references summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .vaultend-quick-ask .quick-ask-references ul {
@@ -150,12 +245,14 @@
   color: var(--text-accent-hover);
 }
 
+/* Note preview */
 .vaultend-quick-ask .quick-ask-preview {
-  margin-top: 12px;
+  margin-top: 8px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .vaultend-quick-ask .quick-ask-preview-header {

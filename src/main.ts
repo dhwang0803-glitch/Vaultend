@@ -703,8 +703,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     try {
       await this.searchIndex.rebuild();
       const notes = await this.vaultAdapter.listNotes();
+      const saveFolder = this.settings.defaultSaveFolder;
       let indexed = 0;
       for (const notePath of notes) {
+        const pathStr = notePath as string;
+        if (saveFolder.length > 0 && (pathStr === saveFolder || pathStr.startsWith(saveFolder + '/'))) continue;
         const note = await this.vaultAdapter.readNote(notePath);
         if (note && note.chunks.length > 0) {
           await this.searchIndex.index(notePath, note.chunks);
@@ -719,6 +722,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
   private async indexSingleNote(notePath: NotePath): Promise<void> {
     try {
+      const pathStr = notePath as string;
+      const sf = this.settings.defaultSaveFolder;
+      if (sf.length > 0 && (pathStr === sf || pathStr.startsWith(sf + '/'))) return;
       const note = await this.vaultAdapter.readNote(notePath);
       if (note && note.chunks.length > 0) {
         await this.searchIndex.index(notePath, note.chunks);

@@ -1,8 +1,10 @@
-import { QuickAskRequest, QuickAskResult } from '../../domain/models/QuickAskModels';
+import { QuickAskRequest, QuickAskResult, ChatMessage, ChatSession, TokenUsage } from '../../domain/models/QuickAskModels';
 import { NoteChunk } from '../../domain/models/NoteChunk';
-import { TagName } from '../../domain/values/TagName';
+import { SaveTarget } from '../../domain/models/SaveTarget';
+import { TagName, createTagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
-import { AIProviderPort } from '../ports/AIProviderPort';
+import { Timestamp } from '../../domain/values/Timestamp';
+import { AIProviderPort, ChatMessageInput } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort, SearchResult } from '../ports/SearchIndexPort';
 import { EmbeddingPort } from '../ports/EmbeddingPort';
@@ -14,6 +16,7 @@ import { PrivacyRule, isNoteAllowedByRules, applyContentRedaction } from '../../
 import { PromptTemplates } from '../PromptTemplates';
 import { SaveNoteUseCase } from './SaveNoteUseCase';
 import { preprocessQueryTokens } from '../../domain/services/KoreanParticleStripper';
+import { detectContentLanguage } from '../utils/detectContentLanguage';
 
 export class QuickAskUseCase {
   constructor(
@@ -120,22 +123,232 @@ export class QuickAskUseCase {
     };
   }
 
+  async chat(
+    question: string,
+    session: ChatSession | null,
+    maxContextChunks: number,
+  ): Promise<{ reply: string; session: ChatSession; truncated: boolean }> {
+    const settings = await this.config.getSettings();
+    const now = this.clock.now();
+    const lang = detectContentLanguage(question);
+
+    const { intent, keywords } = await this.classifyIntent(question);
+
+    let newChunks: ReadonlyArray<SearchResult> = [];
+    if (intent === 'vault' && keywords.length > 0) {
+      const rawChunks = await this.hybridSearch(keywords.join(' '), maxContextChunks);
+      const allowedChecks = await Promise.all(
+        rawChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
+      );
+      const filtered = rawChunks.filter((_, i) => allowedChecks[i]);
+      newChunks = filtered.map(sr => ({
+        ...sr,
+        chunk: { ...sr.chunk, text: applyContentRedaction(sr.chunk.text as string, [...settings.privacyRules]) as typeof sr.chunk.text },
+      }));
+    }
+
+    const existingNotes = session?.referencedNotes ?? [];
+    const newNotes = newChunks
+      .map(sr => sr.notePath)
+      .filter(p => !existingNotes.includes(p));
+    const allReferencedNotes = [...new Set([...existingNotes, ...newNotes])];
+
+    const existingChunks = session
+      ? (session as ChatSession & { _contextChunks?: ReadonlyArray<NoteChunk> })._contextChunks ?? []
+      : [];
+    const mergedChunkTexts = new Set(existingChunks.map((c: NoteChunk) => c.text as string));
+    const freshChunks = newChunks
+      .map(sr => sr.chunk)
+      .filter(c => !mergedChunkTexts.has(c.text as string));
+    const allContextChunks = [...existingChunks, ...freshChunks]
+      .slice(-QuickAskUseCase.MAX_CONTEXT_CHUNKS);
+
+    if (allContextChunks.length === 0 && intent === 'vault') {
+      const noResultMsg = PromptTemplates.quickAskNoResults(question);
+      const newSession = this.createOrUpdateSession(session, question, noResultMsg, now, allReferencedNotes, allContextChunks, QuickAskUseCase.ZERO_USAGE);
+      return { reply: noResultMsg, session: newSession, truncated: false };
+    }
+
+    const systemPrompt = allContextChunks.length > 0
+      ? PromptTemplates.quickAskChatSystem(allContextChunks, lang)
+      : PromptTemplates.quickAskGeneral(question);
+
+    const messages = this.buildChatMessages(systemPrompt, session, question);
+    const trimmedMessages = this.trimMessages(messages, QuickAskUseCase.MAX_MESSAGES);
+
+    const aiResponse = await this.aiProvider.callCompletion({
+      prompt: question,
+      messages: trimmedMessages,
+      maxTokens: settings.aiMaxTokens,
+      temperature: settings.aiTemperature,
+    });
+
+    const allNotes = allReferencedNotes.length > 0 || aiResponse.content.includes('[[')
+      ? await this.vault.listNotes()
+      : [];
+    const cleanedReply = this.cleanWikilinks(aiResponse.content, allNotes);
+
+    const truncated = aiResponse.finishReason === 'length';
+    const newSession = this.createOrUpdateSession(
+      session, question, cleanedReply, now, allReferencedNotes, allContextChunks, aiResponse.tokenUsage,
+    );
+    return { reply: cleanedReply, session: newSession, truncated };
+  }
+
+  async saveConversation(session: ChatSession, saveTarget: SaveTarget): Promise<NotePath> {
+    const turns = session.messages
+      .reduce<Array<{ question: string; answer: string }>>((acc, msg) => {
+        if (msg.role === 'user') {
+          acc.push({ question: msg.content, answer: '' });
+        } else if (msg.role === 'assistant' && acc.length > 0) {
+          acc[acc.length - 1].answer = msg.content;
+        }
+        return acc;
+      }, []);
+
+    const turnBlocks = turns.map((t, i) =>
+      `## Turn ${i + 1}\n\n### Question\n\n${t.question}\n\n### Answer\n\n${t.answer}`
+    ).join('\n\n');
+
+    const refLinks = session.referencedNotes.length > 0
+      ? `\n\n## References\n\n${session.referencedNotes.map(n => `- [[${(n as string).replace(/\.md$/, '').split('/').pop()}]]`).join('\n')}`
+      : '';
+
+    const content = `${turnBlocks}${refLinks}`;
+
+    const frontmatterTags = [createTagName('vaultend-qa')];
+    const savedPath = await this.saveNote.execute({
+      content,
+      target: saveTarget,
+      tags: frontmatterTags,
+      links: session.referencedNotes,
+    });
+
+    const now = this.clock.now();
+    await this.history.record({
+      id: crypto.randomUUID(),
+      action: 'quick-ask-save',
+      notePath: savedPath,
+      timestamp: now,
+      description: `Quick Ask conversation (${turns.length} turns)`,
+    });
+
+    return savedPath;
+  }
+
+  private static readonly MAX_MESSAGES = 20;
+  private static readonly MAX_CONTEXT_CHUNKS = 20;
+  private static readonly ZERO_USAGE: TokenUsage = {
+    promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0,
+  };
+
+  private createOrUpdateSession(
+    session: ChatSession | null,
+    question: string,
+    reply: string,
+    now: Timestamp,
+    referencedNotes: NotePath[],
+    contextChunks: ReadonlyArray<NoteChunk>,
+    tokenUsage: TokenUsage,
+  ): ChatSession {
+    const userMsg: ChatMessage = { role: 'user', content: question, timestamp: now };
+    const assistantMsg: ChatMessage = { role: 'assistant', content: reply, timestamp: now, tokenUsage };
+
+    if (session) {
+      const prev = session.totalTokenUsage;
+      return {
+        ...session,
+        messages: [...session.messages, userMsg, assistantMsg],
+        referencedNotes: [...referencedNotes],
+        totalTokenUsage: {
+          promptTokens: prev.promptTokens + tokenUsage.promptTokens,
+          completionTokens: prev.completionTokens + tokenUsage.completionTokens,
+          totalTokens: prev.totalTokens + tokenUsage.totalTokens,
+          estimatedCostUsd: prev.estimatedCostUsd + tokenUsage.estimatedCostUsd,
+        },
+        _contextChunks: contextChunks,
+      } as ChatSession;
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      messages: [userMsg, assistantMsg],
+      referencedNotes: [...referencedNotes],
+      totalTokenUsage: tokenUsage,
+      createdAt: now,
+      systemPrompt: '',
+      _contextChunks: contextChunks,
+    } as ChatSession;
+  }
+
+  private buildChatMessages(
+    systemPrompt: string,
+    session: ChatSession | null,
+    newQuestion: string,
+  ): ChatMessageInput[] {
+    const messages: ChatMessageInput[] = [
+      { role: 'system', content: systemPrompt },
+    ];
+
+    if (session) {
+      for (const msg of session.messages) {
+        messages.push({ role: msg.role, content: msg.content });
+      }
+    }
+
+    messages.push({ role: 'user', content: newQuestion });
+    return messages;
+  }
+
+  private trimMessages(messages: ChatMessageInput[], maxCount: number): ChatMessageInput[] {
+    if (messages.length <= maxCount + 1) return messages;
+
+    const system = messages[0];
+    const rest = messages.slice(1);
+
+    let toKeep = rest.slice(rest.length - maxCount);
+    if (toKeep.length > 0 && toKeep[0].role === 'assistant') {
+      toKeep = toKeep.slice(1);
+    }
+    return [system, ...toKeep];
+  }
+
+  private cleanWikilinks(content: string, allNotes: ReadonlyArray<NotePath>): string {
+    let cleaned = content.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+
+    const noteBasenames = new Set(
+      allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
+    );
+    cleaned = cleaned.replace(/\[\[([^\]\r\n|]+)(?:\|([^\]\r\n]+))?\]\]/g, (_match, target: string, alias?: string) => {
+      const withoutFragment = target.trim().split('#')[0];
+      const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
+      if (noteBasenames.has(basename)) return _match;
+      return alias ?? target.trim();
+    });
+
+    return cleaned;
+  }
+
   private async hybridSearch(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
     const FETCH_SIZE = 20;
+    const settings = await this.config.getSettings();
+    const saveFolder = settings.defaultSaveFolder;
+    const isQaNote = (path: string) => saveFolder.length > 0 && (path === saveFolder || path.startsWith(saveFolder + '/'));
 
-    const bm25Results = await this.searchIndex.search(query, FETCH_SIZE);
+    const allBm25 = await this.searchIndex.search(query, FETCH_SIZE);
+    const bm25Results = allBm25.filter(r => !isQaNote(r.notePath as string));
 
     if (!this.embedding?.isReady() || !this.vectorStore) {
       return bm25Results.slice(0, maxResults);
     }
 
     try {
-      const settings = await this.config.getSettings();
       const RRF_K = settings.rrfK;
       const embWeight = settings.rrfEmbeddingWeight;
 
       const queryVector = await this.embedding.embed(query);
-      const vectorResults = await this.vectorStore.search(queryVector, FETCH_SIZE);
+      const allVectorResults = await this.vectorStore.search(queryVector, FETCH_SIZE);
+      const vectorResults = allVectorResults.filter(vr => !isQaNote(vr.notePath as string));
 
       const scores = new Map<string, { score: number; result: SearchResult }>();
 

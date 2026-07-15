@@ -31,6 +31,28 @@ export interface QuickAskResult {
 }
 
 /**
+ * ChatMessage — 채팅 한 턴의 메시지.
+ */
+export interface ChatMessage {
+  readonly role: 'user' | 'assistant';
+  readonly content: string;
+  readonly timestamp: Timestamp;
+  readonly tokenUsage?: TokenUsage;
+}
+
+/**
+ * ChatSession — 멀티턴 Quick Ask 대화 세션.
+ */
+export interface ChatSession {
+  readonly id: string;
+  readonly messages: ChatMessage[];
+  readonly referencedNotes: NotePath[];
+  readonly totalTokenUsage: TokenUsage;
+  readonly createdAt: Timestamp;
+  readonly systemPrompt: string;
+}
+
+/**
  * TokenUsage — AI API 토큰 사용량 추적.
  */
 export interface TokenUsage {

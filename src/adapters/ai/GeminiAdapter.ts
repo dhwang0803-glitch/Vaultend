@@ -17,20 +17,32 @@ export class GeminiAdapter implements AIProviderPort {
   ) {}
 
   async callCompletion(request: CompletionRequest): Promise<CompletionResponse> {
+    const contents = request.messages
+      ? request.messages
+          .filter(m => m.role !== 'system')
+          .map(m => ({
+            role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
+            parts: [{ text: m.content }],
+          }))
+      : [{ parts: [{ text: request.prompt }] }];
+
+    const systemInstruction = request.messages
+      ? (() => {
+          const sysMsg = request.messages!.find(m => m.role === 'system');
+          return sysMsg ? { parts: [{ text: sysMsg.content }] } : undefined;
+        })()
+      : request.systemPrompt
+        ? { parts: [{ text: request.systemPrompt }] }
+        : undefined;
+
     const body = {
-      contents: [
-        {
-          parts: [{ text: request.prompt }],
-        },
-      ],
+      contents,
       generationConfig: {
         maxOutputTokens: request.maxTokens,
         temperature: request.temperature,
         ...(request.jsonMode ? { responseMimeType: 'application/json' } : {}),
       },
-      ...(request.systemPrompt
-        ? { systemInstruction: { parts: [{ text: request.systemPrompt }] } }
-        : {}),
+      ...(systemInstruction ? { systemInstruction } : {}),
     };
 
     const url = `${GeminiAdapter.BASE_URL}/models/${this.model}:generateContent?key=${this.apiKey}`;

@@ -17,14 +17,18 @@ export class OpenAIAdapter implements AIProviderPort {
   ) {}
 
   async callCompletion(request: CompletionRequest): Promise<CompletionResponse> {
+    const messages = request.messages
+      ? request.messages.map(m => ({ role: m.role, content: m.content }))
+      : [
+          ...(request.systemPrompt
+            ? [{ role: 'system' as const, content: request.systemPrompt }]
+            : []),
+          { role: 'user' as const, content: request.prompt },
+        ];
+
     const body = {
       model: this.model,
-      messages: [
-        ...(request.systemPrompt
-          ? [{ role: 'system' as const, content: request.systemPrompt }]
-          : []),
-        { role: 'user' as const, content: request.prompt },
-      ],
+      messages,
       max_tokens: request.maxTokens,
       temperature: request.temperature,
       ...(request.jsonMode ? { response_format: { type: 'json_object' } } : {}),

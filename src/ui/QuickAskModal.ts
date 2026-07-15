@@ -1,21 +1,23 @@
-import { App, Component, Modal, MarkdownRenderer, TextAreaComponent, ButtonComponent, Notice, TFile } from 'obsidian';
+import { App, Component, Modal, MarkdownRenderer, ButtonComponent, Notice, TFile } from 'obsidian';
 import { QuickAskUseCase } from '../application/usecases/QuickAskUseCase';
-import { QuickAskRequest, QuickAskResult } from '../domain/models/QuickAskModels';
+import { ChatSession } from '../domain/models/QuickAskModels';
 import { SaveTarget } from '../domain/models/SaveTarget';
+import { NotePath } from '../domain/values/NotePath';
 import { t } from '../i18n';
 import { localizeError } from './localizeError';
 
 export class QuickAskModal extends Modal {
-  private questionInput: TextAreaComponent | null = null;
-  private resultContainer: HTMLElement | null = null;
-  private lastResult: QuickAskResult | null = null;
+  private session: ChatSession | null = null;
+  private chatContainer: HTMLElement | null = null;
+  private inputEl: HTMLTextAreaElement | null = null;
+  private sendBtn: ButtonComponent | null = null;
+  private statusBar: HTMLElement | null = null;
+  private saved = false;
   private isAsking = false;
   private readonly renderComponent = new Component();
   private previewContainer: HTMLElement | null = null;
   private activeRefLink: HTMLElement | null = null;
   private previewRequestId = 0;
-  private focusHandler: (() => void) | null = null;
-  private blurHandler: (() => void) | null = null;
 
   constructor(
     app: App,
@@ -33,176 +35,196 @@ export class QuickAskModal extends Modal {
 
     contentEl.createEl('h2', { text: t('quickAsk.title') });
 
-    const inputContainer = contentEl.createDiv('quick-ask-input');
-    this.questionInput = new TextAreaComponent(inputContainer);
-    this.questionInput.setPlaceholder(t('quickAsk.placeholder'));
-    this.questionInput.inputEl.rows = 3;
-    this.questionInput.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    this.chatContainer = contentEl.createDiv('quick-ask-chat');
+
+    this.previewContainer = contentEl.createDiv('quick-ask-preview');
+    this.previewContainer.style.display = 'none';
+
+    const inputBar = contentEl.createDiv('quick-ask-input-bar');
+    this.inputEl = inputBar.createEl('textarea', {
+      cls: 'quick-ask-chat-input',
+      attr: { placeholder: t('quickAsk.chatPlaceholder'), rows: '2' },
+    });
+    this.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        this.handleAsk();
+        this.handleSend();
       }
     });
 
-    const buttonContainer = contentEl.createDiv('quick-ask-buttons');
-    new ButtonComponent(buttonContainer)
-      .setButtonText(t('quickAsk.askButton'))
+    this.sendBtn = new ButtonComponent(inputBar)
+      .setButtonText(t('quickAsk.sendButton'))
       .setCta()
-      .onClick(() => this.handleAsk());
-    new ButtonComponent(buttonContainer)
-      .setButtonText(t('quickAsk.closeButton'))
-      .onClick(() => this.close());
+      .onClick(() => this.handleSend());
 
-    this.resultContainer = contentEl.createDiv('quick-ask-result');
-    this.resultContainer.style.display = 'none';
-
-    this.setupMobileKeyboardHandler();
+    this.statusBar = contentEl.createDiv('quick-ask-status-bar');
+    this.renderStatusBar();
   }
 
   onClose(): void {
-    const textarea = this.questionInput?.inputEl;
-    if (textarea) {
-      if (this.focusHandler) textarea.removeEventListener('focus', this.focusHandler);
-      if (this.blurHandler) textarea.removeEventListener('blur', this.blurHandler);
+    if (!this.saved && this.session && this.session.messages.length >= 2) {
+      void this.autoSave();
     }
-    this.focusHandler = null;
-    this.blurHandler = null;
     this.renderComponent.unload();
     this.contentEl.empty();
   }
 
-  private setupMobileKeyboardHandler(): void {
-    const textarea = this.questionInput?.inputEl;
-    if (!textarea) return;
-
-    const modalEl = this.contentEl.closest('.modal') as HTMLElement | null;
-    if (!modalEl) return;
-
-    this.focusHandler = () => {
-      modalEl.setCssStyles({ top: '5%', transform: 'none' });
-    };
-    this.blurHandler = () => {
-      modalEl.style.removeProperty('top');
-      modalEl.style.removeProperty('transform');
-    };
-
-    textarea.addEventListener('focus', this.focusHandler);
-    textarea.addEventListener('blur', this.blurHandler);
+  private async autoSave(): Promise<void> {
+    if (!this.session) return;
+    try {
+      await this.quickAsk.saveConversation(this.session, this.createSaveTarget());
+    } catch {
+      // modal is closing — best-effort save
+    }
   }
 
-  private async handleAsk(): Promise<void> {
-    if (this.isAsking) return;
+  private async handleSend(): Promise<void> {
+    if (this.isAsking || !this.inputEl) return;
 
-    const question = this.questionInput?.getValue()?.trim();
+    const question = this.inputEl.value.trim();
     if (!question) {
       new Notice(t('quickAsk.emptyQuestion'));
       return;
     }
 
     this.isAsking = true;
+    this.inputEl.value = '';
+    this.inputEl.disabled = true;
+    this.sendBtn?.setDisabled(true);
 
-    if (this.resultContainer) {
-      this.resultContainer.style.display = 'block';
-      this.resultContainer.empty();
-      this.renderLoadingIndicator(this.resultContainer);
-    }
+    this.appendUserMessage(question);
+    const loadingEl = this.appendLoading();
 
     try {
-      const request: QuickAskRequest = {
+      const { reply, session, truncated } = await this.quickAsk.chat(
         question,
-        maxContextChunks: 5,
-        saveTarget: this.createSaveTarget(),
-        autoLink: true,
-      };
+        this.session,
+        5,
+      );
+      this.session = session;
+      this.saved = false;
+      loadingEl.remove();
 
-      this.lastResult = await this.quickAsk.execute(request);
-      await this.renderResult(this.lastResult);
+      await this.appendAssistantMessage(reply, truncated);
+      this.renderReferences();
+      this.renderStatusBar();
     } catch (err) {
-      if (this.resultContainer) {
-        const errorMsg = t('quickAsk.error', { error: localizeError(err) });
-        this.resultContainer.empty();
-        this.resultContainer.createEl('p', { text: errorMsg, cls: 'maintenance-result-error' });
-      }
+      loadingEl.remove();
+      this.appendErrorMessage(localizeError(err));
     } finally {
       this.isAsking = false;
+      if (this.inputEl) {
+        this.inputEl.disabled = false;
+        this.inputEl.focus();
+      }
+      this.sendBtn?.setDisabled(false);
     }
   }
 
-  private renderLoadingIndicator(container: HTMLElement): void {
-    const wrapper = container.createDiv('quick-ask-loading');
+  private appendUserMessage(text: string): void {
+    if (!this.chatContainer) return;
+    const msgEl = this.chatContainer.createDiv('quick-ask-msg quick-ask-msg-user');
+    msgEl.createEl('p', { text });
+    this.scrollToBottom();
+  }
+
+  private async appendAssistantMessage(text: string, truncated: boolean): Promise<void> {
+    if (!this.chatContainer) return;
+    const msgEl = this.chatContainer.createDiv('quick-ask-msg quick-ask-msg-assistant');
+    if (truncated) {
+      msgEl.createEl('div', {
+        text: t('quickAsk.truncated'),
+        cls: 'quick-ask-truncation-warning',
+      });
+    }
+    const contentEl = msgEl.createDiv('quick-ask-msg-content');
+    await MarkdownRenderer.renderMarkdown(text, contentEl, '', this.renderComponent);
+    this.scrollToBottom();
+  }
+
+  private appendLoading(): HTMLElement {
+    if (!this.chatContainer) return document.createElement('div');
+    const wrapper = this.chatContainer.createDiv('quick-ask-msg quick-ask-msg-assistant quick-ask-loading');
     const dots = wrapper.createDiv('quick-ask-loading-dots');
     for (let i = 0; i < 3; i++) {
       dots.createSpan({ cls: 'quick-ask-dot' });
     }
     wrapper.createEl('span', { text: t('quickAsk.loading'), cls: 'quick-ask-loading-text' });
+    this.scrollToBottom();
+    return wrapper;
   }
 
-  private async renderResult(result: QuickAskResult): Promise<void> {
-    if (!this.resultContainer) return;
+  private appendErrorMessage(error: string): void {
+    if (!this.chatContainer) return;
+    const msgEl = this.chatContainer.createDiv('quick-ask-msg quick-ask-msg-error');
+    msgEl.createEl('p', { text: t('quickAsk.error', { error }), cls: 'maintenance-result-error' });
+    this.scrollToBottom();
+  }
 
-    this.resultContainer.empty();
+  private renderReferences(): void {
+    if (!this.session || this.session.referencedNotes.length === 0 || !this.chatContainer) return;
 
-    // Truncation warning (#65)
-    if (result.truncated) {
-      this.resultContainer.createEl('div', {
-        text: t('quickAsk.truncated'),
-        cls: 'quick-ask-truncation-warning',
+    const existing = this.chatContainer.querySelector('.quick-ask-references');
+    if (existing) existing.remove();
+
+    const refEl = this.chatContainer.createDiv('quick-ask-references');
+    const toggle = refEl.createEl('details');
+    toggle.createEl('summary', { text: `${t('quickAsk.references')} (${this.session.referencedNotes.length})` });
+
+    const refList = toggle.createEl('ul');
+    for (const notePath of this.session.referencedNotes) {
+      const pathStr = notePath as string;
+      const displayName = this.resolveDisplayName(pathStr, this.session.referencedNotes);
+      const li = refList.createEl('li');
+      const link = li.createEl('a', { text: displayName, cls: 'internal-link' });
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await this.showNotePreview(pathStr, link);
+      });
+    }
+  }
+
+  private renderStatusBar(): void {
+    if (!this.statusBar) return;
+    this.statusBar.empty();
+
+    const metaEl = this.statusBar.createDiv('quick-ask-status-meta');
+    if (this.session) {
+      const usage = this.session.totalTokenUsage;
+      metaEl.createEl('span', {
+        text: `${t('quickAsk.tokens', { count: usage.totalTokens.toLocaleString() })} · ${t('quickAsk.cost', { amount: usage.estimatedCostUsd.toFixed(4) })}`,
+        cls: 'quick-ask-meta',
       });
     }
 
-    const answerEl = this.resultContainer.createDiv('quick-ask-answer');
-    await MarkdownRenderer.renderMarkdown(result.answer, answerEl, '', this.renderComponent);
-
-    // Referenced notes section (#60)
-    if (result.referencedNotes.length > 0) {
-      const refEl = this.resultContainer.createDiv('quick-ask-references');
-      refEl.createEl('strong', { text: t('quickAsk.references') });
-      const refList = refEl.createEl('ul');
-      for (const notePath of result.referencedNotes) {
-        const pathStr = notePath as string;
-        const displayName = this.resolveDisplayName(pathStr, result.referencedNotes);
-        const li = refList.createEl('li');
-        const link = li.createEl('a', { text: displayName, cls: 'internal-link' });
-        link.addEventListener('click', async (e) => {
-          e.preventDefault();
-          await this.showNotePreview(pathStr, link);
+    const actionsEl = this.statusBar.createDiv('quick-ask-status-actions');
+    if (this.saved) {
+      actionsEl.createEl('span', { text: t('quickAsk.saved'), cls: 'quick-ask-saved-label' });
+    } else if (this.session && this.session.messages.length >= 2) {
+      new ButtonComponent(actionsEl)
+        .setButtonText(t('quickAsk.saveConversation'))
+        .onClick(async () => {
+          if (!this.session) return;
+          try {
+            const savedPath = await this.quickAsk.saveConversation(this.session, this.createSaveTarget());
+            this.saved = true;
+            this.renderStatusBar();
+            new Notice(`${t('quickAsk.saved')}: ${(savedPath as string).split('/').pop()}`);
+          } catch (err) {
+            new Notice(localizeError(err));
+          }
         });
-      }
     }
 
-    this.previewContainer = this.resultContainer.createDiv('quick-ask-preview');
-    this.previewContainer.style.display = 'none';
-
-    const footerEl = this.resultContainer.createDiv('quick-ask-footer');
-
-    const metaParts = [
-      t('quickAsk.tokens', { count: result.tokenUsage.totalTokens.toLocaleString() }),
-      t('quickAsk.cost', { amount: result.tokenUsage.estimatedCostUsd.toFixed(4) }),
-    ];
-    if (result.suggestedTags.length > 0) {
-      metaParts.push(t('quickAsk.suggestedTags', { tags: result.suggestedTags.join(', ') }));
-    }
-    footerEl.createEl('small', { text: metaParts.join(' · '), cls: 'quick-ask-meta' });
-
-    const actionsEl = footerEl.createDiv('quick-ask-actions');
-    const savedPath = result.savedTo as string;
-    const fileName = savedPath.split('/').pop()?.replace('.md', '') ?? savedPath;
-
     new ButtonComponent(actionsEl)
-      .setButtonText(`📄 ${fileName}`)
-      .setCta()
-      .setTooltip(savedPath)
-      .onClick(async () => {
-        const file = this.app.vault.getAbstractFileByPath(savedPath);
-        if (file instanceof TFile) {
-          await this.app.workspace.getLeaf(false).openFile(file);
-        }
-        this.close();
-      });
-
-    new ButtonComponent(actionsEl)
-      .setButtonText(t('btn.close'))
+      .setButtonText(t('quickAsk.closeButton'))
       .onClick(() => this.close());
+  }
+
+  private scrollToBottom(): void {
+    if (this.chatContainer) {
+      this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+    }
   }
 
   private async showNotePreview(pathStr: string, linkEl: HTMLElement): Promise<void> {
@@ -255,7 +277,7 @@ export class QuickAskModal extends Modal {
     this.previewContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  private resolveDisplayName(pathStr: string, allRefs: ReadonlyArray<import('../domain/values/NotePath').NotePath>): string {
+  private resolveDisplayName(pathStr: string, allRefs: ReadonlyArray<NotePath>): string {
     const basename = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
 
     const duplicates = allRefs.filter(n => {

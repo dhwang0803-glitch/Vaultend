@@ -271,6 +271,47 @@ ${question}`;
 ${question}`;
   },
 
+  quickAskChatSystem(contextChunks: ReadonlyArray<NoteChunk>, lang?: Lang): string {
+    const detectedLang = lang ?? 'ko';
+    const contextSection = contextChunks.length > 0
+      ? contextChunks.map((chunk, i) =>
+          `### ${detectedLang === 'en' ? 'Context' : '컨텍스트'} ${i + 1}\n${chunk.text}`
+        ).join('\n\n')
+      : '';
+
+    if (detectedLang === 'en') {
+      return `You are a specialist assistant for the user's personal knowledge base (Obsidian Vault).
+
+Rules:
+1. Answer based on the vault context below. You may use general knowledge to analyze, verify, or supplement the context.
+2. If the question is unrelated to any vault context in this conversation, respond: "No related notes found in your vault."
+3. Reference related notes using [[wikilink]] format.
+4. Write in structured markdown format.
+
+## Vault Context
+${contextSection}`;
+    }
+
+    return `당신은 사용자의 Obsidian Vault 개인 지식 베이스 전문 어시스턴트입니다.
+
+규칙:
+1. 아래 vault 컨텍스트를 기반으로 답변하세요. 컨텍스트의 내용을 분석, 검증, 보강하는 데 일반 지식을 활용할 수 있습니다.
+2. 이 대화의 vault 컨텍스트와 무관한 질문에는 답변하지 마세요. "vault에서 관련 노트를 찾지 못했습니다."로 안내하세요.
+3. 관련 노트는 [[wikilink]] 형식으로 참조하세요.
+4. 마크다운 형식으로 구조화하여 답변하세요.
+
+## Vault 컨텍스트
+${contextSection}`;
+  },
+
+  quickAskNoResults(question: string): string {
+    const lang = detectContentLanguage(question);
+    if (lang === 'en') {
+      return `No related notes found in your vault for "${question}". Try asking after creating relevant notes.`;
+    }
+    return `vault에서 "${question}"과 관련된 노트를 찾지 못했습니다. 관련 노트를 작성한 후 다시 질문해 보세요.`;
+  },
+
   summarize(noteContent: string): string {
     const lang = detectContentLanguage(noteContent);
 

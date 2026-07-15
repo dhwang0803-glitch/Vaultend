@@ -164,6 +164,12 @@ const en = {
   'quickAsk.suggestedTags': 'Suggested Tags: {{tags}}',
   'quickAsk.references': 'Referenced Notes',
   'quickAsk.truncated': '⚠ Response was truncated. Increase Max Response Tokens in Settings for longer answers.',
+  'quickAsk.sendButton': 'Send',
+  'quickAsk.saveConversation': 'Save Conversation',
+  'quickAsk.saved': 'Saved',
+  'quickAsk.noResults': 'No related notes found in your vault. Try asking after creating relevant notes.',
+  'quickAsk.turnLimit': 'Conversation length limit reached. Please start a new conversation.',
+  'quickAsk.chatPlaceholder': 'Type a message... (Enter to send, Shift+Enter for newline)',
 
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',
