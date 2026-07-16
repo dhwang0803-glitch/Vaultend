@@ -1,15 +1,19 @@
-import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion, OrphanNoteEntry, EmptyNoteEntry } from '../../domain/models/OrganizeModels';
+import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../../domain/models/OrganizeModels';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
+import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort, PluginSettings } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
 import { ChangeTrackingPort } from '../ports/ChangeTrackingPort';
 import { CorpusStatsPort } from '../ports/CorpusStatsPort';
 import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
 import { tokenizeForTfIdf } from '../../domain/services/tokenize';
+import { TagNormalizationService, CanonicalTagGroup } from '../../domain/services/TagNormalizationService';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
+
+const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
 export interface MaintenanceScanOptions {
   readonly folder?: string;
@@ -23,6 +27,7 @@ export class RunMaintenanceUseCase {
     private readonly clock: ClockPort,
     private readonly changeTracking?: ChangeTrackingPort,
     private readonly corpusStats?: CorpusStatsPort,
+    private readonly aiProvider?: AIProviderPort,
   ) {}
 
   async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
@@ -42,6 +47,7 @@ export class RunMaintenanceUseCase {
     const missingTags = await this.suggestMissingTags(filteredNotes);
     const emptyNotes = await this.findEmptyNotes(filteredNotes);
     const untaggedNotes = await this.findUntaggedNotes(filteredNotes);
+    const duplicateTags = await this.findDuplicateTags(filteredNotes);
 
     if (this.changeTracking) {
       await this.changeTracking.clearAll();
@@ -55,6 +61,7 @@ export class RunMaintenanceUseCase {
       missingTags,
       emptyNotes,
       untaggedNotes,
+      duplicateTags,
       timestamp: now,
     };
   }
@@ -494,5 +501,111 @@ export class RunMaintenanceUseCase {
     }
 
     return suggestions;
+  }
+
+  private async findDuplicateTags(allNotes: ReadonlyArray<NotePath>): Promise<DuplicateTagGroup[]> {
+    const tagEntries = await this.vault.listAllTags();
+    if (tagEntries.length === 0) return [];
+
+    // 1단계: 문자열 정규화 그룹핑
+    const canonicalGroups = TagNormalizationService.buildCanonicalIndex(tagEntries);
+    const stringDuplicates = canonicalGroups.filter(g => g.variants.length >= 2);
+
+    // 2단계: 임베딩 유사도 그룹핑 (교차 언어) — 모든 canonical 그룹 비교
+    let embeddingDuplicates: CanonicalTagGroup[] = [];
+    if (this.aiProvider) {
+      embeddingDuplicates = await this.findSimilarByEmbedding(canonicalGroups);
+    }
+
+    // 임베딩 그룹에 흡수된 문자열 중복 그룹 제거 (중복 방지)
+    const absorbedKeys = new Set(
+      embeddingDuplicates.flatMap(g =>
+        g.variants.map(v => TagNormalizationService.normalizeForComparison(v.tag)),
+      ),
+    );
+    const unresolvedStringDups = stringDuplicates.filter(
+      g => !absorbedKeys.has(g.canonicalKey),
+    );
+    const allDuplicateGroups = [...unresolvedStringDups, ...embeddingDuplicates];
+    if (allDuplicateGroups.length === 0) return [];
+
+    // 노트별 태그 맵 구축 (모든 노트를 한 번만 읽음)
+    const noteTagMap = new Map<string, ReadonlyArray<string>>();
+    for (const notePath of allNotes) {
+      const note = await this.vault.readNote(notePath);
+      if (note) {
+        noteTagMap.set(notePath as string, note.metadata.tags.map(t => (t as string).toLowerCase()));
+      }
+    }
+
+    const result: DuplicateTagGroup[] = [];
+    for (const group of allDuplicateGroups) {
+      const canonicalLower = group.canonical.toLowerCase();
+      const variantLowers = new Set(group.variants.map(v => v.tag.toLowerCase()));
+      const affected: NotePath[] = [];
+
+      for (const [pathStr, tags] of noteTagMap) {
+        const hasNonCanonicalVariant = tags.some(t =>
+          variantLowers.has(t) && t !== canonicalLower,
+        );
+        if (hasNonCanonicalVariant) {
+          affected.push(pathStr as NotePath);
+        }
+      }
+
+      result.push({
+        canonicalTag: createTagName(group.canonical),
+        variants: group.variants.map(v => ({ tag: createTagName(v.tag), count: v.count })),
+        affectedNotes: affected,
+      });
+    }
+
+    return result;
+  }
+
+  private async findSimilarByEmbedding(
+    candidateGroups: ReadonlyArray<CanonicalTagGroup>,
+  ): Promise<CanonicalTagGroup[]> {
+    const MAX_EMBEDDING_TAGS = 500;
+    const capped = candidateGroups.slice(0, MAX_EMBEDDING_TAGS);
+    if (capped.length < 2 || !this.aiProvider) return [];
+
+    try {
+      const tags = capped.map(g => g.canonical);
+      const resp = await this.aiProvider.callEmbedding({ texts: tags });
+
+      const merged = new Set<number>();
+      const result: CanonicalTagGroup[] = [];
+
+      for (let i = 0; i < tags.length; i++) {
+        if (merged.has(i)) continue;
+        const group: Array<{ tag: string; count: number }> = [
+          ...capped[i].variants,
+        ];
+        for (let j = i + 1; j < tags.length; j++) {
+          if (merged.has(j)) continue;
+          const sim = TagNormalizationService.cosineSimilarity(
+            resp.embeddings[i], resp.embeddings[j],
+          );
+          if (sim >= EMBEDDING_SIMILARITY_THRESHOLD) {
+            group.push(...capped[j].variants);
+            merged.add(j);
+          }
+        }
+        if (group.length >= 2) {
+          group.sort((a, b) => b.count - a.count);
+          result.push({
+            canonical: group[0].tag,
+            canonicalKey: TagNormalizationService.normalizeForComparison(group[0].tag),
+            variants: group,
+          });
+          merged.add(i);
+        }
+      }
+
+      return result;
+    } catch {
+      return [];
+    }
   }
 }

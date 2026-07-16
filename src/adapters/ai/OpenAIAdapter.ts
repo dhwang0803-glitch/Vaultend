@@ -213,7 +213,7 @@ export class OpenAIAdapter implements AIProviderPort {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => window.setTimeout(resolve, ms));
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {

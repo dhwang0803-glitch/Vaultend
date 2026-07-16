@@ -1,5 +1,9 @@
 import { vi } from 'vitest';
 
+if (typeof globalThis.window === 'undefined') {
+  (globalThis as any).window = globalThis;
+}
+
 export class TFile {
   path: string;
   basename: string;

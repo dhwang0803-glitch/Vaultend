@@ -30,6 +30,8 @@ export class ApplyMaintenanceActionUseCase {
         return this.applyMissingTags(action.notePath, action.tags);
       case 'archive-note':
         return this.archiveNote(action.notePath, action.targetFolder);
+      case 'merge-duplicate-tags':
+        return this.mergeDuplicateTags(action.keepTag, action.replaceTags, action.affectedNotes);
       case 'dismiss':
         return this.dismiss(action.issueType, action.identifier);
     }
@@ -149,6 +151,68 @@ export class ApplyMaintenanceActionUseCase {
       notePath: createNotePath(`${identifier}.md`.replace(/\.md\.md$/, '.md')),
       timestamp: this.clock.now(),
       description: `이슈 무시: [${issueType}] ${identifier}`,
+    };
+    await this.history.record(entry);
+    return { entryId: entry.id, undoable: false };
+  }
+
+  private async mergeDuplicateTags(
+    keepTag: TagName,
+    replaceTags: ReadonlyArray<TagName>,
+    affectedNotes: ReadonlyArray<NotePath>,
+  ): Promise<ApplyResult | null> {
+    if (affectedNotes.length === 0) return null;
+
+    const replaceSet = new Set(replaceTags.map(t => (t as string).toLowerCase()));
+    const keepStr = keepTag as string;
+    let mergedCount = 0;
+
+    for (const notePath of affectedNotes) {
+      const note = await this.vault.readNote(notePath);
+      if (!note) continue;
+
+      const fmTags = this.extractFrontmatterTags(note.content);
+      const updatedTags: string[] = [];
+      let changed = false;
+      let keepAlreadyPresent = false;
+
+      for (const t of fmTags) {
+        if (replaceSet.has(t.toLowerCase())) {
+          changed = true;
+          if (!keepAlreadyPresent) {
+            updatedTags.push(keepStr);
+            keepAlreadyPresent = true;
+          }
+        } else {
+          if (t.toLowerCase() === keepStr.toLowerCase()) {
+            keepAlreadyPresent = true;
+          }
+          updatedTags.push(t);
+        }
+      }
+
+      if (changed) {
+        if (!keepAlreadyPresent) {
+          updatedTags.push(keepStr);
+        }
+        await this.vault.updateFrontmatter(notePath, { tags: updatedTags });
+        mergedCount++;
+      }
+    }
+
+    if (mergedCount === 0) return null;
+
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'tag-merge',
+      notePath: affectedNotes[0],
+      timestamp: this.clock.now(),
+      description: `태그 병합: ${replaceTags.map(t => t as string).join(', ')} → ${keepStr} (${mergedCount}개 노트)`,
+      metadata: {
+        keepTag: keepStr,
+        replacedTags: replaceTags.map(t => t as string),
+        mergedNoteCount: mergedCount,
+      },
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: false };

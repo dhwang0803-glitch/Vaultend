@@ -24,6 +24,7 @@ export type {
   DuplicatePair,
   MissingTagSuggestion,
   BrokenLink,
+  DuplicateTagGroup,
 } from './OrganizeModels';
 export type {
   PrivacyRule,
@@ -40,6 +41,7 @@ export type {
   RemoveBrokenLink,
   CreateMissingNote,
   ApplyMissingTags,
+  MergeDuplicateTags,
   DismissIssue,
   MaintenanceIssueType,
 } from './MaintenanceAction';

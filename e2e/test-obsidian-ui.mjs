@@ -98,7 +98,7 @@ async function main() {
 
       const checks = [
         ['AI 공급자', 'AI 공급자 설정'],
-        ['Inbox', 'Inbox 설정'],
+        ['정리', '정리 설정'],
         ['유지보수', '유지보수 설정'],
         ['프라이버시', '프라이버시 설정'],
       ];
@@ -128,7 +128,7 @@ async function main() {
     else fail('Command Palette 커맨드 수', `expected >=5, got ${suggestions}`);
 
     const content = await page.locator('.prompt-results').textContent();
-    const commands = ['Quick Ask', 'Inbox 처리', '유지보수 실행', '현재 노트 정리', '클립보드 캡처', '유지보수 로그', 'Inbox 상태'];
+    const commands = ['Quick Ask', '폴더 정리', '유지보수 실행', '현재 노트 정리', '유지보수 로그'];
     for (const cmd of commands) {
       if (content.includes(cmd)) pass(`커맨드: "${cmd}"`);
       else fail(`커맨드: "${cmd}"`, 'not found');
@@ -162,28 +162,7 @@ async function main() {
     await sleep(300);
   } catch (e) { fail('Quick Ask 모달', e); }
 
-  // --- Test 6: Inbox Status 뷰 ---
-  try {
-    await page.keyboard.press('Control+p');
-    await sleep(500);
-    await page.keyboard.type('Inbox', { delay: 30 });
-    await sleep(500);
-    // "Inbox 상태 열기" 선택
-    const inboxCmd = page.locator('.suggestion-item', { hasText: 'Inbox 상태' });
-    if (await inboxCmd.count() > 0) {
-      await inboxCmd.first().click();
-    } else {
-      await page.keyboard.press('Enter');
-    }
-    await sleep(2000);
-    await page.screenshot({ path: 'e2e/screenshot-inbox.png' });
-
-    const inboxView = page.locator('.workspace-leaf-content', { hasText: 'Inbox' });
-    if (await inboxView.count() > 0) pass('Inbox Status 뷰 열림');
-    else fail('Inbox Status 뷰 열림', 'view not found');
-  } catch (e) { fail('Inbox Status 뷰', e); }
-
-  // --- Test 7: Maintenance Log 뷰 ---
+  // --- Test 6: Maintenance Log 뷰 ---
   try {
     await page.keyboard.press('Control+p');
     await sleep(500);

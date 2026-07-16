@@ -17,18 +17,18 @@ describe('i18n', () => {
     });
 
     it('interpolates {{param}} placeholders', () => {
-      const result = t('notice.clipboardSaved', { path: 'test.md' });
-      expect(result).toBe('Clipboard saved: test.md');
+      const result = t('notice.organizeFailed', { error: 'test error' });
+      expect(result).toBe('Note organize failed: test error');
     });
 
     it('interpolates multiple params', () => {
-      const result = t('notice.inboxComplete', { processed: 5, skipped: 2, errors: 1 });
-      expect(result).toBe('Inbox complete: 5 processed, 2 skipped, 1 errors');
+      const result = t('organizeFolder.summary', { processed: '5', skipped: '2', errors: '1' });
+      expect(result).toBe('5 processed, 2 skipped, 1 errors');
     });
 
     it('preserves unmatched placeholders', () => {
-      const result = t('notice.clipboardSaved');
-      expect(result).toBe('Clipboard saved: {{path}}');
+      const result = t('notice.organizeFailed');
+      expect(result).toBe('Note organize failed: {{error}}');
     });
 
     it('falls back to English for missing Korean keys', () => {

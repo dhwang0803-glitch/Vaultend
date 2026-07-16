@@ -4,7 +4,7 @@ const en = {
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
-  'command.captureClipboard': 'Capture Clipboard',
+
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
   'command.organizeFolder': 'Organize Folder',
@@ -12,15 +12,10 @@ const en = {
   'command.scanFolder': 'Scan this folder for maintenance',
 
   // ─── Notices ───
-  'notice.clipboardSaved': 'Clipboard saved: {{path}}',
-  'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
+
   'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
-  'notice.inboxStarted': 'Starting Inbox processing...',
-  'notice.inboxComplete': 'Inbox complete: {{processed}} processed, {{skipped}} skipped, {{errors}} errors',
-  'notice.inboxFailed': 'Inbox processing failed: {{error}}',
-  'notice.inboxDetected': 'Inbox: {{count}} file changes detected',
-  'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
+  'notice.organizeAlreadyRunning': 'Folder organizing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
   'notice.noChangeNeeded': 'No changes to apply',
@@ -55,6 +50,7 @@ const en = {
   'issue.brokenLinks': 'Broken Links ({{count}})',
   'issue.orphanNotes': 'Orphan Notes ({{count}})',
   'issue.duplicates': 'Duplicate Candidates ({{count}})',
+  'issue.duplicateTags': 'Duplicate Tags ({{count}})',
 
   // Issue type short labels (for filter chips)
   'issueShort.empty': 'Empty',
@@ -63,6 +59,7 @@ const en = {
   'issueShort.broken-link': 'Broken Links',
   'issueShort.orphan': 'Orphans',
   'issueShort.duplicate': 'Duplicates',
+  'issueShort.duplicate-tags': 'Dup Tags',
 
   // Summary
   'summary.emptyNotes': 'empty {{count}}',
@@ -71,6 +68,7 @@ const en = {
   'summary.brokenLinks': 'broken links {{count}}',
   'summary.orphanNotes': 'orphans {{count}}',
   'summary.duplicates': 'duplicates {{count}}',
+  'summary.duplicateTags': 'duplicate tags {{count}}',
 
   // Severity
   'severity.critical': 'Critical',
@@ -85,6 +83,7 @@ const en = {
   'btn.removeLink': 'Remove Link',
   'btn.createNote': 'Create Note',
   'btn.openSideBySide': 'Open Side by Side',
+  'btn.mergeTags': 'Merge',
   'btn.ask': 'Ask',
   'btn.close': 'Close',
 
@@ -97,6 +96,7 @@ const en = {
   'batch.selectedRestore': 'Restore Selected',
   'batch.selectedRemoveLinks': 'Remove Selected Links',
   'batch.selectedApplyTags': 'Apply Tags to Selected',
+  'batch.selectedMergeTags': 'Merge Selected',
 
   // Dismiss
   'dismiss.tooltip': 'Dismiss',
@@ -108,6 +108,9 @@ const en = {
   // Duplicates
   'duplicate.tagSuggestion': '{{tags}} suggested',
   'duplicate.similarity': 'Similarity {{score}}%',
+  'duplicateTag.keep': 'Keep: {{tag}}',
+  'duplicateTag.variants': 'Variants: {{tags}}',
+  'duplicateTag.affected': '{{count}} notes affected',
 
   // Undo / Redo
   'undo.tooltip': 'Undo',
@@ -201,19 +204,7 @@ const en = {
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',
 
-  // ─── Inbox Progress Modal ───
-  'inboxProgress.title': 'Organizing Folder',
-  'inboxProgress.folderTitle': 'Organizing: {{folder}}',
-  'inboxProgress.counter': '{{current}} / {{total}}',
-  'inboxProgress.cancel': 'Cancel',
-  'inboxProgress.close': 'Close',
-  'inboxProgress.completeTitle': 'Folder Organizing Complete',
-  'inboxProgress.cancelledTitle': 'Folder Organizing Cancelled',
-  'inboxProgress.errorTitle': 'Folder Organizing Failed',
-  'inboxProgress.processed': 'Processed: {{count}}',
-  'inboxProgress.skipped': 'Skipped: {{count}}',
-  'inboxProgress.errors': 'Errors: {{count}}',
-  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+  'organizeFolder.cancel': 'Cancel',
 
   // ─── Settings ───
   'settings.title': 'Vaultend Settings',
@@ -232,11 +223,11 @@ const en = {
   'settings.modelDesc': 'Select the AI model to use.',
   'settings.modelCustom': 'Custom',
 
-  'settings.inbox': 'Inbox',
-  'settings.inboxFolder': 'Inbox Folder',
-  'settings.inboxFolderDesc': 'Folder path for unprocessed notes',
+  'settings.organize': 'Organize',
+  'settings.captureFolder': 'Organize Folder',
+  'settings.captureFolderDesc': 'Default folder for Organize Folder command',
   'settings.autoApply': 'Auto Apply',
-  'settings.autoApplyDesc': 'Automatically apply Inbox processing results.',
+  'settings.autoApplyDesc': 'Automatically apply folder organizing results.',
 
   'settings.quickAsk': 'Quick Ask',
   'settings.saveMode': 'Save Mode',

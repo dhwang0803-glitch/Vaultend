@@ -8,7 +8,7 @@ import { localizeError } from './localizeError';
 export { MAINTENANCE_LOG_VIEW_TYPE };
 
 export class MaintenanceLogView extends ItemView {
-  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshTimer: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -19,8 +19,8 @@ export class MaintenanceLogView extends ItemView {
   }
 
   private scheduleRefresh(): void {
-    if (this.refreshTimer) clearTimeout(this.refreshTimer);
-    this.refreshTimer = setTimeout(() => {
+    if (this.refreshTimer) window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = window.setTimeout(() => {
       this.refreshTimer = null;
       this.refresh();
     }, 300);
@@ -94,7 +94,7 @@ export class MaintenanceLogView extends ItemView {
   }
 
   async onClose(): Promise<void> {
-    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    if (this.refreshTimer) window.clearTimeout(this.refreshTimer);
     this.contentEl.empty();
   }
 }

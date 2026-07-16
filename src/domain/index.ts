@@ -27,9 +27,10 @@ export type {
   NoteMetadata,
   SaveTarget, NewNote, AppendToNote, DailyNote,
   QuickAskRequest, QuickAskResult, TokenUsage,
-  OrganizeResult, MaintenancePlan, DuplicatePair, MissingTagSuggestion, BrokenLink,
+  OrganizeResult, MaintenancePlan, DuplicatePair, MissingTagSuggestion, BrokenLink, DuplicateTagGroup,
   PrivacyRule, PrivacyRuleType,
   HistoryEntry, HistoryAction,
+  MergeDuplicateTags,
 } from './models';
 export {
   createNote,

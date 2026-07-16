@@ -27,9 +27,9 @@ export interface PluginSettings {
   readonly aiMaxTokens: number;
   readonly aiTemperature: number;
 
-  // Inbox settings
-  readonly inboxFolder: string;
-  readonly autoApplyInbox: boolean;
+  // Organize settings
+  readonly captureFolder: string;
+  readonly autoApplyOrganize: boolean;
 
   // Quick Ask settings
   readonly defaultSaveFolder: string;
@@ -52,8 +52,8 @@ export interface PluginSettings {
   readonly maintenanceExcludeTags: ReadonlyArray<string>;
   readonly maintenanceArchiveFolder: string;
 
-  // Inbox confidence gating
-  readonly inboxConfidenceThreshold: number;
+  // Organize confidence gating
+  readonly organizeConfidenceThreshold: number;
 
   // Privacy
   readonly privacyRules: ReadonlyArray<PrivacyRule>;

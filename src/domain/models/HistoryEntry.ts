@@ -28,4 +28,4 @@ export type HistoryAction =
   | 'archive'
   | 'restore'
   | 'quick-ask-save'
-  | 'clipboard-capture';
+  | 'tag-merge';

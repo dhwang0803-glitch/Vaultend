@@ -9,6 +9,7 @@ export const ISSUE_SEVERITY: Record<MaintenanceIssueType, SeverityLevel> = {
   'duplicate': 'warning',
   'untagged': 'info',
   'missing-tags': 'info',
+  'duplicate-tags': 'info',
 };
 
 export const SEVERITY_ORDER: Record<SeverityLevel, number> = {

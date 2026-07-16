@@ -11,6 +11,21 @@ import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { PromptTemplates } from '../PromptTemplates';
 import { getLocale } from '../../i18n';
+import {
+  TagNormalizationService,
+  CanonicalTagGroup,
+} from '../../domain/services/TagNormalizationService';
+
+const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
+
+export interface OrganizeContext {
+  readonly sessionTags?: ReadonlyArray<string>;
+  readonly cachedCanonicalIndex?: ReadonlyArray<CanonicalTagGroup>;
+  readonly cachedTagEmbeddings?: Map<string, Float32Array>;
+  readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
+  readonly cachedFolders?: ReadonlyArray<string>;
+  readonly cachedAllNotes?: ReadonlyArray<NotePath>;
+}
 
 export class OrganizeNoteUseCase {
   constructor(
@@ -29,7 +44,7 @@ export class OrganizeNoteUseCase {
    * 4. 프론트매터에 태그 추가 (옵션)
    * 5. 결과 반환
    */
-  async execute(notePath: NotePath, autoApply: boolean): Promise<OrganizeResult> {
+  async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
     const note = await this.vault.readNote(notePath);
     if (!note) {
       throw new NoteNotFoundError(notePath as string);
@@ -38,23 +53,22 @@ export class OrganizeNoteUseCase {
     const settings = await this.config.getSettings();
     const currentTags = note.metadata.tags.map(t => t as string);
 
-    // Extract vault folder list for AI context (capped to prevent token overflow)
-    const allNotes = await this.vault.listNotes();
-    const folderSet = new Set<string>();
-    for (const np of allNotes) {
-      const pathStr = np as string;
-      const lastSlash = pathStr.lastIndexOf('/');
-      if (lastSlash > 0) {
-        folderSet.add(pathStr.substring(0, lastSlash));
-      }
-    }
-    const MAX_FOLDERS = 50;
-    const existingFolders = [...folderSet].sort().slice(0, MAX_FOLDERS);
+    // Note list — use cache or fetch
+    const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
+    const existingFolders = context?.cachedFolders ?? this.collectFolders(allNotes);
 
-    // Collect vault-wide tags (frequency-sorted, capped)
+    // Vault-wide tags — use cache or fetch
     const MAX_TAGS = 200;
-    const vaultTagEntries = await this.vault.listAllTags();
-    const vaultTags = vaultTagEntries.slice(0, MAX_TAGS).map(e => e.tag);
+    const vaultTagEntries = context?.cachedVaultTags
+      ?? (await this.vault.listAllTags()).slice(0, MAX_TAGS);
+
+    // Canonical index — use cache or build, then merge session tags
+    let canonicalIndex = context?.cachedCanonicalIndex
+      ?? TagNormalizationService.buildCanonicalIndex(vaultTagEntries);
+    if (context?.sessionTags && context.sessionTags.length > 0) {
+      canonicalIndex = TagNormalizationService.mergeSessionTags(canonicalIndex, context.sessionTags);
+    }
+    const deduplicatedTags = canonicalIndex.map(g => g.canonical);
 
     // Extract current folder for AI context
     const currentFolder = (notePath as string).includes('/')
@@ -66,15 +80,15 @@ export class OrganizeNoteUseCase {
     const classification = await this.aiProvider.callClassification({
       text: redactedContent,
       task: 'classify-and-tag',
-      existingTags: vaultTags,
+      existingTags: deduplicatedTags,
       currentNoteTags: currentTags,
-      existingFolders,
+      existingFolders: existingFolders as string[],
       currentFolder: currentFolder || undefined,
       locale: getLocale(),
     });
 
     // Confidence gating — if below threshold, return minimal result
-    const confidenceThreshold = settings.inboxConfidenceThreshold ?? 0;
+    const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
     if (confidenceThreshold > 0 && classification.confidence < confidenceThreshold) {
       return {
         noteId: note.id,
@@ -104,13 +118,31 @@ export class OrganizeNoteUseCase {
       ? rawFolder
       : undefined;
 
+    // 1차: 문자열 정규화 (형태 차이 해결)
     const sanitizedTags = newSuggestedTags
       .map(t => sanitizeTagName(t))
       .filter(t => /^#[\w가-힣\-/]+$/.test(t))
-      .filter(t => !currentTagsLower.has(t.toLowerCase()));
-    const uniqueSanitized = [...new Set(sanitizedTags)];
+      .filter(t => !currentTagsLower.has(t.toLowerCase()))
+      .map(t => TagNormalizationService.resolveToCanonical(t, canonicalIndex));
 
-    const isNewFolder = suggestedFolder ? !folderSet.has(suggestedFolder) : false;
+    // 2차: 임베딩 유사도 (교차 언어 해결) — 정규화에서 매칭 안 된 새 태그만
+    const canonicalSet = new Set(canonicalIndex.map(g => g.canonical.toLowerCase()));
+    const trulyNewTags = sanitizedTags.filter(t => !canonicalSet.has(t.toLowerCase()));
+    let embeddingResolved = new Map<string, string>();
+    if (trulyNewTags.length > 0) {
+      embeddingResolved = await this.resolveByEmbedding(
+        trulyNewTags, canonicalIndex, context?.cachedTagEmbeddings,
+      );
+    }
+
+    const resolvedTags = sanitizedTags.map(t =>
+      embeddingResolved.get(t) ?? t,
+    );
+    const uniqueSanitized = [...new Set(resolvedTags)]
+      .filter(t => !currentTagsLower.has(t.toLowerCase()));
+
+    const folderSetForCheck = new Set(existingFolders as string[]);
+    const isNewFolder = suggestedFolder ? !folderSetForCheck.has(suggestedFolder) : false;
 
     let historyEntryId: string | undefined;
 
@@ -136,6 +168,62 @@ export class OrganizeNoteUseCase {
     }
 
     return historyEntryId ? { ...result, historyEntryId } : result;
+  }
+
+  private collectFolders(allNotes: ReadonlyArray<NotePath>): string[] {
+    const folderSet = new Set<string>();
+    for (const np of allNotes) {
+      const pathStr = np as string;
+      const lastSlash = pathStr.lastIndexOf('/');
+      if (lastSlash > 0) {
+        folderSet.add(pathStr.substring(0, lastSlash));
+      }
+    }
+    const MAX_FOLDERS = 50;
+    return [...folderSet].sort().slice(0, MAX_FOLDERS);
+  }
+
+  private async resolveByEmbedding(
+    newTags: string[],
+    canonicalIndex: ReadonlyArray<CanonicalTagGroup>,
+    cachedEmbeddings?: Map<string, Float32Array>,
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    const canonicals = canonicalIndex.map(g => g.canonical);
+    if (canonicals.length === 0) return result;
+
+    try {
+      let existingEmbeddings: Map<string, Float32Array>;
+      if (cachedEmbeddings && cachedEmbeddings.size > 0) {
+        existingEmbeddings = cachedEmbeddings;
+      } else {
+        const resp = await this.aiProvider.callEmbedding({ texts: canonicals });
+        existingEmbeddings = new Map<string, Float32Array>();
+        for (let i = 0; i < canonicals.length; i++) {
+          existingEmbeddings.set(canonicals[i], resp.embeddings[i]);
+        }
+      }
+
+      const newResp = await this.aiProvider.callEmbedding({ texts: newTags });
+
+      for (let i = 0; i < newTags.length; i++) {
+        let bestTag = '';
+        let bestSim = 0;
+        for (const [tag, emb] of existingEmbeddings) {
+          const sim = TagNormalizationService.cosineSimilarity(newResp.embeddings[i], emb);
+          if (sim > bestSim) {
+            bestSim = sim;
+            bestTag = tag;
+          }
+        }
+        if (bestSim >= EMBEDDING_SIMILARITY_THRESHOLD && bestTag) {
+          result.set(newTags[i], bestTag);
+        }
+      }
+    } catch {
+      // embedding 실패 시 graceful degradation — 문자열 정규화만 사용
+    }
+    return result;
   }
 
   private async suggestLinksWithAI(

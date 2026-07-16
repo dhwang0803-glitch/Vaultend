@@ -32,7 +32,6 @@ export function createTestMetadata(overrides?: Partial<NoteMetadata>): NoteMetad
     fileSize: 1024,
     createdAt: 1720000000000 as unknown as Timestamp,
     modifiedAt: 1720000000000 as unknown as Timestamp,
-    isInbox: false,
     isProcessed: false,
     ...overrides,
   };
@@ -55,8 +54,8 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     aiModel: 'gpt-4o-mini',
     aiMaxTokens: 8192,
     aiTemperature: 0.7,
-    inboxFolder: 'Inbox',
-    autoApplyInbox: false,
+    captureFolder: 'Inbox',
+    autoApplyOrganize: false,
     defaultSaveFolder: 'QuickAsk',
     defaultSaveTarget: 'new-note',
     maxContextChunks: 5,

@@ -1,7 +1,7 @@
 import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
 import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
-import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry } from '../domain/models/OrganizeModels';
+import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
 import type { SeverityLevel } from '../domain/values/Severity';
@@ -15,7 +15,7 @@ import { t, formatDate } from '../i18n';
 export { MAINTENANCE_RESULT_VIEW_TYPE };
 
 const ALL_ISSUE_TYPES: MaintenanceIssueType[] = [
-  'broken-link', 'empty', 'orphan', 'duplicate', 'untagged', 'missing-tags',
+  'broken-link', 'empty', 'orphan', 'duplicate', 'duplicate-tags', 'untagged', 'missing-tags',
 ];
 
 interface BatchEntry {
@@ -213,6 +213,7 @@ export class MaintenanceResultView extends ItemView {
     if (counts['broken-link'] > 0) parts.push(t('summary.brokenLinks', { count: counts['broken-link'] }));
     if (counts.orphan > 0) parts.push(t('summary.orphanNotes', { count: counts.orphan }));
     if (counts.duplicate > 0) parts.push(t('summary.duplicates', { count: counts.duplicate }));
+    if (counts['duplicate-tags'] > 0) parts.push(t('summary.duplicateTags', { count: counts['duplicate-tags'] }));
     summaryEl.createEl('p', { text: parts.join(' · ') });
 
     // Filter bar
@@ -230,6 +231,9 @@ export class MaintenanceResultView extends ItemView {
     }
     if (this.isTypeVisible('duplicate') && plan.duplicateCandidates.length > 0) {
       this.renderDuplicates(contentEl, plan.duplicateCandidates);
+    }
+    if (this.isTypeVisible('duplicate-tags') && plan.duplicateTags.length > 0) {
+      this.renderDuplicateTags(contentEl, plan.duplicateTags);
     }
     if (this.isTypeVisible('untagged') && plan.untaggedNotes.length > 0) {
       this.renderUntaggedNotes(contentEl, plan.untaggedNotes);
@@ -337,6 +341,7 @@ export class MaintenanceResultView extends ItemView {
       'broken-link': plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length,
       orphan: plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`)).length,
       duplicate: plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length,
+      'duplicate-tags': plan.duplicateTags.filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag as string}`)).length,
     };
   }
 
@@ -625,6 +630,61 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
+  private renderDuplicateTags(container: HTMLElement, items: ReadonlyArray<DuplicateTagGroup>): void {
+    const filtered = items
+      .filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag as string}`))
+      .filter(g => this.matchesSearch(g.canonicalTag as string)
+        || g.variants.some(v => this.matchesSearch(v.tag as string)));
+    if (filtered.length === 0) return;
+    this.renderSectionHeading(container, 'duplicate-tags', t('issue.duplicateTags', { count: filtered.length }));
+
+    const entries: BatchEntry[] = [];
+    this.renderBatchControls(container, entries, t('batch.selectedMergeTags'));
+
+    for (const group of filtered) {
+      const variantTags = group.variants.map(v => `${v.tag as string} (${v.count})`).join(', ');
+      const settingEl = new Setting(container)
+        .setName(t('duplicateTag.keep', { tag: group.canonicalTag as string }))
+        .setDesc(`${t('duplicateTag.variants', { tags: variantTags })} · ${t('duplicateTag.affected', { count: group.affectedNotes.length })}`);
+
+      const replaceTags = group.variants
+        .filter(v => (v.tag as string).toLowerCase() !== (group.canonicalTag as string).toLowerCase())
+        .map(v => v.tag);
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: {
+          kind: 'merge-duplicate-tags',
+          keepTag: group.canonicalTag,
+          replaceTags,
+          affectedNotes: group.affectedNotes,
+        },
+        setting: settingEl,
+        issueType: 'duplicate-tags',
+        identifier: group.canonicalTag as string,
+        status: 'pending',
+      });
+
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.mergeTags'))
+        .setCta()
+        .onClick(() => this.executeAction(
+          {
+            kind: 'merge-duplicate-tags',
+            keepTag: group.canonicalTag,
+            replaceTags,
+            affectedNotes: group.affectedNotes,
+          },
+          settingEl,
+          `duplicate-tags:${group.canonicalTag as string}`,
+        )),
+      );
+
+      this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag as string);
+      this.applyPersistedState(entries[entries.length - 1]);
+    }
+  }
+
   // ─── Batch & Actions ───
 
   private renderBatchControls(
@@ -640,9 +700,8 @@ export class MaintenanceResultView extends ItemView {
       .setClass('maintenance-batch-controls')
       .setName(t('batch.selectAll'));
 
-    const selectAllCheckbox = document.createElement('input');
-    selectAllCheckbox.type = 'checkbox';
-    selectAllCheckbox.className = 'maintenance-batch-checkbox maintenance-select-all';
+    const selectAllCheckbox = createEl('input', { type: 'checkbox' });
+    selectAllCheckbox.addClass('maintenance-batch-checkbox', 'maintenance-select-all');
     selectAllCheckbox.addEventListener('change', () => {
       entries.forEach(e => { e.checkbox.checked = selectAllCheckbox.checked; });
     });
@@ -676,9 +735,8 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private prependCheckbox(setting: Setting): HTMLInputElement {
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'maintenance-batch-checkbox';
+    const checkbox = createEl('input', { type: 'checkbox' });
+    checkbox.addClass('maintenance-batch-checkbox');
     setting.settingEl.prepend(checkbox);
     return checkbox;
   }

@@ -31,6 +31,7 @@ export interface MaintenancePlan {
   readonly brokenLinks: ReadonlyArray<BrokenLink>;
   readonly emptyNotes: ReadonlyArray<EmptyNoteEntry>;
   readonly untaggedNotes: ReadonlyArray<NotePath>;
+  readonly duplicateTags: ReadonlyArray<DuplicateTagGroup>;
   readonly timestamp: Timestamp;
 }
 
@@ -62,4 +63,10 @@ export interface BrokenLink {
   readonly sourcePath: NotePath;
   readonly targetLink: string;
   readonly lineNumber: number;
+}
+
+export interface DuplicateTagGroup {
+  readonly canonicalTag: TagName;
+  readonly variants: ReadonlyArray<{ tag: TagName; count: number }>;
+  readonly affectedNotes: ReadonlyArray<NotePath>;
 }

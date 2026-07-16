@@ -5,7 +5,7 @@ import type { SearchIndexPort, SearchResult } from '../application/ports/SearchI
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import type { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import type { ClockPort } from '../application/ports/ClockPort';
-import type { ClipboardPort } from '../application/ports/ClipboardPort';
+
 import type { Timestamp } from '../domain/values/Timestamp';
 import { createDefaultSettings } from './fixtures';
 
@@ -80,11 +80,5 @@ export function createMockClock(now?: number): ClockPort {
   const ts = (now ?? 1720000000000) as Timestamp;
   return {
     now: vi.fn().mockReturnValue(ts),
-  };
-}
-
-export function createMockClipboard(content?: string | null): ClipboardPort {
-  return {
-    read: vi.fn().mockResolvedValue(content ?? null),
   };
 }

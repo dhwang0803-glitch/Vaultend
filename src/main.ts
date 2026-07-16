@@ -6,7 +6,7 @@ import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
 import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
 import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
-import { ObsidianClipboardAdapter } from './adapters/clipboard/ObsidianClipboardAdapter';
+
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
 import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackingAdapter';
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
@@ -16,10 +16,10 @@ import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAd
 // Use Cases
 import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
-import { RunInboxProcessUseCase } from './application/usecases/RunInboxProcessUseCase';
+import { OrganizeFolderUseCase } from './application/usecases/RunInboxProcessUseCase';
 import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseCase';
 import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
-import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
+
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
@@ -30,7 +30,6 @@ import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from 
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
-import { InboxProgressModal } from './ui/InboxProgressModal';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
@@ -44,8 +43,6 @@ import type { MaintenancePlan } from './domain/models/OrganizeModels';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
-  INBOX_DEBOUNCE_MS,
-  DEFAULT_INBOX_FOLDER,
   DEFAULT_SAVE_FOLDER,
   DEFAULT_DAILY_NOTE_FOLDER,
   DEFAULT_DAILY_NOTE_FORMAT,
@@ -69,8 +66,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   aiModel: DEFAULT_AI_MODEL,
   aiMaxTokens: DEFAULT_AI_MAX_TOKENS,
   aiTemperature: DEFAULT_AI_TEMPERATURE,
-  inboxFolder: DEFAULT_INBOX_FOLDER,
-  autoApplyInbox: false,
+  captureFolder: 'Inbox',
+  autoApplyOrganize: false,
   defaultSaveFolder: DEFAULT_SAVE_FOLDER,
   defaultSaveTarget: 'new-note',
   quickAskSaveMode: 'timestamp',
@@ -85,7 +82,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceExcludeFiles: [],
   maintenanceExcludeTags: [],
   maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
-  inboxConfidenceThreshold: 0,
+  organizeConfidenceThreshold: 0,
   embeddingsEnabled: false,
   embeddingsModel: '',
   rrfEmbeddingWeight: 4.0,
@@ -104,7 +101,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private aiAdapter!: AIProviderPort;
   private searchIndex!: JsonSearchIndexAdapter;
   private historyAdapter!: FileHistoryAdapter;
-  private clipboardAdapter!: ObsidianClipboardAdapter;
+
   private clockAdapter!: SystemClockAdapter;
   private changeTracker!: FileChangeTrackingAdapter;
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
@@ -117,10 +114,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   // Use Cases
   private quickAskUseCase!: QuickAskUseCase;
   private organizeNoteUseCase!: OrganizeNoteUseCase;
-  private runInboxProcessUseCase!: RunInboxProcessUseCase;
+  private organizeFolderUseCase!: OrganizeFolderUseCase;
   private runMaintenanceUseCase!: RunMaintenanceUseCase;
   private saveNoteUseCase!: SaveNoteUseCase;
-  private captureClipboardUseCase!: CaptureClipboardUseCase;
+
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
   private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
@@ -129,8 +126,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
   private isMaintenanceRunning = false;
-  private isInboxProcessing = false;
-  private hasQueuedInboxEvents = false;
+  private isOrganizing = false;
 
   async onload(): Promise<void> {
     console.log('Vaultend Plugin: loading');
@@ -165,7 +161,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerFolderContextMenu();
 
     // 8. Start vault event watching
-    this.startInboxWatcher();
+    this.startVaultWatcher();
 
     // 9. Schedule auto-maintenance
     this.scheduleMaintenanceIfEnabled();
@@ -190,8 +186,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           this.syncEmbeddingsBackground();
         }
       }
-
-      this.runCatchUp();
     });
   }
 
@@ -218,7 +212,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
   private async loadSettings(): Promise<void> {
     const data = await this.loadData();
-    this.settings = { ...DEFAULT_SETTINGS, ...(data ?? {}) };
+    const raw = data ?? {};
+
+    // Migrate legacy setting names
+    if ('inboxFolder' in raw && !('captureFolder' in raw)) {
+      raw.captureFolder = raw.inboxFolder;
+      delete raw.inboxFolder;
+    }
+    if ('autoApplyInbox' in raw && !('autoApplyOrganize' in raw)) {
+      raw.autoApplyOrganize = raw.autoApplyInbox;
+      delete raw.autoApplyInbox;
+    }
+    if ('inboxConfidenceThreshold' in raw && !('organizeConfidenceThreshold' in raw)) {
+      raw.organizeConfidenceThreshold = raw.inboxConfidenceThreshold;
+      delete raw.inboxConfidenceThreshold;
+    }
+
+    this.settings = { ...DEFAULT_SETTINGS, ...raw };
   }
 
   private wireAdapters(): void {
@@ -226,7 +236,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.clockAdapter = new SystemClockAdapter();
     this.searchIndex = new JsonSearchIndexAdapter(this.vaultAdapter);
     this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
-    this.clipboardAdapter = new ObsidianClipboardAdapter();
+
     this.changeTracker = new FileChangeTrackingAdapter(this.vaultAdapter);
     this.corpusStatsAdapter = new FileCorpusStatsAdapter(this.vaultAdapter);
     this.vectorStoreAdapter = new JsonVectorStoreAdapter(this.vaultAdapter);
@@ -264,21 +274,19 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.historyAdapter, this.configPort,
     );
 
-    this.runInboxProcessUseCase = new RunInboxProcessUseCase(
+    this.organizeFolderUseCase = new OrganizeFolderUseCase(
       this.organizeNoteUseCase, this.vaultAdapter,
       this.configPort, this.historyAdapter, this.clockAdapter,
+      this.aiAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
       this.configPort, this.clockAdapter,
       this.changeTracker, this.corpusStatsAdapter,
+      this.aiAdapter,
     );
 
-    this.captureClipboardUseCase = new CaptureClipboardUseCase(
-      this.clipboardAdapter, this.saveNoteUseCase,
-      this.configPort, this.historyAdapter, this.clockAdapter,
-    );
 
     this.getHistoryUseCase = new GetHistoryUseCase(this.historyAdapter);
 
@@ -323,7 +331,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       ORGANIZE_FOLDER_VIEW_TYPE,
       (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
         leaf,
-        this.runInboxProcessUseCase,
+        this.organizeFolderUseCase,
         this.buildOrganizeApplyActions(),
         this.configPort,
         this.historyAdapter,
@@ -332,13 +340,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
         },
-        (v: boolean) => {
-          this.isInboxProcessing = v;
-          if (!v && this.hasQueuedInboxEvents) {
-            this.hasQueuedInboxEvents = false;
-            this.runAutoInboxProcess();
-          }
-        },
+        (v: boolean) => { this.isOrganizing = v; },
       ),
     );
   }
@@ -364,18 +366,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: 'capture-clipboard',
-      name: t('command.captureClipboard'),
-      callback: async () => {
-        try {
-          const path = await this.captureClipboardUseCase.execute();
-          new Notice(t('notice.clipboardSaved', { path: String(path) }));
-        } catch (err) {
-          new Notice(t('notice.clipboardFailed', { error: localizeError(err) }));
-        }
-      },
-    });
 
     this.addCommand({
       id: 'organize-current-note',
@@ -427,8 +417,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'organize-folder',
       name: t('command.organizeFolder'),
       callback: async () => {
-        if (this.isInboxProcessing) {
-          new Notice(t('notice.inboxAlreadyRunning'));
+        if (this.isOrganizing) {
+          new Notice(t('notice.organizeAlreadyRunning'));
           return;
         }
         new FolderSuggestModal(this.app, async (folder) => {
@@ -507,8 +497,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .setTitle(t('command.organizeFolder'))
             .setIcon('wand')
             .onClick(async () => {
-              if (this.isInboxProcessing) {
-                new Notice(t('notice.inboxAlreadyRunning'));
+              if (this.isOrganizing) {
+                new Notice(t('notice.organizeAlreadyRunning'));
                 return;
               }
               await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
@@ -537,29 +527,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     }
   }
 
-  private openOrganizeFolderModal(folderPath: string): void {
-    if (this.isInboxProcessing) {
-      new Notice(t('notice.inboxAlreadyRunning'));
-      return;
-    }
-    new InboxProgressModal(
-      this.app,
-      this.runInboxProcessUseCase,
-      (v) => {
-        this.isInboxProcessing = v;
-        if (!v && this.hasQueuedInboxEvents) {
-          this.hasQueuedInboxEvents = false;
-          this.runAutoInboxProcess();
-        }
-      },
-      folderPath,
-    ).open();
-  }
-
-  private startInboxWatcher(): void {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const pendingPaths = new Set<string>();
-
+  private startVaultWatcher(): void {
     this.unsubscribeVaultEvents = this.vaultAdapter.watchEvents((event: VaultEvent) => {
       const pathStr = event.path as string;
 
@@ -583,32 +551,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
         }
       }
-
-      if (event.type !== 'create' && event.type !== 'modify') return;
-      if (!pathStr.startsWith(this.settings.inboxFolder)) return;
-
-      if (this.isInboxProcessing) {
-        this.hasQueuedInboxEvents = true;
-        return;
-      }
-
-      pendingPaths.add(pathStr);
-
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer);
-      }
-
-      debounceTimer = setTimeout(async () => {
-        debounceTimer = null;
-        const count = pendingPaths.size;
-        pendingPaths.clear();
-
-        if (this.settings.autoApplyInbox) {
-          await this.runAutoInboxProcess();
-        } else {
-          new Notice(t('notice.inboxDetected', { count }));
-        }
-      }, INBOX_DEBOUNCE_MS);
     });
   }
 
@@ -734,29 +676,5 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     } catch {
       // Non-critical — index will be rebuilt next startup
     }
-  }
-
-  private async runAutoInboxProcess(): Promise<void> {
-    if (this.isInboxProcessing) return;
-
-    const MAX_RERUN = 3;
-    this.isInboxProcessing = true;
-    try {
-      let runs = 0;
-      do {
-        this.hasQueuedInboxEvents = false;
-        await this.runInboxProcessUseCase.execute();
-        runs++;
-      } while (this.hasQueuedInboxEvents && runs < MAX_RERUN);
-    } catch (err) {
-      console.error('Vaultend: auto inbox processing failed', err);
-    } finally {
-      this.isInboxProcessing = false;
-    }
-  }
-
-  private async runCatchUp(): Promise<void> {
-    if (!this.settings.autoApplyInbox) return;
-    await this.runAutoInboxProcess();
   }
 }

@@ -1,5 +1,5 @@
 import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
-import { RunInboxProcessUseCase, InboxProcessResult } from '../application/usecases/RunInboxProcessUseCase';
+import { OrganizeFolderUseCase, OrganizeFolderResult } from '../application/usecases/RunInboxProcessUseCase';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { OrganizeApplyActions } from './OrganizeResultModal';
 import { ConfigPort } from '../application/ports/ConfigPort';
@@ -29,7 +29,7 @@ interface OrganizeFolderEntry {
 }
 
 export class OrganizeFolderResultView extends ItemView {
-  private currentResult: InboxProcessResult | null = null;
+  private currentResult: OrganizeFolderResult | null = null;
   private scanInProgress = false;
   private targetFolder: string | null = null;
   private entries: OrganizeFolderEntry[] = [];
@@ -38,7 +38,7 @@ export class OrganizeFolderResultView extends ItemView {
 
   constructor(
     leaf: WorkspaceLeaf,
-    private readonly runInboxProcess: RunInboxProcessUseCase,
+    private readonly organizeFolderUseCase: OrganizeFolderUseCase,
     private readonly applyActions: OrganizeApplyActions,
     private readonly configPort: ConfigPort,
     private readonly historyPort: HistoryPort,
@@ -70,7 +70,7 @@ export class OrganizeFolderResultView extends ItemView {
 
     entry.container.removeClass('organize-folder-entry-applied');
     if (!this.autoApplyMode) {
-      entry.checkbox.style.display = '';
+      entry.checkbox.removeClass('vaultend-hidden');
     }
     const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
     if (undoBtn) undoBtn.remove();
@@ -142,13 +142,13 @@ export class OrganizeFolderResultView extends ItemView {
     this.onProcessingStateChange(true);
 
     const settings = await this.configPort.getSettings();
-    this.autoApplyMode = settings.autoApplyInbox;
+    this.autoApplyMode = settings.autoApplyOrganize;
 
     this.abortController = new AbortController();
     this.renderProgress(folderPath, 0, 0, '');
 
     try {
-      const result = await this.runInboxProcess.execute({
+      const result = await this.organizeFolderUseCase.execute({
         folder: folderPath,
         signal: this.abortController.signal,
         onProgress: (info) => {
@@ -188,7 +188,7 @@ export class OrganizeFolderResultView extends ItemView {
     const actions = this.contentEl.createDiv({ cls: 'organize-folder-actions' });
     new Setting(actions)
       .addButton(btn =>
-        btn.setButtonText(t('inboxProgress.cancel'))
+        btn.setButtonText(t('organizeFolder.cancel'))
           .setWarning()
           .onClick(() => this.abortController?.abort()),
       );
@@ -331,7 +331,7 @@ export class OrganizeFolderResultView extends ItemView {
       checkbox = checkboxEl;
     } else {
       checkbox = createEl('input', { type: 'checkbox' });
-      checkbox.style.display = 'none';
+      checkbox.addClass('vaultend-hidden');
     }
 
     // Open button — uses currentPath after move
@@ -528,7 +528,7 @@ export class OrganizeFolderResultView extends ItemView {
 
   private markEntryApplied(entry: OrganizeFolderEntry): void {
     entry.container.addClass('organize-folder-entry-applied');
-    entry.checkbox.style.display = 'none';
+    entry.checkbox.addClass('vaultend-hidden');
 
     // Remove action buttons except Open, add Undo
     const controlEl = entry.setting.controlEl;
@@ -556,7 +556,7 @@ export class OrganizeFolderResultView extends ItemView {
 
       entry.container.removeClass('organize-folder-entry-applied');
       if (!this.autoApplyMode) {
-        entry.checkbox.style.display = '';
+        entry.checkbox.removeClass('vaultend-hidden');
       }
 
       const controlEl = entry.setting.controlEl;
@@ -601,7 +601,7 @@ export class OrganizeFolderResultView extends ItemView {
     for (const entry of selected) {
       entry.status = 'skipped';
       entry.container.addClass('organize-folder-entry-applied');
-      entry.checkbox.style.display = 'none';
+      entry.checkbox.addClass('vaultend-hidden');
       entry.setting.setDesc(t('organizeFolder.skipped'));
       const buttons = entry.setting.controlEl.querySelectorAll('.mod-cta');
       buttons.forEach(btn => btn.remove());

@@ -6,7 +6,7 @@ const ko: { [K in keyof typeof en]: string } = {
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
-  'command.captureClipboard': '클립보드 캡처',
+
   'command.organizeNote': '현재 노트 정리',
   'command.runMaintenance': '유지보수 실행',
   'command.organizeFolder': '폴더 정리',
@@ -14,15 +14,10 @@ const ko: { [K in keyof typeof en]: string } = {
   'command.scanFolder': '이 폴더 유지보수 스캔',
 
   // ─── Notices ───
-  'notice.clipboardSaved': '클립보드 내용을 저장했습니다: {{path}}',
-  'notice.clipboardFailed': '클립보드 캡처 실패: {{error}}',
+
   'notice.organizeResult': '폴더: {{folder}} | 태그: {{tags}}',
   'notice.organizeFailed': '노트 정리 실패: {{error}}',
-  'notice.inboxStarted': 'Inbox 처리를 시작합니다...',
-  'notice.inboxComplete': 'Inbox 처리 완료: {{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
-  'notice.inboxFailed': 'Inbox 처리 실패: {{error}}',
-  'notice.inboxDetected': 'Inbox: {{count}}개 파일 변경 감지',
-  'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
+  'notice.organizeAlreadyRunning': '폴더 정리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
   'notice.noChangeNeeded': '적용할 변경이 없습니다',
@@ -57,6 +52,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'issue.brokenLinks': '깨진 링크 ({{count}})',
   'issue.orphanNotes': '고아 노트 ({{count}})',
   'issue.duplicates': '중복 후보 ({{count}})',
+  'issue.duplicateTags': '중복 태그 ({{count}})',
 
   // Issue type short labels (for filter chips)
   'issueShort.empty': '빈 노트',
@@ -65,6 +61,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'issueShort.broken-link': '깨진 링크',
   'issueShort.orphan': '고아 노트',
   'issueShort.duplicate': '중복 후보',
+  'issueShort.duplicate-tags': '중복 태그',
 
   // Summary
   'summary.emptyNotes': '빈 노트 {{count}}',
@@ -73,6 +70,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'summary.brokenLinks': '깨진 링크 {{count}}',
   'summary.orphanNotes': '고아 노트 {{count}}',
   'summary.duplicates': '중복 후보 {{count}}',
+  'summary.duplicateTags': '중복 태그 {{count}}',
 
   // Severity
   'severity.critical': '심각',
@@ -87,6 +85,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'btn.removeLink': '링크 제거',
   'btn.createNote': '노트 생성',
   'btn.openSideBySide': '나란히 열기',
+  'btn.mergeTags': '병합',
   'btn.ask': '질문하기',
   'btn.close': '닫기',
 
@@ -99,6 +98,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedRestore': '선택 복원',
   'batch.selectedRemoveLinks': '선택 링크 제거',
   'batch.selectedApplyTags': '선택 태그 적용',
+  'batch.selectedMergeTags': '선택 병합',
 
   // Dismiss
   'dismiss.tooltip': '무시',
@@ -110,6 +110,9 @@ const ko: { [K in keyof typeof en]: string } = {
   // Duplicates
   'duplicate.tagSuggestion': '{{tags}} 추가 제안',
   'duplicate.similarity': '유사도 {{score}}%',
+  'duplicateTag.keep': '유지: {{tag}}',
+  'duplicateTag.variants': '변형: {{tags}}',
+  'duplicateTag.affected': '{{count}}개 노트 영향',
 
   // Undo / Redo
   'undo.tooltip': '실행 취소',
@@ -200,21 +203,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
 
-  // ─── Inbox Progress Modal ───
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
-
-  'inboxProgress.title': '폴더 정리 중',
-  'inboxProgress.folderTitle': '정리 중: {{folder}}',
-  'inboxProgress.counter': '{{current}} / {{total}}',
-  'inboxProgress.cancel': '취소',
-  'inboxProgress.close': '닫기',
-  'inboxProgress.completeTitle': '폴더 정리 완료',
-  'inboxProgress.cancelledTitle': '폴더 정리 취소됨',
-  'inboxProgress.errorTitle': '폴더 정리 실패',
-  'inboxProgress.processed': '처리됨: {{count}}',
-  'inboxProgress.skipped': '건너뜀: {{count}}',
-  'inboxProgress.errors': '오류: {{count}}',
-  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+  'organizeFolder.cancel': '취소',
 
   // ─── Settings ───
   'settings.title': 'Vaultend 설정',
@@ -233,11 +223,11 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.modelDesc': '사용할 AI 모델을 선택합니다.',
   'settings.modelCustom': '직접 입력',
 
-  'settings.inbox': 'Inbox',
-  'settings.inboxFolder': 'Inbox 폴더',
-  'settings.inboxFolderDesc': '미처리 노트가 수집되는 폴더 경로',
+  'settings.organize': '정리',
+  'settings.captureFolder': '정리 대상 폴더',
+  'settings.captureFolderDesc': '폴더 정리 명령의 기본 대상 폴더',
   'settings.autoApply': '자동 적용',
-  'settings.autoApplyDesc': 'Inbox 처리 결과를 자동으로 적용합니다.',
+  'settings.autoApplyDesc': '폴더 정리 결과를 자동으로 적용합니다.',
 
   'settings.quickAsk': 'Quick Ask',
   'settings.saveMode': '저장 모드',
