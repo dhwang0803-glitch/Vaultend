@@ -113,7 +113,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     this.modelAnchorEl = containerEl.createDiv();
-    this.modelAnchorEl.style.display = 'none';
+    this.modelAnchorEl.addClass('vaultend-model-anchor');
     this.isCustomMode = false;
     this.renderModelSetting(containerEl);
 

@@ -3,7 +3,7 @@
   "name": "Vaultend",
   "version": "0.5.7",
   "minAppVersion": "1.7.2",
-  "description": "AI-powered vault maintenance — auto-classify, tag, link, and organize your notes",
+  "description": "Classify, tag, link, and organize your notes with AI-powered vault maintenance.",
   "author": "dhwang0803",
   "authorUrl": "https://github.com/dhwang0803",
   "isDesktopOnly": false

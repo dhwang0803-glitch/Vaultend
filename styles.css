@@ -837,3 +837,13 @@
   transition: width 0.2s ease;
   width: 0%;
 }
+
+/* Utility: hidden element */
+.vaultend-hidden {
+  display: none;
+}
+
+/* Utility: model anchor (zero-size placeholder) */
+.vaultend-model-anchor {
+  display: none;
+}

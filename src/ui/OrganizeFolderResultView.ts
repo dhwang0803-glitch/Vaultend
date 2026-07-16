@@ -70,7 +70,7 @@ export class OrganizeFolderResultView extends ItemView {
 
     entry.container.removeClass('organize-folder-entry-applied');
     if (!this.autoApplyMode) {
-      entry.checkbox.style.display = '';
+      entry.checkbox.removeClass('vaultend-hidden');
     }
     const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
     if (undoBtn) undoBtn.remove();
@@ -331,7 +331,7 @@ export class OrganizeFolderResultView extends ItemView {
       checkbox = checkboxEl;
     } else {
       checkbox = createEl('input', { type: 'checkbox' });
-      checkbox.style.display = 'none';
+      checkbox.addClass('vaultend-hidden');
     }
 
     // Open button — uses currentPath after move
@@ -528,7 +528,7 @@ export class OrganizeFolderResultView extends ItemView {
 
   private markEntryApplied(entry: OrganizeFolderEntry): void {
     entry.container.addClass('organize-folder-entry-applied');
-    entry.checkbox.style.display = 'none';
+    entry.checkbox.addClass('vaultend-hidden');
 
     // Remove action buttons except Open, add Undo
     const controlEl = entry.setting.controlEl;
@@ -556,7 +556,7 @@ export class OrganizeFolderResultView extends ItemView {
 
       entry.container.removeClass('organize-folder-entry-applied');
       if (!this.autoApplyMode) {
-        entry.checkbox.style.display = '';
+        entry.checkbox.removeClass('vaultend-hidden');
       }
 
       const controlEl = entry.setting.controlEl;
@@ -601,7 +601,7 @@ export class OrganizeFolderResultView extends ItemView {
     for (const entry of selected) {
       entry.status = 'skipped';
       entry.container.addClass('organize-folder-entry-applied');
-      entry.checkbox.style.display = 'none';
+      entry.checkbox.addClass('vaultend-hidden');
       entry.setting.setDesc(t('organizeFolder.skipped'));
       const buttons = entry.setting.controlEl.querySelectorAll('.mod-cta');
       buttons.forEach(btn => btn.remove());

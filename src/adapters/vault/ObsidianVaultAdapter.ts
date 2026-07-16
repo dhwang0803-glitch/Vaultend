@@ -45,7 +45,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     const existing = this.app.vault.getAbstractFileByPath(pathStr);
 
     if (existing instanceof TFile) {
-      await this.app.vault.modify(existing, content);
+      await this.app.vault.process(existing, () => content);
     } else {
       const folderPath = pathStr.substring(0, pathStr.lastIndexOf('/'));
       if (folderPath) {
@@ -56,7 +56,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       } catch {
         const file = this.app.vault.getAbstractFileByPath(pathStr);
         if (file instanceof TFile) {
-          await this.app.vault.modify(file, content);
+          await this.app.vault.process(file, () => content);
         }
       }
     }
@@ -298,7 +298,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       tags: uniqueTags.map(t => {
         try { return createTagName(t); }
         catch {
-          console.warn(`[Vaultend] 비정상 태그 감지, #untagged로 대체: "${t}"`);
+          console.warn(`[Vaultend] Invalid tag detected, replaced with #untagged: "${t}"`);
           return createTagName('#untagged');
         }
       }),

@@ -38,7 +38,7 @@ export class QuickAskModal extends Modal {
     this.chatContainer = contentEl.createDiv('quick-ask-chat');
 
     this.previewContainer = contentEl.createDiv('quick-ask-preview');
-    this.previewContainer.style.display = 'none';
+    this.previewContainer.addClass('vaultend-hidden');
 
     const inputBar = contentEl.createDiv('quick-ask-input-bar');
     this.inputEl = inputBar.createEl('textarea', {
@@ -143,7 +143,7 @@ export class QuickAskModal extends Modal {
   }
 
   private appendLoading(): HTMLElement {
-    if (!this.chatContainer) return document.createElement('div');
+    if (!this.chatContainer) return createDiv();
     const wrapper = this.chatContainer.createDiv('quick-ask-msg quick-ask-msg-assistant quick-ask-loading');
     const dots = wrapper.createDiv('quick-ask-loading-dots');
     for (let i = 0; i < 3; i++) {
@@ -234,8 +234,8 @@ export class QuickAskModal extends Modal {
       this.activeRefLink.removeClass('is-active');
     }
 
-    if (this.activeRefLink === linkEl && this.previewContainer.style.display !== 'none') {
-      this.previewContainer.style.display = 'none';
+    if (this.activeRefLink === linkEl && !this.previewContainer.hasClass('vaultend-hidden')) {
+      this.previewContainer.addClass('vaultend-hidden');
       this.activeRefLink = null;
       return;
     }
@@ -248,7 +248,7 @@ export class QuickAskModal extends Modal {
     if (!(file instanceof TFile)) {
       if (requestId !== this.previewRequestId) return;
       this.previewContainer.empty();
-      this.previewContainer.style.display = 'block';
+      this.previewContainer.removeClass('vaultend-hidden');
       this.previewContainer.createEl('p', { text: `Note not found: ${pathStr}`, cls: 'maintenance-result-error' });
       return;
     }
@@ -258,13 +258,13 @@ export class QuickAskModal extends Modal {
     const displayName = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
 
     this.previewContainer.empty();
-    this.previewContainer.style.display = 'block';
+    this.previewContainer.removeClass('vaultend-hidden');
 
     const header = this.previewContainer.createDiv('quick-ask-preview-header');
     header.createEl('strong', { text: displayName });
     const closeBtn = header.createEl('span', { text: '×', cls: 'quick-ask-preview-close' });
     closeBtn.addEventListener('click', () => {
-      this.previewContainer!.style.display = 'none';
+      this.previewContainer!.addClass('vaultend-hidden');
       if (this.activeRefLink) {
         this.activeRefLink.removeClass('is-active');
         this.activeRefLink = null;
