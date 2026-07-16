@@ -838,6 +838,28 @@
   width: 0%;
 }
 
+/* Privacy Rule — responsive layout */
+.vaultend-privacy-rule {
+  flex-wrap: wrap;
+}
+
+.vaultend-privacy-rule .setting-item-control {
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vaultend-privacy-rule .setting-item-control > input[type="text"] {
+  min-width: 100px;
+  flex: 1 1 100px;
+}
+
+.vaultend-privacy-rule .setting-item-control > select,
+.vaultend-privacy-rule .setting-item-control > .dropdown {
+  min-width: 100px;
+  flex: 0 1 auto;
+}
+
 /* Chip Setting UI */
 .vaultend-chip-setting {
   padding: 12px 0;

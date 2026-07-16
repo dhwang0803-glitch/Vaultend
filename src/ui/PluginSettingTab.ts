@@ -338,6 +338,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     } else {
       setting.setName(rule.name);
     }
+    setting.settingEl.addClass('vaultend-privacy-rule');
   }
 
   private renderModelSetting(parentEl: HTMLElement): void {
