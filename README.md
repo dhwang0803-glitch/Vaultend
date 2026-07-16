@@ -30,6 +30,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 - [Compatibility](#compatibility)
 - [Known Limitations](#known-limitations)
 - [Development](#development)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -258,10 +259,10 @@ Fine-grained control over what gets sent to AI. Configure rules in **Settings �
 |-----------|-------------|
 | Folder exclude | Notes in specified folders are never sent to AI |
 | Tag exclude | Notes with specific tags are excluded from AI context |
-| Frontmatter exclude | Notes with specific frontmatter keys are excluded |
+| Properties exclude | Notes with specific frontmatter properties are excluded |
 | Content redact | Regex patterns are replaced with `[REDACTED]` before sending |
 
-**Content redaction example**: Pattern `password:\S+` replaces `password:abc123` with `[REDACTED]` before sending. Your original note is never modified.
+**Content redaction example**: Pattern `password:\S+` replaces `password:abc123` with `[REDACTED]` before sending. Your original note is never modified. For simple word masking, just type the word (e.g., `vaultend`) — regex knowledge is not required for basic use.
 
 **Key guarantee**: Privacy rules run before ANY data leaves your device. AI never sees excluded or redacted content.
 
@@ -350,12 +351,11 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 
 > **Note:** Model availability changes over time. If a listed model returns an error, check the official documentation links above for the latest status, or use the **Custom** option to enter a newer model ID. This list was last updated on **2026-07-15**.
 
-### Organize
+### Organize Folder
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| Organize Folder | Default folder for Organize Folder command | Inbox |
-| Auto Apply | Apply results automatically | Off |
+| Auto-apply results | When enabled, AI classification results (move, tag, link) are applied immediately without manual review | Off |
 
 ### Quick Ask
 
@@ -367,32 +367,22 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 
 ### Maintenance
 
+Maintenance scans only Markdown (`.md`) notes. Non-text files such as Excalidraw and Canvas are automatically excluded.
+
 | Setting | Description | Default |
 |---------|-------------|---------|
 | Auto Maintenance | Run on a timer | Off |
 | Interval | Minutes between auto-scans | 60 |
-| Exclude Folders | Comma-separated folder paths to skip | — |
-| Exclude File Patterns | Glob patterns for files to skip | — |
-| Exclude Tags | Notes with these tags are skipped | — |
+| Exclude Folders | Folders to exclude (chip UI with vault autocomplete) | — |
+| Exclude Tags | Notes with these tags are skipped (chip UI with vault autocomplete) | — |
 | Archive Folder | Destination for archived notes | Archive |
-
-### Search (Advanced)
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Embeddings Enabled | Enable semantic search via Gemini Embeddings | Off |
-| Embeddings Model | Gemini embedding model | gemini-embedding-001 |
-| RRF Embedding Weight | How much to weight embedding results vs BM25 | 4.0 |
-| RRF K | Rank smoothing parameter (lower = sharper ranking) | 20 |
-
-> When embeddings are enabled, Quick Ask uses Hybrid search: BM25 keywords + semantic embeddings merged via Reciprocal Rank Fusion (RRF).
 
 ### Privacy Rules
 
 Add rules in the Privacy section. Each rule has:
 - **Name** — descriptive label
-- **Type** — Folder exclude / Tag exclude / Frontmatter exclude / Content redact
-- **Pattern** — the folder path, tag, frontmatter key, or regex pattern
+- **Type** — Folder exclude / Tag exclude / Properties exclude / Content redact
+- **Pattern** — the folder path, tag, property key, or regex pattern
 
 ---
 
@@ -451,7 +441,7 @@ The same 3 files go in `.obsidian/plugins/vaultend/`.
 
 Change in **Settings → Language**. Views update immediately; command palette names update after restart.
 
-Want to contribute a translation? See `src/i18n/locales/en.ts` for the key list.
+Want to contribute a translation? See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
@@ -474,8 +464,9 @@ adapters/        ← Port implementations (external deps live here)
   ai/            ← OpenAI, Gemini, DynamicAI adapters
   vault/         ← ObsidianVaultAdapter
   history/       ← FileHistoryAdapter
-  search/        ← BM25SearchIndexAdapter
-  embedding/     ← GeminiEmbeddingAdapter
+  search/        ← JsonSearchIndexAdapter
+  embedding/     ← AIEmbeddingAdapter
+  clock/         ← SystemClockAdapter
   vectorstore/   ← JsonVectorStoreAdapter
   tracking/      ← FileChangeTrackingAdapter
   corpus/        ← FileCorpusStatsAdapter
@@ -522,8 +513,13 @@ npm run build      # Production build
 npm run lint       # ESLint
 npm run test       # Vitest (unit + integration tests)
 npm run test:watch # Watch mode tests
-npm run benchmark  # Embedding benchmark (requires GEMINI_API_KEY)
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on translations, bug reports, and pull requests.
 
 ---
 
