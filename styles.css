@@ -838,6 +838,88 @@
   width: 0%;
 }
 
+/* Chip Setting UI */
+.vaultend-chip-setting {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vaultend-chip-setting .setting-item-name {
+  font-weight: var(--font-semibold, 600);
+  margin-bottom: 2px;
+}
+
+.vaultend-chip-setting .setting-item-description {
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+  margin-bottom: 8px;
+}
+
+.vaultend-chip-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 24px;
+}
+
+.vaultend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: var(--background-modifier-hover);
+  font-size: var(--font-smallest);
+  line-height: 1.4;
+}
+
+.vaultend-chip-remove {
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.vaultend-chip-remove:hover {
+  opacity: 1;
+}
+
+.vaultend-chip-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.vaultend-chip-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.vaultend-chip-add-btn {
+  flex-shrink: 0;
+}
+
+.vaultend-chip-suggestions {
+  position: relative;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  margin-top: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.vaultend-chip-suggestion-item {
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: var(--font-smallest);
+}
+
+.vaultend-chip-suggestion-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
 /* Utility: hidden element */
 .vaultend-hidden {
   display: none;

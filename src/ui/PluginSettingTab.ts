@@ -212,33 +212,28 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    new Setting(containerEl)
-      .setName(t('settings.excludeFolders'))
-      .setDesc(t('settings.excludeFoldersDesc'))
-      .addText(text => {
-        const folders = this.settings!.maintenanceExcludeFolders ?? [];
-        text
-          .setPlaceholder('QuickAsk, Templates')
-          .setValue(folders.join(', '))
-          .onChange(async (value) => {
-            const parsed = value.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(s => s.length > 0);
-            await this.config.updateSettings({ maintenanceExcludeFolders: parsed });
-          });
-      });
+    this.renderChipSetting(containerEl, {
+      label: t('settings.excludeFolders'),
+      desc: t('settings.excludeFoldersDesc'),
+      items: [...(this.settings!.maintenanceExcludeFolders ?? [])],
+      placeholder: t('settings.excludeFoldersPlaceholder'),
+      suggestions: () => this.collectVaultFolders(),
+      onUpdate: async (items) => {
+        const cleaned = items.map(s => s.replace(/\/+$/, ''));
+        await this.config.updateSettings({ maintenanceExcludeFolders: cleaned });
+      },
+    });
 
-    new Setting(containerEl)
-      .setName(t('settings.excludeTags'))
-      .setDesc(t('settings.excludeTagsDesc'))
-      .addText(text => {
-        const tags = this.settings!.maintenanceExcludeTags ?? [];
-        text
-          .setPlaceholder('#template, #archive')
-          .setValue(tags.join(', '))
-          .onChange(async (value) => {
-            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-            await this.config.updateSettings({ maintenanceExcludeTags: parsed });
-          });
-      });
+    this.renderChipSetting(containerEl, {
+      label: t('settings.excludeTags'),
+      desc: t('settings.excludeTagsDesc'),
+      items: [...(this.settings!.maintenanceExcludeTags ?? [])],
+      placeholder: t('settings.excludeTagsPlaceholder'),
+      suggestions: () => this.collectVaultTags(),
+      onUpdate: async (items) => {
+        await this.config.updateSettings({ maintenanceExcludeTags: items });
+      },
+    });
 
     new Setting(containerEl)
       .setName(t('settings.archiveFolder'))
@@ -394,6 +389,130 @@ export class PluginSettingTab extends ObsidianSettingTab {
     if (this.modelAnchorEl && this.modelAnchorEl.parentElement === parentEl) {
       parentEl.insertBefore(this.modelSettingEl, this.modelAnchorEl);
     }
+  }
+
+  private renderChipSetting(
+    containerEl: HTMLElement,
+    opts: {
+      label: string;
+      desc: string;
+      items: string[];
+      placeholder: string;
+      suggestions: () => string[];
+      onUpdate: (items: string[]) => Promise<void>;
+    },
+  ): void {
+    const wrapper = containerEl.createDiv({ cls: 'vaultend-chip-setting' });
+    wrapper.createEl('div', { text: opts.label, cls: 'setting-item-name' });
+    wrapper.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
+
+    const chipContainer = wrapper.createDiv({ cls: 'vaultend-chip-container' });
+
+    const renderChips = () => {
+      chipContainer.empty();
+      for (const item of opts.items) {
+        const chip = chipContainer.createDiv({ cls: 'vaultend-chip' });
+        chip.createSpan({ text: item });
+        const removeBtn = chip.createSpan({ cls: 'vaultend-chip-remove', text: '×' });
+        removeBtn.addEventListener('click', async () => {
+          opts.items.splice(opts.items.indexOf(item), 1);
+          await opts.onUpdate(opts.items);
+          renderChips();
+        });
+      }
+    };
+
+    renderChips();
+
+    const inputRow = wrapper.createDiv({ cls: 'vaultend-chip-input-row' });
+    const input = inputRow.createEl('input', {
+      type: 'text',
+      placeholder: opts.placeholder,
+      cls: 'vaultend-chip-input',
+    });
+
+    const suggestionsEl = wrapper.createDiv({ cls: 'vaultend-chip-suggestions' });
+    suggestionsEl.addClass('vaultend-hidden');
+
+    const addItem = async (value: string) => {
+      const trimmed = value.trim();
+      if (!trimmed || opts.items.includes(trimmed)) return;
+      opts.items.push(trimmed);
+      await opts.onUpdate(opts.items);
+      input.value = '';
+      suggestionsEl.addClass('vaultend-hidden');
+      renderChips();
+    };
+
+    const addBtn = inputRow.createEl('button', { text: t('settings.chipAdd'), cls: 'vaultend-chip-add-btn' });
+    addBtn.addEventListener('click', () => addItem(input.value));
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); addItem(input.value); }
+    });
+
+    const cachedSuggestions = opts.suggestions();
+
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLowerCase();
+      const filtered = cachedSuggestions.filter(s =>
+        !opts.items.includes(s) && s.toLowerCase().includes(query),
+      ).slice(0, 10);
+
+      suggestionsEl.empty();
+      if (filtered.length === 0 || !query) {
+        suggestionsEl.addClass('vaultend-hidden');
+        return;
+      }
+      suggestionsEl.removeClass('vaultend-hidden');
+      for (const suggestion of filtered) {
+        const item = suggestionsEl.createDiv({ cls: 'vaultend-chip-suggestion-item', text: suggestion });
+        item.addEventListener('click', () => addItem(suggestion));
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      window.setTimeout(() => suggestionsEl.addClass('vaultend-hidden'), 200);
+    });
+  }
+
+  private collectVaultFolders(): string[] {
+    const { TFolder } = require('obsidian');
+    const folders: string[] = [];
+    const collect = (folder: InstanceType<typeof TFolder>) => {
+      if (folder.path) folders.push(folder.path);
+      for (const child of folder.children ?? []) {
+        if (child instanceof TFolder) collect(child);
+      }
+    };
+    collect(this.app.vault.getRoot());
+    return folders.sort();
+  }
+
+  private collectVaultTags(): string[] {
+    const tags = new Map<string, number>();
+    const files = this.app.vault.getMarkdownFiles();
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) continue;
+      if (cache.tags) {
+        for (const t of cache.tags) {
+          const tag = t.tag;
+          tags.set(tag, (tags.get(tag) ?? 0) + 1);
+        }
+      }
+      if (cache.frontmatter?.tags) {
+        const raw = cache.frontmatter.tags;
+        const list = Array.isArray(raw) ? raw : [raw];
+        for (const item of list) {
+          const s = String(item);
+          const tag = s.startsWith('#') ? s : `#${s}`;
+          tags.set(tag, (tags.get(tag) ?? 0) + 1);
+        }
+      }
+    }
+    return [...tags.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag]) => tag);
   }
 
   private refreshOpenViews(): void {
