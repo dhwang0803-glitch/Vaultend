@@ -10,7 +10,8 @@ Obsidian 플러그인이므로 별도 서버 없이, Plugin 클래스(`main.ts`)
 ```
 ┌─────────────────────────────────────────────────┐
 │ UI Layer           src/ui/                       │
-│   QuickAskModal, MaintenanceResultView,          │
+│   QuickAskModal (멀티턴 채팅),                    │
+│   MaintenanceResultView (중복 태그 병합 포함),     │
 │   MaintenanceLogView, OrganizeFolderResultView,  │
 │   PluginSettingTab                               │
 ├─────────────────────────────────────────────────┤
@@ -18,9 +19,10 @@ Obsidian 플러그인이므로 별도 서버 없이, Plugin 클래스(`main.ts`)
 │   VaultendPlugin (DI 조립)                       │
 ├─────────────────────────────────────────────────┤
 │ Application Layer  src/application/              │
-│   UseCases: QuickAsk, OrganizeNote, Inbox,       │
-│             Maintenance, Save, Clipboard,        │
-│             SyncEmbeddings                       │
+│   UseCases: QuickAsk (chat), OrganizeNote,       │
+│             OrganizeFolder, Maintenance,         │
+│             ApplyMaintenanceAction, Save,         │
+│             Clipboard, SyncEmbeddings            │
 │   Ports (ABC): AIProvider, VaultAccess,          │
 │                SearchIndex, History, Config,      │
 │                Clipboard, Clock, Embedding,       │
@@ -29,11 +31,15 @@ Obsidian 플러그인이므로 별도 서버 없이, Plugin 클래스(`main.ts`)
 ├─────────────────────────────────────────────────┤
 │ Domain Layer       src/domain/                   │
 │   Values: NoteId, NotePath, NoteTitle, ChunkText,│
-│           HeadingPath, TagName, Timestamp         │
+│           HeadingPath, TagName, Timestamp,        │
+│           Severity                               │
 │   Models: Note, NoteChunk, NoteMetadata,         │
 │           SaveTarget, QuickAsk/OrganizeModels,    │
+│           ChatSession, ChatMessage,              │
+│           MaintenanceAction, DuplicateTagGroup,  │
 │           PrivacyRule, HistoryEntry              │
-│   Services: TfIdfCorpus, tokenize               │
+│   Services: TfIdfCorpus, tokenize,              │
+│             TagNormalizationService              │
 │   Errors: DomainErrors                           │
 ├─────────────────────────────────────────────────┤
 │ Adapters Layer     src/adapters/                 │
@@ -66,54 +72,82 @@ ui/ (Modal, View, SettingTab)       ← main.ts에서 UseCase 주입받아 사�
 
 ## 데이터 흐름 (대표 시나리오)
 
-### Quick Ask (AI 질의 + Hybrid Search)
+### Quick Ask (멀티턴 채팅 + Hybrid Search)
 
 ```
-[사용자] → QuickAskModal.onSubmit()
-  → QuickAskUseCase.execute(question)
+[사용자] → QuickAskModal (채팅 UI)
+  → 매 턴: QuickAskUseCase.chat(question, session, maxTurns=5)
     → hybridSearch(question)
       → SearchIndexPort.search(question)     → BM25 top-20
       → EmbeddingPort.embed(question)        → 쿼리 벡터 생성 (opt-in)
       → VectorStorePort.search(vec, 20)      → 시맨틱 top-20 (opt-in)
       → RRF merge (k=60)                    → 최종 상위 N 청크
-    → AIProviderPort.ask(prompt, context) → AI 응답 생성
-    → SaveNoteUseCase.execute(response)  → 응답 저장
-    → HistoryPort.append(entry)          → 이력 기록
-  ← QuickAskResult (answer, sources, savedPath)
+    → 컨텍스트 누적: 기존 _contextChunks + 새 검색 결과 (cap: MAX_CONTEXT_CHUNKS=20)
+    → 대화 이력: trimMessages(MAX_MESSAGES=20) 으로 슬라이딩 윈도우
+    → AIProviderPort.ask(prompt, context, history) → AI 응답 생성
+    → createOrUpdateSession() → ChatSession에 메시지 + 토큰 누적
+  ← { reply, session: ChatSession, truncated }
+
+[모달 닫기 / 수동 저장]
+  → QuickAskUseCase.saveConversation(session)
+    → ## Turn N 형식으로 Markdown 포맷
+    → SaveNoteUseCase.execute(formatted) → 노트 저장 (#vaultend-qa 태그)
+    → HistoryPort.append(entry)
 ```
 
 > Embeddings 미활성 시 BM25 단독 검색으로 fallback.
+> 세션 내 미저장 메시지(≥2)가 있으면 모달 닫기 시 자동 저장.
 
-### Inbox 자동 분류
-
-```
-[Vault 이벤트: 파일 생성] → startInboxWatcher()
-  → RunInboxProcessUseCase.execute()
-    → VaultAccessPort.listFolder(inboxFolder)
-    → OrganizeNoteUseCase.execute(path) (파일별)
-      → VaultAccessPort.read(path) → 노트 내용 읽기
-      → AIProviderPort.classify(content) → 분류/태그 추천
-      → VaultAccessPort.write(path, updated) → 메타데이터 갱신
-    → HistoryPort.append(entry)
-  ← InboxProcessResult (processed, skipped, errors)
-```
-
-### Vault Maintenance (스마트 스케줄링 + TF-IDF 중복 탐지)
+### Organize Folder (배치 분류)
 
 ```
-[Vault 이벤트: .md 변경] → startInboxWatcher()
-  → ChangeTrackingPort.markDirty(path)
+[사용자 / 자동 감시] → OrganizeFolderUseCase.execute(folder)
+  → 1회 프리페치 (배치 I/O 최적화):
+    → cachedVaultTags     ← vault.listAllTags().slice(0, 200)
+    → cachedAllNotes      ← vault.listNotes()
+    → cachedFolders       ← 노트 경로에서 추출
+    → cachedCanonicalIndex ← TagNormalizationService.buildCanonicalIndex()
+    → cachedTagEmbeddings ← aiProvider.callEmbedding() (전체 canonical 태그 일괄)
+  → 파일별 루프: OrganizeNoteUseCase.execute(path, autoApply, context)
+    → VaultAccessPort.read(path) → 노트 내용 읽기
+    → AIProviderPort.classify(content) → 분류/태그 추천
+    → TagNormalizationService.resolveToCanonical() → 태그 정규화
+    → sessionTags 누적 + 신규 태그 임베딩 증분 캐싱
+    → VaultAccessPort.write(path, updated) → 메타데이터 갱신
+  → HistoryPort.append(entry)
+  ← OrganizeFolderResult (processed, skipped, errors)
+```
+
+### Vault Maintenance (스마트 스케줄링 + TF-IDF 중복 + 태그 중복)
+
+```
+[Vault 이벤트: .md 변경] → ChangeTrackingPort.markDirty(path)
 
 [스케줄 타이머 fire]
   → smartScheduling && dirtySet.size === 0 → skip
   → RunMaintenanceUseCase.execute()
-    → findDuplicates():
+    → findDuplicates() (노트 중복):
       → CorpusStatsPort.loadStats() → TfIdfCorpus 복원
       → 제목 token Jaccard >= 0.4 → 후보 쌍 생성
       → 각 후보: TfIdfCorpus.cosineSimilarity(vecA, vecB) >= 0.6 → 중복 판정
       → CorpusStatsPort.saveStats()
+    → findDuplicateTags() (태그 중복, 2단계):
+      → Stage 1 — 문자열 정규화:
+        → vault.listAllTags() → {tag, count}[]
+        → TagNormalizationService.buildCanonicalIndex() → 정규화 키 그루핑
+        → 2+ variants 있는 그룹 → stringDuplicates
+      → Stage 2 — 임베딩 유사도 (opt-in):
+        → Stage 1 미탐지 canonical 태그 → callEmbedding() 일괄 호출
+        → 쌍별 cosineSimilarity >= 0.85 → embeddingDuplicates
+        → cap: MAX_EMBEDDING_TAGS = 500 (O(N²) 방지)
+      → 각 그룹별 affectedNotes 매핑
     → ChangeTrackingPort.clearAll() + setLastScanTimestamp(now)
-  ← MaintenanceResult (orphans, duplicates, broken links)
+  ← MaintenancePlan (orphans, duplicates, brokenLinks, duplicateTags)
+
+[병합 액션]
+  → ApplyMaintenanceActionUseCase.mergeDuplicateTags(action)
+    → 각 affectedNote frontmatter에서 variant → canonical 치환
+    → HistoryPort.append(entry)
 ```
 
 ### Embedding Sync (백그라운드 인덱싱)
