@@ -514,13 +514,19 @@ export class RunMaintenanceUseCase {
     // 2단계: 임베딩 유사도 그룹핑 (교차 언어) — 모든 canonical 그룹 비교
     let embeddingDuplicates: CanonicalTagGroup[] = [];
     if (this.aiProvider) {
-      const nonDuplicateGroups = canonicalGroups.filter(g =>
-        !stringDuplicates.includes(g),
-      );
-      embeddingDuplicates = await this.findSimilarByEmbedding(nonDuplicateGroups);
+      embeddingDuplicates = await this.findSimilarByEmbedding(canonicalGroups);
     }
 
-    const allDuplicateGroups = [...stringDuplicates, ...embeddingDuplicates];
+    // 임베딩 그룹에 흡수된 문자열 중복 그룹 제거 (중복 방지)
+    const absorbedKeys = new Set(
+      embeddingDuplicates.flatMap(g =>
+        g.variants.map(v => TagNormalizationService.normalizeForComparison(v.tag)),
+      ),
+    );
+    const unresolvedStringDups = stringDuplicates.filter(
+      g => !absorbedKeys.has(g.canonicalKey),
+    );
+    const allDuplicateGroups = [...unresolvedStringDups, ...embeddingDuplicates];
     if (allDuplicateGroups.length === 0) return [];
 
     // 노트별 태그 맵 구축 (모든 노트를 한 번만 읽음)

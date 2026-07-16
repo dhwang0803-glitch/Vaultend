@@ -29,6 +29,4 @@ export type {
   PluginSettings,
 } from './ConfigPort';
 
-export type { ClipboardPort } from './ClipboardPort';
-
 export type { ClockPort } from './ClockPort';

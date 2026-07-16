@@ -6,7 +6,7 @@ const ko: { [K in keyof typeof en]: string } = {
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
-  'command.captureClipboard': '클립보드 캡처',
+
   'command.organizeNote': '현재 노트 정리',
   'command.runMaintenance': '유지보수 실행',
   'command.organizeFolder': '폴더 정리',
@@ -14,8 +14,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'command.scanFolder': '이 폴더 유지보수 스캔',
 
   // ─── Notices ───
-  'notice.clipboardSaved': '클립보드 내용을 저장했습니다: {{path}}',
-  'notice.clipboardFailed': '클립보드 캡처 실패: {{error}}',
+
   'notice.organizeResult': '폴더: {{folder}} | 태그: {{tags}}',
   'notice.organizeFailed': '노트 정리 실패: {{error}}',
   'notice.organizeAlreadyRunning': '폴더 정리가 이미 실행 중입니다.',
@@ -225,8 +224,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.modelCustom': '직접 입력',
 
   'settings.organize': '정리',
-  'settings.captureFolder': '캡처 폴더',
-  'settings.captureFolderDesc': '클립보드 캡처 시 기본 저장 폴더',
+  'settings.captureFolder': '정리 대상 폴더',
+  'settings.captureFolderDesc': '폴더 정리 명령의 기본 대상 폴더',
   'settings.autoApply': '자동 적용',
   'settings.autoApplyDesc': '폴더 정리 결과를 자동으로 적용합니다.',
 

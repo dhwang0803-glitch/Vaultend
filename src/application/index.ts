@@ -30,8 +30,6 @@ export type {
   PluginSettings,
 } from './ports/ConfigPort';
 
-export type { ClipboardPort } from './ports/ClipboardPort';
-
 export type { ClockPort } from './ports/ClockPort';
 
 // Use Cases
@@ -42,6 +40,6 @@ export type { OrganizeFolderResult } from './usecases/RunInboxProcessUseCase';
 export { RunMaintenanceUseCase } from './usecases/RunMaintenanceUseCase';
 export { SaveNoteUseCase } from './usecases/SaveNoteUseCase';
 export type { SaveNoteRequest } from './usecases/SaveNoteUseCase';
-export { CaptureClipboardUseCase } from './usecases/CaptureClipboardUseCase';
+
 export { GetHistoryUseCase } from './usecases/GetHistoryUseCase';
 export type { HistoryFilter } from './usecases/GetHistoryUseCase';

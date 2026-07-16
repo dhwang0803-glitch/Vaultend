@@ -35,7 +35,7 @@ export const DEFAULT_LOCALE: 'auto' | 'en' | 'ko' = 'auto';
 
 /** 명령 ID */
 export const COMMAND_QUICK_ASK = 'quick-ask';
-export const COMMAND_CAPTURE_CLIPBOARD = 'capture-clipboard';
+
 export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';

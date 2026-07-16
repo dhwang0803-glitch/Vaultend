@@ -128,7 +128,7 @@ async function main() {
     else fail('Command Palette 커맨드 수', `expected >=5, got ${suggestions}`);
 
     const content = await page.locator('.prompt-results').textContent();
-    const commands = ['Quick Ask', '폴더 정리', '유지보수 실행', '현재 노트 정리', '클립보드 캡처', '유지보수 로그'];
+    const commands = ['Quick Ask', '폴더 정리', '유지보수 실행', '현재 노트 정리', '유지보수 로그'];
     for (const cmd of commands) {
       if (content.includes(cmd)) pass(`커맨드: "${cmd}"`);
       else fail(`커맨드: "${cmd}"`, 'not found');

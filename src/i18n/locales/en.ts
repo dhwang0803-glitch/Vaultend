@@ -4,7 +4,7 @@ const en = {
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
-  'command.captureClipboard': 'Capture Clipboard',
+
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
   'command.organizeFolder': 'Organize Folder',
@@ -12,8 +12,7 @@ const en = {
   'command.scanFolder': 'Scan this folder for maintenance',
 
   // ─── Notices ───
-  'notice.clipboardSaved': 'Clipboard saved: {{path}}',
-  'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
+
   'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
   'notice.organizeAlreadyRunning': 'Folder organizing is already running.',
@@ -225,8 +224,8 @@ const en = {
   'settings.modelCustom': 'Custom',
 
   'settings.organize': 'Organize',
-  'settings.captureFolder': 'Capture Folder',
-  'settings.captureFolderDesc': 'Default folder for clipboard captures',
+  'settings.captureFolder': 'Organize Folder',
+  'settings.captureFolderDesc': 'Default folder for Organize Folder command',
   'settings.autoApply': 'Auto Apply',
   'settings.autoApplyDesc': 'Automatically apply folder organizing results.',
 

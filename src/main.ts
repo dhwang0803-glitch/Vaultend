@@ -6,7 +6,7 @@ import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
 import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
 import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
-import { ObsidianClipboardAdapter } from './adapters/clipboard/ObsidianClipboardAdapter';
+
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
 import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackingAdapter';
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
@@ -19,7 +19,7 @@ import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase'
 import { OrganizeFolderUseCase } from './application/usecases/RunInboxProcessUseCase';
 import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseCase';
 import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
-import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
+
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
@@ -101,7 +101,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private aiAdapter!: AIProviderPort;
   private searchIndex!: JsonSearchIndexAdapter;
   private historyAdapter!: FileHistoryAdapter;
-  private clipboardAdapter!: ObsidianClipboardAdapter;
+
   private clockAdapter!: SystemClockAdapter;
   private changeTracker!: FileChangeTrackingAdapter;
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
@@ -117,7 +117,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private organizeFolderUseCase!: OrganizeFolderUseCase;
   private runMaintenanceUseCase!: RunMaintenanceUseCase;
   private saveNoteUseCase!: SaveNoteUseCase;
-  private captureClipboardUseCase!: CaptureClipboardUseCase;
+
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
   private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
@@ -236,7 +236,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.clockAdapter = new SystemClockAdapter();
     this.searchIndex = new JsonSearchIndexAdapter(this.vaultAdapter);
     this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
-    this.clipboardAdapter = new ObsidianClipboardAdapter();
+
     this.changeTracker = new FileChangeTrackingAdapter(this.vaultAdapter);
     this.corpusStatsAdapter = new FileCorpusStatsAdapter(this.vaultAdapter);
     this.vectorStoreAdapter = new JsonVectorStoreAdapter(this.vaultAdapter);
@@ -287,10 +287,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter,
     );
 
-    this.captureClipboardUseCase = new CaptureClipboardUseCase(
-      this.clipboardAdapter, this.saveNoteUseCase,
-      this.configPort, this.historyAdapter, this.clockAdapter,
-    );
 
     this.getHistoryUseCase = new GetHistoryUseCase(this.historyAdapter);
 
@@ -370,18 +366,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: 'capture-clipboard',
-      name: t('command.captureClipboard'),
-      callback: async () => {
-        try {
-          const path = await this.captureClipboardUseCase.execute();
-          new Notice(t('notice.clipboardSaved', { path: String(path) }));
-        } catch (err) {
-          new Notice(t('notice.clipboardFailed', { error: localizeError(err) }));
-        }
-      },
-    });
 
     this.addCommand({
       id: 'organize-current-note',
