@@ -700,9 +700,8 @@ export class MaintenanceResultView extends ItemView {
       .setClass('maintenance-batch-controls')
       .setName(t('batch.selectAll'));
 
-    const selectAllCheckbox = document.createElement('input');
-    selectAllCheckbox.type = 'checkbox';
-    selectAllCheckbox.className = 'maintenance-batch-checkbox maintenance-select-all';
+    const selectAllCheckbox = createEl('input', { type: 'checkbox' });
+    selectAllCheckbox.addClass('maintenance-batch-checkbox', 'maintenance-select-all');
     selectAllCheckbox.addEventListener('change', () => {
       entries.forEach(e => { e.checkbox.checked = selectAllCheckbox.checked; });
     });
@@ -736,9 +735,8 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private prependCheckbox(setting: Setting): HTMLInputElement {
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'maintenance-batch-checkbox';
+    const checkbox = createEl('input', { type: 'checkbox' });
+    checkbox.addClass('maintenance-batch-checkbox');
     setting.settingEl.prepend(checkbox);
     return checkbox;
   }

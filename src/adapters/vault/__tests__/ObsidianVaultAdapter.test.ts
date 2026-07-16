@@ -18,6 +18,9 @@ function createMockApp(overrides?: Record<string, any>) {
       }),
       read: vi.fn().mockResolvedValue('# Title\n\nContent'),
       modify: vi.fn().mockResolvedValue(undefined),
+      process: vi.fn(async (_file: any, fn: (data: string) => string) => {
+        fn('');
+      }),
       create: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
       createFolder: vi.fn().mockResolvedValue(undefined),
@@ -173,10 +176,10 @@ describe('ObsidianVaultAdapter', () => {
   });
 
   describe('writeNote', () => {
-    it('기존 파일이면 modify를 호출한다', async () => {
+    it('기존 파일이면 process를 호출한다', async () => {
       addFile(app, 'existing.md');
       await adapter.writeNote(np('existing.md'), 'new content');
-      expect(app.vault.modify).toHaveBeenCalled();
+      expect(app.vault.process).toHaveBeenCalled();
     });
 
     it('파일이 없으면 create를 호출한다', async () => {
