@@ -14,6 +14,7 @@ import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
+const NON_TEXT_EXTENSIONS = ['.excalidraw.md', '.canvas'];
 
 export interface MaintenanceScanOptions {
   readonly folder?: string;
@@ -72,9 +73,11 @@ export class RunMaintenanceUseCase {
   ): ReadonlyArray<NotePath> {
     const excludeFolders = (settings.maintenanceExcludeFolders ?? [])
       .map(f => f.replace(/\/+$/, ''));
-    const excludeFilePatterns = settings.maintenanceExcludeFiles ?? [];
-
     let filtered = allNotes;
+
+    filtered = filtered.filter(
+      np => !NON_TEXT_EXTENSIONS.some(ext => (np as string).toLowerCase().endsWith(ext)),
+    );
 
     if (excludeFolders.length > 0) {
       filtered = filtered.filter(
@@ -82,21 +85,7 @@ export class RunMaintenanceUseCase {
       );
     }
 
-    if (excludeFilePatterns.length > 0) {
-      filtered = filtered.filter(
-        np => !excludeFilePatterns.some(pattern => this.matchGlob(np as string, pattern)),
-      );
-    }
-
     return filtered;
-  }
-
-  private matchGlob(path: string, pattern: string): boolean {
-    const escaped = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
-    return new RegExp(`^${escaped}$`, 'i').test(path);
   }
 
   private async applyTagExclusion(
