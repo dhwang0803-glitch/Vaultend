@@ -117,20 +117,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.isCustomMode = false;
     this.renderModelSetting(containerEl);
 
-    // --- Organize ---
+    // --- Organize Folder ---
     containerEl.createEl('h3', { text: t('settings.organize') });
-
-    new Setting(containerEl)
-      .setName(t('settings.captureFolder'))
-      .setDesc(t('settings.captureFolderDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('Inbox')
-          .setValue(this.settings!.captureFolder)
-          .onChange(async (value) => {
-            await this.config.updateSettings({ captureFolder: value });
-          });
-      });
 
     new Setting(containerEl)
       .setName(t('settings.autoApply'))
@@ -191,6 +179,10 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     // --- Maintenance ---
     containerEl.createEl('h3', { text: t('settings.maintenance') });
+    containerEl.createEl('p', {
+      text: t('settings.maintenanceScopeNote'),
+      cls: 'setting-item-description',
+    });
 
     new Setting(containerEl)
       .setName(t('settings.autoMaintenance'))
@@ -231,20 +223,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .onChange(async (value) => {
             const parsed = value.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(s => s.length > 0);
             await this.config.updateSettings({ maintenanceExcludeFolders: parsed });
-          });
-      });
-
-    new Setting(containerEl)
-      .setName(t('settings.excludeFiles'))
-      .setDesc(t('settings.excludeFilesDesc'))
-      .addText(text => {
-        const patterns = this.settings!.maintenanceExcludeFiles ?? [];
-        text
-          .setPlaceholder('*.excalidraw.md, README.md')
-          .setValue(patterns.join(', '))
-          .onChange(async (value) => {
-            const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-            await this.config.updateSettings({ maintenanceExcludeFiles: parsed });
           });
       });
 
