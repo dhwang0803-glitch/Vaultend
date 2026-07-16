@@ -247,10 +247,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     // --- Privacy ---
     containerEl.createEl('h3', { text: t('settings.privacy') });
-    containerEl.createEl('p', {
-      text: t('settings.privacyDesc'),
-      cls: 'setting-item-description',
-    });
+    new Setting(containerEl)
+      .setDesc(t('settings.privacyDesc'));
 
     const rulesContainer = containerEl.createDiv();
     this.renderPrivacyRules(rulesContainer);
@@ -402,9 +400,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
     },
   ): void {
     const wrapper = containerEl.createDiv({ cls: 'setting-item vaultend-chip-setting' });
-    const info = wrapper.createDiv({ cls: 'setting-item-info' });
-    info.createEl('div', { text: opts.label, cls: 'setting-item-name' });
-    info.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
+    wrapper.createEl('div', { text: opts.label, cls: 'setting-item-name' });
+    wrapper.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
 
     const chipContainer = wrapper.createDiv({ cls: 'vaultend-chip-container' });
 

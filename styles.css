@@ -862,12 +862,9 @@
 
 /* Chip Setting UI */
 .vaultend-chip-setting {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
-}
-
-.vaultend-chip-setting .setting-item-info {
-  width: 100%;
 }
 
 .vaultend-chip-container {
