@@ -9,6 +9,7 @@ export const HISTORY_CHANGED_EVENT = 'vaultend:history-changed';
 export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
 export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';
 export const ORGANIZE_FOLDER_VIEW_TYPE = 'vaultend-organize-folder';
+export const ORGANIZE_VAULT_VIEW_TYPE = 'vaultend-organize-vault';
 
 /** 플러그인 내부 데이터 폴더 경로 */
 export const PLUGIN_DATA_FOLDER = '.vaultend';
@@ -17,6 +18,7 @@ export const DIRTY_SET_PATH = `${PLUGIN_DATA_FOLDER}/dirty-set.json`;
 export const TFIDF_CORPUS_PATH = `${PLUGIN_DATA_FOLDER}/tfidf-corpus.json`;
 export const EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/embeddings.json`;
 export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
+export const ORGANIZE_VAULT_FOLDER = `${PLUGIN_DATA_FOLDER}/organize-vault`;
 
 /** 기본 설정값 */
 export const DEFAULT_SAVE_FOLDER = 'QuickAsk';

@@ -29,6 +29,18 @@ const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = 
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
   ],
+  ollama: [
+    { id: 'llama3.2', label: 'Llama 3.2' },
+    { id: 'llama3.1', label: 'Llama 3.1' },
+    { id: 'mistral', label: 'Mistral' },
+    { id: 'gemma2', label: 'Gemma 2' },
+    { id: 'qwen2.5', label: 'Qwen 2.5' },
+    { id: 'phi3', label: 'Phi-3' },
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', label: 'DeepSeek Chat' },
+    { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
+  ],
 };
 
 const CUSTOM_MODEL_VALUE = '__custom__';
@@ -37,6 +49,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
   private modelSettingEl: HTMLElement | null = null;
   private modelAnchorEl: HTMLElement | null = null;
+  private providerSettingsContainerEl: HTMLElement | null = null;
   private isCustomMode = false;
 
   constructor(
@@ -91,36 +104,29 @@ export class PluginSettingTab extends ObsidianSettingTab {
         dropdown
           .addOption('openai', 'OpenAI')
           .addOption('gemini', 'Google Gemini')
+          .addOption('ollama', 'Ollama (Local)')
+          .addOption('deepseek', 'DeepSeek')
+          .addOption('custom', 'Custom (OpenAI-compatible)')
           .setValue(this.settings!.aiProvider)
           .onChange(async (value) => {
             await this.config.updateSettings({
-              aiProvider: value as 'openai' | 'gemini',
+              aiProvider: value as PluginSettings['aiProvider'],
             });
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
-            if (this.modelSettingEl) {
-              this.renderModelSetting(this.modelSettingEl.parentElement!);
-            }
+            this.display();
           });
       });
 
-    new Setting(containerEl)
-      .setName(t('settings.apiKey'))
-      .setDesc(t('settings.apiKeyDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('sk-...')
-          .setValue(this.settings!.aiApiKey)
-          .onChange(async (value) => {
-            await this.config.updateSettings({ aiApiKey: value });
-          });
-        text.inputEl.type = 'password';
-      });
+    this.providerSettingsContainerEl = containerEl.createDiv();
+    this.renderProviderSettings(this.providerSettingsContainerEl);
 
     this.modelAnchorEl = containerEl.createDiv();
     this.modelAnchorEl.addClass('vaultend-model-anchor');
     this.isCustomMode = false;
-    this.renderModelSetting(containerEl);
+    if (this.settings.aiProvider === 'openai' || this.settings.aiProvider === 'gemini') {
+      this.renderModelSetting(containerEl);
+    }
 
     // --- Organize Folder ---
     containerEl.createEl('h3', { text: t('settings.organize') });
@@ -352,6 +358,114 @@ export class PluginSettingTab extends ObsidianSettingTab {
       setting.setName(rule.name);
     }
     setting.settingEl.addClass('vaultend-privacy-rule');
+  }
+
+  private renderProviderSettings(containerEl: HTMLElement): void {
+    containerEl.empty();
+    const provider = this.settings!.aiProvider;
+
+    if (provider === 'openai' || provider === 'gemini') {
+      new Setting(containerEl)
+        .setName(t('settings.apiKey'))
+        .setDesc(t('settings.apiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('sk-...')
+            .setValue(this.settings!.aiApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ aiApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+    }
+
+    if (provider === 'ollama') {
+      new Setting(containerEl)
+        .setName(t('settings.ollamaBaseUrl'))
+        .setDesc(t('settings.ollamaBaseUrlDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('http://localhost:11434')
+            .setValue(this.settings!.ollamaBaseUrl)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ ollamaBaseUrl: value });
+            });
+        });
+      new Setting(containerEl)
+        .setName(t('settings.model'))
+        .setDesc(t('settings.modelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('llama3.2')
+            .setValue(this.settings!.aiModel || 'llama3.2')
+            .onChange(async (value) => {
+              await this.config.updateSettings({ aiModel: value });
+            });
+        });
+    }
+
+    if (provider === 'deepseek') {
+      new Setting(containerEl)
+        .setName(t('settings.deepseekApiKey'))
+        .setDesc(t('settings.deepseekApiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('sk-...')
+            .setValue(this.settings!.deepseekApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ deepseekApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+      new Setting(containerEl)
+        .setName(t('settings.deepseekModel'))
+        .setDesc(t('settings.deepseekModelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('deepseek-chat')
+            .setValue(this.settings!.deepseekModel)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ deepseekModel: value });
+            });
+        });
+    }
+
+    if (provider === 'custom') {
+      new Setting(containerEl)
+        .setName(t('settings.customBaseUrl'))
+        .setDesc(t('settings.customBaseUrlDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('http://localhost:1234')
+            .setValue(this.settings!.customBaseUrl)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customBaseUrl: value });
+            });
+        });
+      new Setting(containerEl)
+        .setName(t('settings.customApiKey'))
+        .setDesc(t('settings.customApiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('(optional)')
+            .setValue(this.settings!.customApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+      new Setting(containerEl)
+        .setName(t('settings.customModel'))
+        .setDesc(t('settings.customModelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('model-name')
+            .setValue(this.settings!.customModel)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customModel: value });
+            });
+        });
+    }
   }
 
   private renderModelSetting(parentEl: HTMLElement): void {

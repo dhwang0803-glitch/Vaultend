@@ -24,6 +24,9 @@ import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
+import { GenerateOrganizeVaultUseCase } from './application/usecases/GenerateOrganizeVaultUseCase';
+import { ApplyOrganizeVaultUseCase } from './application/usecases/ApplyOrganizeVaultUseCase';
+import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrganizeVaultUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
@@ -32,6 +35,8 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
+import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
+import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -70,6 +75,12 @@ const DEFAULT_SETTINGS: PluginSettings = {
   aiModel: DEFAULT_AI_MODEL,
   aiMaxTokens: DEFAULT_AI_MAX_TOKENS,
   aiTemperature: DEFAULT_AI_TEMPERATURE,
+  ollamaBaseUrl: 'http://localhost:11434',
+  deepseekApiKey: '',
+  deepseekModel: 'deepseek-chat',
+  customBaseUrl: '',
+  customApiKey: '',
+  customModel: '',
   captureFolder: 'Inbox',
   autoApplyOrganize: false,
   defaultSaveFolder: DEFAULT_SAVE_FOLDER,
@@ -114,6 +125,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private embeddingAdapter!: AIEmbeddingAdapter;
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
   private licenseAdapter!: LicensePort;
+  private organizeVaultAdapter!: FileOrganizeVaultAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -128,6 +140,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
   private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
+  private generateOrganizeVaultUseCase!: GenerateOrganizeVaultUseCase;
+  private applyOrganizeVaultUseCase!: ApplyOrganizeVaultUseCase;
+  private rollbackOrganizeVaultUseCase!: RollbackOrganizeVaultUseCase;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -275,6 +290,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // License adapter — local key validation, swappable for server validation later
     this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
+
+    // Organize Vault adapter — file-based storage for OrganizeVault plans
+    this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
   }
 
   private wireUseCases(): void {
@@ -318,6 +336,21 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.syncEmbeddingsUseCase = new SyncEmbeddingsUseCase(
       this.embeddingAdapter, this.vectorStoreAdapter,
       this.vaultAdapter, this.changeTracker,
+    );
+
+    this.generateOrganizeVaultUseCase = new GenerateOrganizeVaultUseCase(
+      this.clockAdapter, this.vaultAdapter,
+      this.searchIndex, this.organizeVaultAdapter,
+      this.aiAdapter, this.configPort,
+    );
+
+    this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
+      this.vaultAdapter, this.historyAdapter,
+      this.clockAdapter, this.organizeVaultAdapter, this.configPort,
+    );
+
+    this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
+      this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
     );
   }
 
@@ -364,6 +397,22 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
         },
         (v: boolean) => { this.isOrganizing = v; },
+      ),
+    );
+
+    this.registerView(
+      ORGANIZE_VAULT_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeVaultView(
+        leaf,
+        this.runMaintenanceUseCase,
+        this.generateOrganizeVaultUseCase,
+        this.applyOrganizeVaultUseCase,
+        this.rollbackOrganizeVaultUseCase,
+        this.organizeVaultAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
       ),
     );
   }
@@ -433,10 +482,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: t('command.runMaintenance'),
       callback: async () => {
-        await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-        const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+        await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
         if (leaves.length > 0) {
-          const view = leaves[0].view as MaintenanceResultView;
+          const view = leaves[0].view as OrganizeVaultView;
           await view.triggerScan();
         }
       },
@@ -517,11 +566,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .setTitle(t('command.scanFolder'))
             .setIcon('shield-check')
             .onClick(async () => {
-              await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-              const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+              await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
               if (leaves.length > 0) {
-                const view = leaves[0].view as MaintenanceResultView;
-                view.triggerScanForFolder(file.path);
+                const view = leaves[0].view as OrganizeVaultView;
+                await view.triggerScan(file.path);
               }
             });
         });
@@ -609,21 +658,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.maintenanceInterval = null;
         return;
       }
-      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+      const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
       if (leaves.length > 0) {
-        const view = leaves[0].view as MaintenanceResultView;
-        if (view.isRestoreInProgress()) return;
+        const view = leaves[0].view as OrganizeVaultView;
+        if (view.isScanInProgress()) return;
       }
       this.isMaintenanceRunning = true;
       try {
         if (this.settings.smartScheduling && !firstRun) {
-          const canUseSmart = await this.licenseAdapter.canUseFeature('smart-scheduling');
-          if (canUseSmart) {
-            const lastScan = await this.changeTracker.getLastScanTimestamp();
-            if (lastScan !== null) {
-              const dirtySet = await this.changeTracker.getDirtySet();
-              if (dirtySet.size === 0) return;
-            }
+          const lastScan = await this.changeTracker.getLastScanTimestamp();
+          if (lastScan !== null) {
+            const dirtySet = await this.changeTracker.getDirtySet();
+            if (dirtySet.size === 0) return;
           }
         }
         firstRun = false;
@@ -638,7 +684,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerInterval(this.maintenanceInterval);
   }
 
-  private showMaintenancePlanIfNeeded(plan: MaintenancePlan): void {
+  private async showMaintenancePlanIfNeeded(plan: MaintenancePlan): Promise<void> {
     const totalIssues = plan.orphanNotes.length
       + plan.duplicateCandidates.length
       + plan.brokenLinks.length
@@ -647,12 +693,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       + plan.untaggedNotes.length;
     if (totalIssues === 0) return;
 
-    const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+    const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(plan);
+    const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
     if (leaves.length > 0) {
-      const view = leaves[0].view as MaintenanceResultView;
+      const view = leaves[0].view as OrganizeVaultView;
       if (view.isScanInProgress()) return;
-      if (view.isRestoreInProgress()) return;
-      view.showPlan(plan);
+      view.showPlan(organizeVaultPlan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
   }

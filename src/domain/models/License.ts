@@ -2,9 +2,7 @@ export type LicenseTier = 'free' | 'pro';
 
 export type ProFeatureId =
   | 'organize-folder'
-  | 'auto-maintenance'
-  | 'smart-scheduling'
-  | 'batch-merge-tags';
+  | 'auto-maintenance';
 
 export interface LicenseStatus {
   readonly tier: LicenseTier;
@@ -19,6 +17,4 @@ export const PRO_FEATURES: ReadonlyArray<{
 }> = [
   { id: 'organize-folder', i18nKey: 'pro.organizeFolder' },
   { id: 'auto-maintenance', i18nKey: 'pro.autoMaintenance' },
-  { id: 'smart-scheduling', i18nKey: 'pro.smartScheduling' },
-  { id: 'batch-merge-tags', i18nKey: 'pro.batchMergeTags' },
 ];

@@ -671,10 +671,6 @@ export class MaintenanceResultView extends ItemView {
         .setButtonText(t('btn.mergeTags'))
         .setCta()
         .onClick(async () => {
-          if (!await this.licensePort.canUseFeature('batch-merge-tags')) {
-            new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
-            return;
-          }
           this.executeAction(
             {
               kind: 'merge-duplicate-tags',
@@ -850,12 +846,6 @@ export class MaintenanceResultView extends ItemView {
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
-      return;
-    }
-
-    const hasMerge = selected.some(e => e.action.kind === 'merge-duplicate-tags');
-    if (hasMerge && !await this.licensePort.canUseFeature('batch-merge-tags')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
       return;
     }
 

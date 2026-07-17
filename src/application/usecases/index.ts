@@ -12,3 +12,8 @@ export type { SaveNoteRequest } from './SaveNoteUseCase';
 export { GetHistoryUseCase } from './GetHistoryUseCase';
 export type { HistoryFilter } from './GetHistoryUseCase';
 export { ApplyMaintenanceActionUseCase } from './ApplyMaintenanceActionUseCase';
+export { GenerateOrganizeVaultUseCase } from './GenerateOrganizeVaultUseCase';
+export { ApplyOrganizeVaultUseCase } from './ApplyOrganizeVaultUseCase';
+export type { ApplyOrganizeVaultResult } from './ApplyOrganizeVaultUseCase';
+export { RollbackOrganizeVaultUseCase } from './RollbackOrganizeVaultUseCase';
+export type { RollbackOrganizeVaultResult } from './RollbackOrganizeVaultUseCase';

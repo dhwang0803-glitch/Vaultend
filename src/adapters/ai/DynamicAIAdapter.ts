@@ -4,6 +4,8 @@ import type { AIProviderPort, CompletionRequest, CompletionResponse,
 import type { ConfigPort } from '../../application/ports/ConfigPort';
 import { OpenAIAdapter } from './OpenAIAdapter';
 import { GeminiAdapter } from './GeminiAdapter';
+import { OllamaAdapter } from './OllamaAdapter';
+import { OpenAICompatAdapter } from './OpenAICompatAdapter';
 
 export class DynamicAIAdapter implements AIProviderPort {
   private cachedAdapter: AIProviderPort | null = null;
@@ -28,7 +30,7 @@ export class DynamicAIAdapter implements AIProviderPort {
 
   private async resolveAdapter(): Promise<AIProviderPort> {
     const settings = await this.config.getSettings();
-    const key = `${settings.aiProvider}:${settings.aiApiKey}:${settings.aiModel}`;
+    const key = this.buildCacheKey(settings);
     if (this.cachedAdapter && this.cachedKey === key) {
       return this.cachedAdapter;
     }
@@ -37,10 +39,47 @@ export class DynamicAIAdapter implements AIProviderPort {
       case 'gemini':
         this.cachedAdapter = new GeminiAdapter(settings.aiApiKey, settings.aiModel);
         break;
+      case 'ollama':
+        this.cachedAdapter = new OllamaAdapter(
+          settings.ollamaBaseUrl || 'http://localhost:11434',
+          settings.aiModel || 'llama3.2',
+        );
+        break;
+      case 'deepseek':
+        this.cachedAdapter = new OpenAICompatAdapter(
+          'https://api.deepseek.com',
+          settings.deepseekApiKey || settings.aiApiKey,
+          settings.deepseekModel || 'deepseek-chat',
+          'DeepSeek',
+          false,
+        );
+        break;
+      case 'custom':
+        this.cachedAdapter = new OpenAICompatAdapter(
+          settings.customBaseUrl,
+          settings.customApiKey,
+          settings.customModel,
+          'custom',
+          true,
+        );
+        break;
       default:
         this.cachedAdapter = new OpenAIAdapter(settings.aiApiKey, settings.aiModel);
     }
     this.cachedKey = key;
     return this.cachedAdapter;
+  }
+
+  private buildCacheKey(settings: { aiProvider: string; aiApiKey: string; aiModel: string; ollamaBaseUrl: string; deepseekApiKey: string; deepseekModel: string; customBaseUrl: string; customApiKey: string; customModel: string }): string {
+    switch (settings.aiProvider) {
+      case 'ollama':
+        return `ollama:${settings.ollamaBaseUrl}:${settings.aiModel}`;
+      case 'deepseek':
+        return `deepseek:${settings.deepseekApiKey || settings.aiApiKey}:${settings.deepseekModel}`;
+      case 'custom':
+        return `custom:${settings.customBaseUrl}:${settings.customApiKey}:${settings.customModel}`;
+      default:
+        return `${settings.aiProvider}:${settings.aiApiKey}:${settings.aiModel}`;
+    }
   }
 }

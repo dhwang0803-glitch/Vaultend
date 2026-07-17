@@ -980,3 +980,276 @@
   margin-top: -8px;
   margin-bottom: 12px;
 }
+
+/* ─── Vault PR View ─── */
+
+.vaultend-organize-vault-container {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.vaultend-organize-vault-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+}
+
+.vaultend-organize-vault-scanning {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.vaultend-organize-vault-error {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-error);
+}
+
+.vaultend-organize-vault-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vaultend-organize-vault-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vaultend-organize-vault-title-row h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.vaultend-organize-vault-status-badge {
+  font-size: var(--font-ui-smaller);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.vaultend-organize-vault-status-draft {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.vaultend-organize-vault-status-applied {
+  background: var(--background-modifier-success);
+  color: var(--text-success);
+}
+
+.vaultend-organize-vault-status-rolled-back {
+  background: var(--background-modifier-error);
+  color: var(--text-error);
+}
+
+.vaultend-organize-vault-summary,
+.vaultend-organize-vault-type-summary {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.vaultend-organize-vault-proposals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vaultend-organize-vault-proposal-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--background-primary);
+  transition: border-color 0.15s;
+}
+
+.vaultend-organize-vault-proposal-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.vaultend-organize-vault-confidence-high {
+  border-left: 3px solid var(--text-success);
+}
+
+.vaultend-organize-vault-confidence-medium {
+  border-left: 3px solid var(--text-warning);
+}
+
+.vaultend-organize-vault-confidence-low {
+  border-left: 3px solid var(--text-faint);
+}
+
+.vaultend-organize-vault-proposal-approved {
+  opacity: 0.85;
+  background: color-mix(in srgb, var(--text-success) 5%, var(--background-primary));
+}
+
+.vaultend-organize-vault-proposal-rejected {
+  opacity: 0.5;
+}
+
+.vaultend-organize-vault-proposal-applied {
+  opacity: 0.6;
+}
+
+.vaultend-organize-vault-proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.vaultend-organize-vault-proposal-index {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
+
+.vaultend-organize-vault-proposal-type {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+}
+
+.vaultend-organize-vault-confidence-badge {
+  font-size: var(--font-ui-smaller);
+  margin-left: auto;
+  font-weight: 500;
+}
+
+.vaultend-organize-vault-proposal-target {
+  margin-bottom: 6px;
+}
+
+.vaultend-organize-vault-file-link {
+  font-size: var(--font-ui-small);
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.vaultend-organize-vault-file-link:hover {
+  text-decoration: underline;
+}
+
+.vaultend-organize-vault-diffs {
+  background: var(--background-secondary);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+  font-size: var(--font-ui-smaller);
+  font-family: var(--font-monospace);
+  overflow-x: auto;
+}
+
+.vaultend-organize-vault-diff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.vaultend-organize-vault-diff-field {
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 60px;
+}
+
+.vaultend-organize-vault-diff-before {
+  color: var(--text-error);
+  text-decoration: line-through;
+}
+
+.vaultend-organize-vault-diff-arrow {
+  color: var(--text-faint);
+}
+
+.vaultend-organize-vault-diff-after {
+  color: var(--text-success);
+}
+
+.vaultend-organize-vault-rationale {
+  margin-bottom: 6px;
+}
+
+.vaultend-organize-vault-rationale-text {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.vaultend-organize-vault-affected {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.vaultend-organize-vault-proposal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vaultend-organize-vault-btn-approve {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+}
+
+.vaultend-organize-vault-btn-approve:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.vaultend-organize-vault-btn-reject {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+}
+
+.vaultend-organize-vault-btn-reject:hover {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+.vaultend-organize-vault-proposal-status-approved {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-success);
+  font-weight: 600;
+}
+
+.vaultend-organize-vault-proposal-status-rejected {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+  font-weight: 600;
+}
+
+.vaultend-organize-vault-actions-bar {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vaultend-organize-vault-actions-bar .setting-item {
+  border: none;
+  padding: 0;
+}

@@ -45,3 +45,21 @@ export type {
   DismissIssue,
   MaintenanceIssueType,
 } from './MaintenanceAction';
+export type {
+  OrganizeVaultPlan,
+  OrganizeVaultProposal,
+  OrganizeVaultStatus,
+  ProposalStatus,
+  ProposalType,
+  ConfidenceLevel,
+  ProposalDiff,
+} from './OrganizeVaultPlan';
+export {
+  createOrganizeVaultPlan,
+  createProposal,
+  classifyConfidence,
+  withProposalStatus,
+  withPlanStatus,
+  getApprovedProposals,
+  countByType,
+} from './OrganizeVaultPlan';
