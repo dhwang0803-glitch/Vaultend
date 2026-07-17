@@ -10,7 +10,7 @@ Vaultend/
 ├── src/                    # 플러그인 소스 (Clean Architecture)
 │   ├── domain/             #   도메인 레이어 (values, models, errors, services)
 │   ├── application/        #   앱 레이어 (ports, usecases)
-│   ├── adapters/           #   어댑터 레이어 (vault, ai, search, history, clipboard,
+│   ├── adapters/           #   어댑터 레이어 (vault, ai, search, history,
 │   │                       #     clock, embedding, vectorstore, tracking, corpus)
 │   ├── ui/                 #   UI 레이어 (Modal, View, SettingTab)
 │   ├── benchmark/          #   검색 품질 벤치마크 (golden set)
