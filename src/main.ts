@@ -160,6 +160,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private maintenanceInterval: number | null = null;
   private isMaintenanceRunning = false;
   private isOrganizing = false;
+  private embeddingInitGeneration = 0;
 
   async onload(): Promise<void> {
     console.log('Vaultend Plugin: loading');
@@ -189,9 +190,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
       this.scheduleMaintenanceIfEnabled();
     }, this.preferenceAdapter, async () => {
-      await this.reinitializeEmbeddings();
-      if (this.embeddingAdapter.isReady()) {
-        this.syncEmbeddingsBackground();
+      const gen = ++this.embeddingInitGeneration;
+      try {
+        await this.reinitializeEmbeddings(gen);
+        if (gen !== this.embeddingInitGeneration) return;
+        if (this.embeddingAdapter.isReady()) {
+          this.syncEmbeddingsBackground();
+        }
+      } catch (err) {
+        console.error('Vaultend: AI config change re-initialization failed', err);
       }
     }));
 
@@ -255,24 +262,38 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     }
   }
 
-  private async reinitializeEmbeddings(): Promise<void> {
+  private getEmbeddingModelId(): string {
+    const s = this.settings;
+    if (s.embeddingsModel) return s.embeddingsModel;
+    switch (s.aiProvider) {
+      case 'gemini': return 'gemini-embedding-001';
+      case 'ollama': return 'nomic-embed-text';
+      case 'deepseek': return 'default';
+      case 'custom': return s.customModel || 'default';
+      default: return 'text-embedding-3-small';
+    }
+  }
+
+  private async reinitializeEmbeddings(generation?: number): Promise<void> {
     await this.embeddingAdapter.initialize();
     if (!this.embeddingAdapter.isReady()) return;
+    if (generation !== undefined && generation !== this.embeddingInitGeneration) return;
 
     const dim = this.embeddingAdapter.getDimension();
     const provider = this.settings.aiProvider;
+    const model = this.getEmbeddingModelId();
 
-    if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
-      console.log('Vaultend: embedding provider/dimension changed, rebuilding index');
+    if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim, model)) {
+      console.log('Vaultend: embedding config changed, rebuilding index');
       await this.vectorStoreAdapter.clear();
     }
-    this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
+    this.vectorStoreAdapter.setMeta({ provider, dimension: dim, model });
 
     if (this.tagEmbeddingCacheAdapter.size() > 0
-      && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim)) {
+      && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim, model)) {
       await this.tagEmbeddingCacheAdapter.clear();
     }
-    this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim });
+    this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim, model });
   }
 
   private async loadSettings(): Promise<void> {

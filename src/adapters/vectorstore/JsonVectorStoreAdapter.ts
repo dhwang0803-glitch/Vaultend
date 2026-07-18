@@ -13,6 +13,7 @@ interface StoredEntry {
 export interface VectorStoreMeta {
   readonly provider: string;
   readonly dimension: number;
+  readonly model?: string;
   readonly version: number;
 }
 
@@ -123,14 +124,16 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     return this.meta;
   }
 
-  setMeta(meta: Pick<VectorStoreMeta, 'provider' | 'dimension'>): void {
+  setMeta(meta: Pick<VectorStoreMeta, 'provider' | 'dimension'> & { model?: string }): void {
     this.meta = { ...meta, version: SCHEMA_VERSION };
     this.dirty = true;
   }
 
-  isCompatible(provider: string, dimension: number): boolean {
+  isCompatible(provider: string, dimension: number, model?: string): boolean {
     if (!this.meta) return false;
-    return this.meta.provider === provider && this.meta.dimension === dimension;
+    if (this.meta.provider !== provider || this.meta.dimension !== dimension) return false;
+    if (model !== undefined && this.meta.model !== model) return false;
+    return true;
   }
 
   async clearEntries(): Promise<void> {

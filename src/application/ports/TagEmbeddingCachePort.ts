@@ -1,6 +1,7 @@
 export interface TagEmbeddingCacheMeta {
   readonly provider: string;
   readonly dimension: number;
+  readonly model?: string;
   readonly version: number;
 }
 
@@ -14,8 +15,8 @@ export interface TagEmbeddingCachePort {
   delete(tag: string): void;
   retainOnly(validTags: ReadonlyArray<string>): void;
   getMeta(): TagEmbeddingCacheMeta | null;
-  setMeta(meta: Pick<TagEmbeddingCacheMeta, 'provider' | 'dimension'>): void;
-  isCompatible(provider: string, dimension: number): boolean;
+  setMeta(meta: Pick<TagEmbeddingCacheMeta, 'provider' | 'dimension'> & { model?: string }): void;
+  isCompatible(provider: string, dimension: number, model?: string): boolean;
   clear(): Promise<void>;
   size(): number;
 }

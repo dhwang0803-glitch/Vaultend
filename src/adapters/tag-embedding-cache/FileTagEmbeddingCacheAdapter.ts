@@ -108,14 +108,16 @@ export class FileTagEmbeddingCacheAdapter implements TagEmbeddingCachePort {
     return this.meta;
   }
 
-  setMeta(meta: Pick<TagEmbeddingCacheMeta, 'provider' | 'dimension'>): void {
+  setMeta(meta: Pick<TagEmbeddingCacheMeta, 'provider' | 'dimension'> & { model?: string }): void {
     this.meta = { ...meta, version: SCHEMA_VERSION };
     this.dirty = true;
   }
 
-  isCompatible(provider: string, dimension: number): boolean {
+  isCompatible(provider: string, dimension: number, model?: string): boolean {
     if (!this.meta) return false;
-    return this.meta.provider === provider && this.meta.dimension === dimension;
+    if (this.meta.provider !== provider || this.meta.dimension !== dimension) return false;
+    if (model !== undefined && this.meta.model !== model) return false;
+    return true;
   }
 
   async clear(): Promise<void> {

@@ -52,6 +52,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
   private modelAnchorEl: HTMLElement | null = null;
   private providerSettingsContainerEl: HTMLElement | null = null;
   private isCustomMode = false;
+  private aiConfigDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     app: App,
@@ -60,9 +61,17 @@ export class PluginSettingTab extends ObsidianSettingTab {
     private readonly licensePort: LicensePort,
     private readonly onMaintenanceSettingsChanged?: () => void,
     private readonly preference?: PreferencePort,
-    private readonly onAIProviderChanged?: () => void,
+    private readonly onAIConfigChanged?: () => void,
   ) {
     super(app, plugin);
+  }
+
+  private scheduleAIConfigChanged(): void {
+    if (this.aiConfigDebounceTimer) clearTimeout(this.aiConfigDebounceTimer);
+    this.aiConfigDebounceTimer = setTimeout(() => {
+      this.aiConfigDebounceTimer = null;
+      this.onAIConfigChanged?.();
+    }, 1500);
   }
 
   async display(): Promise<void> {
@@ -117,7 +126,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             });
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
-            this.onAIProviderChanged?.();
+            this.scheduleAIConfigChanged();
             this.display();
           });
       });
@@ -566,6 +575,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.aiApiKey)
             .onChange(async (value) => {
               await this.config.updateSettings({ aiApiKey: value });
+              this.scheduleAIConfigChanged();
             });
           text.inputEl.type = 'password';
         });
@@ -581,6 +591,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.ollamaBaseUrl)
             .onChange(async (value) => {
               await this.config.updateSettings({ ollamaBaseUrl: value });
+              this.scheduleAIConfigChanged();
             });
         });
       new Setting(containerEl)
@@ -592,6 +603,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.aiModel || 'llama3.2')
             .onChange(async (value) => {
               await this.config.updateSettings({ aiModel: value });
+              this.scheduleAIConfigChanged();
             });
         });
     }
@@ -606,6 +618,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.deepseekApiKey)
             .onChange(async (value) => {
               await this.config.updateSettings({ deepseekApiKey: value });
+              this.scheduleAIConfigChanged();
             });
           text.inputEl.type = 'password';
         });
@@ -618,6 +631,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.deepseekModel)
             .onChange(async (value) => {
               await this.config.updateSettings({ deepseekModel: value });
+              this.scheduleAIConfigChanged();
             });
         });
     }
@@ -632,6 +646,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.customBaseUrl)
             .onChange(async (value) => {
               await this.config.updateSettings({ customBaseUrl: value });
+              this.scheduleAIConfigChanged();
             });
         });
       new Setting(containerEl)
@@ -643,6 +658,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.customApiKey)
             .onChange(async (value) => {
               await this.config.updateSettings({ customApiKey: value });
+              this.scheduleAIConfigChanged();
             });
           text.inputEl.type = 'password';
         });
@@ -655,6 +671,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .setValue(this.settings!.customModel)
             .onChange(async (value) => {
               await this.config.updateSettings({ customModel: value });
+              this.scheduleAIConfigChanged();
             });
         });
     }
@@ -691,6 +708,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
         this.isCustomMode = false;
         await this.config.updateSettings({ aiModel: value });
         this.settings = await this.config.getSettings();
+        this.scheduleAIConfigChanged();
         this.renderModelSetting(parentEl);
       });
     });
@@ -702,6 +720,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .setValue(isKnownModel ? '' : currentModel)
           .onChange(async (value) => {
             await this.config.updateSettings({ aiModel: value });
+            this.scheduleAIConfigChanged();
           });
       });
     }
