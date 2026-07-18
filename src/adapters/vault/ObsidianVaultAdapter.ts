@@ -119,19 +119,14 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async listAllTags(): Promise<ReadonlyArray<{ tag: string; count: number }>> {
-    const countByNormalized = new Map<string, number>();
-    const displayByNormalized = new Map<string, string>();
+    const countByTag = new Map<string, number>();
     const files = this.app.vault.getMarkdownFiles();
 
     const trackTag = (tag: string, seen: Set<string>) => {
       const withHash = tag.startsWith('#') ? tag : `#${tag}`;
-      const normalized = withHash.toLowerCase();
-      if (seen.has(normalized)) return;
-      seen.add(normalized);
-      countByNormalized.set(normalized, (countByNormalized.get(normalized) ?? 0) + 1);
-      if (!displayByNormalized.has(normalized)) {
-        displayByNormalized.set(normalized, withHash);
-      }
+      if (seen.has(withHash)) return;
+      seen.add(withHash);
+      countByTag.set(withHash, (countByTag.get(withHash) ?? 0) + 1);
     };
 
     for (const file of files) {
@@ -151,8 +146,8 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       }
     }
 
-    return [...countByNormalized.entries()]
-      .map(([normalized, count]) => ({ tag: displayByNormalized.get(normalized)!, count }))
+    return [...countByTag.entries()]
+      .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count);
   }
 
@@ -249,7 +244,15 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
         }
       }
 
-      const wordCount = Math.round(file.stat.size / 6);
+      let wordCount: number;
+      try {
+        const content = await this.app.vault.cachedRead(file);
+        const body = content.replace(/^(?:﻿)?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+        const words = body.match(/\S+/g);
+        wordCount = words ? words.length : 0;
+      } catch {
+        wordCount = Math.round(file.stat.size / 6);
+      }
 
       const folder = file.path.includes('/')
         ? file.path.substring(0, file.path.lastIndexOf('/'))

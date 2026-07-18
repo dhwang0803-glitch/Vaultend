@@ -519,24 +519,24 @@ export class RunMaintenanceUseCase {
     const allDuplicateGroups = [...unresolvedStringDups, ...embeddingDuplicates];
     if (allDuplicateGroups.length === 0) return [];
 
-    // 노트별 태그 맵 구축 (모든 노트를 한 번만 읽음)
+    // 노트별 태그 맵 구축 (원본 케이스 보존 — 대소문자 변형 감지에 필수)
     const noteTagMap = new Map<string, ReadonlyArray<string>>();
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (note) {
-        noteTagMap.set(notePath as string, note.metadata.tags.map(t => (t as string).toLowerCase()));
+        noteTagMap.set(notePath as string, note.metadata.tags.map(t => t as string));
       }
     }
 
     const result: DuplicateTagGroup[] = [];
     for (const group of allDuplicateGroups) {
-      const canonicalLower = group.canonical.toLowerCase();
-      const variantLowers = new Set(group.variants.map(v => v.tag.toLowerCase()));
+      const canonicalExact = group.canonical;
+      const variantExacts = new Set(group.variants.map(v => v.tag));
       const affected: NotePath[] = [];
 
       for (const [pathStr, tags] of noteTagMap) {
         const hasNonCanonicalVariant = tags.some(t =>
-          variantLowers.has(t) && t !== canonicalLower,
+          variantExacts.has(t) && t !== canonicalExact,
         );
         if (hasNonCanonicalVariant) {
           affected.push(pathStr as NotePath);

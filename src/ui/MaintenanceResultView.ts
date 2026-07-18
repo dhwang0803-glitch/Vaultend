@@ -401,6 +401,7 @@ export class MaintenanceResultView extends ItemView {
         identifier: item.notePath as string,
         status: 'pending',
       });
+      const emptyEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -410,7 +411,7 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
         .setCta()
-        .onClick(() => this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath as string}`)),
+        .onClick(() => this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath as string}`, emptyEntry)),
       );
 
       settingEl.addButton(btn => btn
@@ -420,11 +421,12 @@ export class MaintenanceResultView extends ItemView {
           { kind: 'delete-orphan', notePath: item.notePath },
           settingEl,
           `empty:${item.notePath as string}`,
+          emptyEntry,
         )),
       );
 
       this.addDismissButton(settingEl, 'empty', item.notePath as string);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(emptyEntry);
     }
   }
 
@@ -485,6 +487,7 @@ export class MaintenanceResultView extends ItemView {
         identifier: item.notePath as string,
         status: 'pending',
       });
+      const tagEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.applyTags'))
@@ -493,11 +496,12 @@ export class MaintenanceResultView extends ItemView {
           { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
           settingEl,
           `missing-tags:${item.notePath as string}`,
+          tagEntry,
         )),
       );
 
       this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(tagEntry);
     }
   }
 
@@ -524,6 +528,7 @@ export class MaintenanceResultView extends ItemView {
         identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
         status: 'pending',
       });
+      const linkEntry = entries[entries.length - 1];
 
       const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
 
@@ -533,11 +538,12 @@ export class MaintenanceResultView extends ItemView {
           { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
           settingEl,
           brokenLinkKey,
+          linkEntry,
         )),
       );
 
       this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(linkEntry);
     }
   }
 
@@ -572,6 +578,7 @@ export class MaintenanceResultView extends ItemView {
         identifier: entry.notePath as string,
         status: 'pending',
       });
+      const orphanEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -580,7 +587,7 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
-        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath as string}`)),
+        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath as string}`, orphanEntry)),
       );
 
       settingEl.addButton(btn => btn
@@ -590,11 +597,12 @@ export class MaintenanceResultView extends ItemView {
           { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
           `orphan:${entry.notePath as string}`,
+          orphanEntry,
         )),
       );
 
       this.addDismissButton(settingEl, 'orphan', entry.notePath as string);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(orphanEntry);
     }
   }
 
@@ -663,7 +671,7 @@ export class MaintenanceResultView extends ItemView {
         .setDesc(`${t('duplicateTag.variants', { tags: variantTags })} · ${t('duplicateTag.affected', { count: group.affectedNotes.length })}`);
 
       const replaceTags = group.variants
-        .filter(v => (v.tag as string).toLowerCase() !== (group.canonicalTag as string).toLowerCase())
+        .filter(v => (v.tag as string) !== (group.canonicalTag as string))
         .map(v => v.tag);
 
       entries.push({
@@ -679,6 +687,7 @@ export class MaintenanceResultView extends ItemView {
         identifier: group.canonicalTag as string,
         status: 'pending',
       });
+      const dupTagEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.mergeTags'))
@@ -693,12 +702,13 @@ export class MaintenanceResultView extends ItemView {
             },
             settingEl,
             `duplicate-tags:${group.canonicalTag as string}`,
+            dupTagEntry,
           );
         }),
       );
 
       this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag as string);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(dupTagEntry);
     }
   }
 
@@ -790,16 +800,17 @@ export class MaintenanceResultView extends ItemView {
     );
   }
 
-  private async archiveWithConfig(notePath: NotePath, setting: Setting, appliedKey?: string): Promise<void> {
+  private async archiveWithConfig(notePath: NotePath, setting: Setting, appliedKey?: string, batchEntry?: BatchEntry): Promise<void> {
     const settings = await this.configPort.getSettings();
     await this.executeAction(
       { kind: 'archive-note', notePath, targetFolder: settings.maintenanceArchiveFolder },
       setting,
       appliedKey,
+      batchEntry,
     );
   }
 
-  private async executeAction(action: MaintenanceAction, setting: Setting, appliedKey?: string): Promise<void> {
+  private async executeAction(action: MaintenanceAction, setting: Setting, appliedKey?: string, batchEntry?: BatchEntry): Promise<void> {
     try {
       const result: ApplyResult | null = await this.applyAction.execute(action);
       if (!result) {
@@ -808,11 +819,19 @@ export class MaintenanceResultView extends ItemView {
       }
       setting.settingEl.addClass('maintenance-result-applied');
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
-      const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
-      if (cb) cb.remove();
+      if (batchEntry) {
+        batchEntry.checkbox.checked = false;
+        batchEntry.status = 'applied';
+      } else {
+        const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
+        if (cb) cb.remove();
+      }
       if (result.undoable && appliedKey) {
         this.appliedEntries.set(appliedKey, result.entryId);
+        if (batchEntry) batchEntry.historyEntryId = result.entryId;
         this.addRestoreButton(setting, result.entryId, appliedKey);
+      } else if (batchEntry) {
+        batchEntry.checkbox.disabled = true;
       }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));

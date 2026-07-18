@@ -789,7 +789,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       + plan.brokenLinks.length
       + plan.missingTags.length
       + plan.emptyNotes.length
-      + plan.untaggedNotes.length;
+      + plan.untaggedNotes.length
+      + plan.duplicateTags.length;
     if (totalIssues === 0) return;
 
     const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(plan);
