@@ -56,6 +56,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
+    private readonly onMergeRequest: (pair: DuplicatePair) => void,
   ) {
     super(leaf);
   }
@@ -625,6 +626,18 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.openSideBySide'))
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
+      );
+
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.mergeWithAI'))
+        .setCta()
+        .onClick(async () => {
+          if (!await this.licensePort.canUseFeature('organize-vault')) {
+            new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+            return;
+          }
+          this.onMergeRequest(pair);
+        }),
       );
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);

@@ -4,6 +4,7 @@ import { GenerateOrganizeVaultUseCase } from '../application/usecases/GenerateOr
 import { ApplyOrganizeVaultUseCase } from '../application/usecases/ApplyOrganizeVaultUseCase';
 import { RollbackOrganizeVaultUseCase } from '../application/usecases/RollbackOrganizeVaultUseCase';
 import type { OrganizeVaultPort } from '../application/ports/OrganizeVaultPort';
+import type { LicensePort } from '../application/ports/LicensePort';
 import {
   OrganizeVaultPlan,
   OrganizeVaultProposal,
@@ -40,6 +41,7 @@ export class OrganizeVaultView extends ItemView {
     private readonly applyPlan: ApplyOrganizeVaultUseCase,
     private readonly rollbackPlan: RollbackOrganizeVaultUseCase,
     private readonly store: OrganizeVaultPort,
+    private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
   ) {
     super(leaf);
@@ -67,6 +69,10 @@ export class OrganizeVaultView extends ItemView {
 
   async triggerScan(folderPath?: string): Promise<void> {
     if (this.scanInProgress) return;
+    if (!await this.licensePort.canUseFeature('organize-vault')) {
+      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+      return;
+    }
     this.scanInProgress = true;
 
     const container = this.containerEl.children[1] as HTMLElement;
@@ -160,6 +166,7 @@ export class OrganizeVaultView extends ItemView {
         links: String(counts['fix-broken-link'] ?? 0),
         tags: String((counts['merge-duplicate-tags'] ?? 0) + (counts['apply-missing-tags'] ?? 0)),
         archive: String(counts['archive-empty'] ?? 0),
+        merge: String(counts['merge-duplicate-notes'] ?? 0),
       }),
     });
   }
@@ -227,6 +234,10 @@ export class OrganizeVaultView extends ItemView {
 
     const rationale = card.createDiv({ cls: 'vaultend-organize-vault-rationale' });
     rationale.createEl('span', { text: proposal.rationale, cls: 'vaultend-organize-vault-rationale-text' });
+
+    if (proposal.type === 'merge-duplicate-notes' && proposal.metadata) {
+      this.renderMergePreview(card, proposal);
+    }
 
     if (proposal.affectedPaths.length > 1) {
       const affected = card.createDiv({ cls: 'vaultend-organize-vault-affected' });
@@ -343,6 +354,10 @@ export class OrganizeVaultView extends ItemView {
 
   private async applyAll(): Promise<void> {
     if (!this.currentPlan) return;
+    if (!await this.licensePort.canUseFeature('organize-vault')) {
+      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+      return;
+    }
 
     const approved = getApprovedProposals(this.currentPlan);
     if (approved.length === 0) {
@@ -365,8 +380,58 @@ export class OrganizeVaultView extends ItemView {
     }
   }
 
+  private renderMergePreview(card: HTMLElement, proposal: OrganizeVaultProposal): void {
+    const meta = proposal.metadata as {
+      mergedContent?: string;
+      survivorPath?: string;
+      donorPath?: string;
+    };
+    if (!meta?.mergedContent) return;
+
+    const previewContainer = card.createDiv({ cls: 'vaultend-organize-vault-merge-preview' });
+    const toggle = previewContainer.createEl('details');
+    toggle.createEl('summary', {
+      text: t('organizeVault.mergePreview'),
+      cls: 'vaultend-organize-vault-merge-toggle',
+    });
+
+    const contentEl = toggle.createDiv({ cls: 'vaultend-organize-vault-merge-content' });
+    const preview = meta.mergedContent.substring(0, 500);
+    const preEl = contentEl.createEl('pre', { cls: 'vaultend-organize-vault-merge-pre' });
+    preEl.createEl('code', { text: preview + (meta.mergedContent.length > 500 ? '\n...' : '') });
+
+    if (meta.survivorPath) {
+      const survivorRow = contentEl.createDiv({ cls: 'vaultend-organize-vault-merge-file' });
+      survivorRow.createSpan({ text: `${t('organizeVault.mergeSurvivor')}: ` });
+      const link = survivorRow.createEl('a', {
+        text: meta.survivorPath,
+        cls: 'vaultend-organize-vault-file-link',
+      });
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.openFile(meta.survivorPath!);
+      });
+    }
+    if (meta.donorPath) {
+      const donorRow = contentEl.createDiv({ cls: 'vaultend-organize-vault-merge-file' });
+      donorRow.createSpan({ text: `${t('organizeVault.mergeDonor')}: ` });
+      const link = donorRow.createEl('a', {
+        text: meta.donorPath,
+        cls: 'vaultend-organize-vault-file-link',
+      });
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.openFile(meta.donorPath!);
+      });
+    }
+  }
+
   private async rollbackAll(): Promise<void> {
     if (!this.currentPlan) return;
+    if (!await this.licensePort.canUseFeature('organize-vault')) {
+      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+      return;
+    }
     try {
       const result = await this.rollbackPlan.execute(this.currentPlan.id);
       if (result) {

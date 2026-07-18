@@ -28,4 +28,5 @@ export type HistoryAction =
   | 'archive'
   | 'restore'
   | 'quick-ask-save'
-  | 'tag-merge';
+  | 'tag-merge'
+  | 'merge-notes';

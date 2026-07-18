@@ -85,6 +85,7 @@ const en = {
   'btn.createNote': 'Create Note',
   'btn.openSideBySide': 'Open Side by Side',
   'btn.mergeTags': 'Merge',
+  'btn.mergeWithAI': 'Merge with AI',
   'btn.ask': 'Ask',
   'btn.close': 'Close',
 
@@ -316,7 +317,7 @@ const en = {
   'organizeVault.generateScanDesc': 'Scan vault and generate change proposals',
   'organizeVault.rescan': 'Re-scan',
   'organizeVault.summary': '{{count}} proposals',
-  'organizeVault.summaryByType': 'Reposition: {{reposition}} | Links: {{links}} | Tags: {{tags}} | Archive: {{archive}}',
+  'organizeVault.summaryByType': 'Reposition: {{reposition}} | Links: {{links}} | Tags: {{tags}} | Archive: {{archive}} | Merge: {{merge}}',
   'organizeVault.proposal': 'Proposal {{index}}/{{total}}',
   'organizeVault.confidence.high': 'High confidence',
   'organizeVault.confidence.medium': 'Review needed',
@@ -335,6 +336,10 @@ const en = {
   'organizeVault.type.merge-duplicate-tags': 'Merge Tags',
   'organizeVault.type.apply-missing-tags': 'Add Tags',
   'organizeVault.type.archive-empty': 'Archive',
+  'organizeVault.type.merge-duplicate-notes': 'Merge Notes',
+  'organizeVault.mergePreview': 'Preview Merged Content',
+  'organizeVault.mergeSurvivor': 'Survivor',
+  'organizeVault.mergeDonor': 'Donor (archived)',
   'organizeVault.diff.before': 'Before',
   'organizeVault.diff.after': 'After',
   'organizeVault.rationale': 'Rationale',
@@ -344,9 +349,9 @@ const en = {
   'organizeVault.status.applied': 'Applied',
   'organizeVault.status.rolled-back': 'Rolled Back',
 
-  'pro.organizeFolder': 'Organize Folder',
-  'pro.autoMaintenance': 'Auto Maintenance',
-  'pro.featureLocked': '{{feature}} is a Pro feature. Enter your license key in Settings to unlock.',
+  'pro.organizeVault': 'Organize Vault',
+  'pro.autoMaintenance': 'Scheduled Maintenance',
+  'pro.featureLocked': '{{feature}} requires Pro — safe batch execution with full rollback. AI costs stay on your own API key. Enter your license key in Settings.',
   'pro.badge': 'PRO',
 } as const;
 

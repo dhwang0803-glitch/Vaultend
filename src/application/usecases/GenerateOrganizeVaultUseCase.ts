@@ -10,10 +10,11 @@ import {
   OrphanNoteEntry,
   BrokenLink,
   DuplicateTagGroup,
+  DuplicatePair,
   MissingTagSuggestion,
   EmptyNoteEntry,
 } from '../../domain/models/OrganizeModels';
-import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { applyContentRedaction, isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
 import { ClockPort } from '../ports/ClockPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
@@ -23,6 +24,7 @@ import { ConfigPort } from '../ports/ConfigPort';
 
 const AI_BATCH_SIZE = 10;
 const CONTENT_PREVIEW_LENGTH = 500;
+const MERGE_CONTENT_MAX_LENGTH = 3000;
 const BROKEN_LINK_SEARCH_LIMIT = 5;
 const BROKEN_LINK_FALLBACK_SCORE = 0.4;
 
@@ -45,6 +47,7 @@ export class GenerateOrganizeVaultUseCase {
     proposals.push(...this.generateDuplicateTagProposals(plan.duplicateTags));
     proposals.push(...await this.generateMissingTagProposals(plan.missingTags));
     proposals.push(...this.generateEmptyNoteProposals(plan.emptyNotes));
+    proposals.push(...await this.generateMergeProposals(plan.duplicateCandidates));
 
     const result = createOrganizeVaultPlan(proposals, this.clock.now());
     await this.store.save(result);
@@ -392,6 +395,179 @@ Return a JSON array where each element has:
           rationale: 'Empty note with no backlinks.',
         });
       });
+  }
+
+  private async generateMergeProposals(
+    candidates: ReadonlyArray<DuplicatePair>,
+  ): Promise<OrganizeVaultProposal[]> {
+    if (candidates.length === 0) return [];
+
+    const results: OrganizeVaultProposal[] = [];
+    const usedNotes = new Set<string>();
+
+    for (const pair of candidates) {
+      const noteAStr = pair.noteA as string;
+      const noteBStr = pair.noteB as string;
+      if (usedNotes.has(noteAStr) || usedNotes.has(noteBStr)) continue;
+
+      const proposal = await this.analyzeMergePair(pair);
+      if (proposal) {
+        results.push(proposal);
+        usedNotes.add(noteAStr);
+        usedNotes.add(noteBStr);
+      }
+    }
+    return results;
+  }
+
+  private async analyzeMergePair(
+    pair: DuplicatePair,
+  ): Promise<OrganizeVaultProposal | null> {
+    const noteA = await this.vault.readNote(pair.noteA);
+    const noteB = await this.vault.readNote(pair.noteB);
+    if (!noteA || !noteB) return null;
+
+    const settings = await this.config.getSettings();
+    const privacyRules = [...settings.privacyRules];
+
+    const aAllowed = isNoteAllowedByRules(
+      pair.noteA as string,
+      noteA.metadata.tags.map(t => t as string),
+      [...noteA.metadata.frontmatterKeys],
+      privacyRules,
+    );
+    const bAllowed = isNoteAllowedByRules(
+      pair.noteB as string,
+      noteB.metadata.tags.map(t => t as string),
+      [...noteB.metadata.frontmatterKeys],
+      privacyRules,
+    );
+    if (!aAllowed || !bAllowed) return null;
+
+    const contentA = applyContentRedaction(
+      noteA.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
+      privacyRules,
+    );
+    const contentB = applyContentRedaction(
+      noteB.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
+      privacyRules,
+    );
+
+    const aBacklinks = noteA.metadata.backlinks.length;
+    const bBacklinks = noteB.metadata.backlinks.length;
+    const scorePercent = Math.round(pair.similarityScore * 100);
+
+    try {
+      const response = await this.ai.callCompletion({
+        systemPrompt: 'You are a knowledge vault merger. You analyze two similar notes and produce a single merged document that preserves ALL unique information from both. Respond ONLY with valid JSON.',
+        prompt: `Two notes in a vault are ${scorePercent}% similar. Merge them into one document.
+
+Note A: "${pair.noteA as string}"
+Backlinks: ${aBacklinks}
+Content A:
+${contentA}
+
+Note B: "${pair.noteB as string}"
+Backlinks: ${bBacklinks}
+Content B:
+${contentB}
+
+Merge rules:
+1. The survivor note should be the one with more backlinks, more content, or more established structure. If equal, prefer Note A.
+2. The merged content MUST preserve every unique piece of information from both notes. Never discard content.
+3. Merge frontmatter tags from both notes (deduplicate).
+4. If information conflicts, keep the more detailed/complete version and note the conflict with a "> [!warning] Conflict" callout.
+5. Structure the merged document logically with clear headings.
+6. The merged content should be valid Markdown without a frontmatter --- block.
+
+Return JSON:
+{
+  "survivorIndex": 1 or 2,
+  "mergedContent": "full merged markdown content (no frontmatter --- block)",
+  "mergedTags": ["tag1", "tag2"],
+  "confidence": 0.0-1.0,
+  "rationale": "one-sentence explanation of the merge decision"
+}`,
+        maxTokens: 4000,
+        temperature: 0.2,
+        jsonMode: true,
+      });
+
+      const result = JSON.parse(response.content) as {
+        survivorIndex: number;
+        mergedContent: string;
+        mergedTags: string[];
+        confidence: number;
+        rationale: string;
+      };
+
+      const survivor = result.survivorIndex === 2 ? pair.noteB : pair.noteA;
+      const donor = survivor === pair.noteA ? pair.noteB : pair.noteA;
+      const donorNote = donor === pair.noteA ? noteA : noteB;
+      const survivorNote = survivor === pair.noteA ? noteA : noteB;
+
+      const backlinksToRedirect = [...donorNote.metadata.backlinks];
+
+      const donorBasename = (donor as string).split('/').pop()?.replace('.md', '') ?? '';
+      const survivorBasename = (survivor as string).split('/').pop()?.replace('.md', '') ?? '';
+      const sourceBlock = `\n\n> [!info] Merged Note\n> Merged from [[${donorBasename}]] (similarity: ${scorePercent}%).`;
+
+      const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
+      const donorFileName = (donor as string).split('/').pop() ?? '';
+
+      const allTags = [
+        ...survivorNote.metadata.tags.map(t => t as string),
+        ...donorNote.metadata.tags.map(t => t as string),
+      ].filter((v, i, a) => a.indexOf(v) === i);
+      const mergedTags = result.mergedTags.length > 0 ? result.mergedTags : allTags;
+
+      const diffs: ProposalDiff[] = [
+        {
+          field: 'merge',
+          before: `${(pair.noteA as string).split('/').pop()} + ${(pair.noteB as string).split('/').pop()}`,
+          after: `→ ${survivorBasename}.md (survivor)`,
+        },
+        {
+          field: 'content',
+          before: `${noteA.content.length} + ${noteB.content.length} chars`,
+          after: `${result.mergedContent.length} chars (merged)`,
+        },
+        {
+          field: 'tags',
+          before: allTags.join(', ') || '(none)',
+          after: mergedTags.join(', ') || '(none)',
+        },
+        {
+          field: 'backlinks',
+          before: `${backlinksToRedirect.length} notes link to ${donorBasename}`,
+          after: `redirected to ${survivorBasename}`,
+        },
+        {
+          field: 'donor',
+          before: donor as string,
+          after: `${archiveFolder}/${donorFileName}`,
+        },
+      ];
+
+      return createProposal({
+        type: 'merge-duplicate-notes',
+        targetPath: survivor,
+        diffs,
+        affectedPaths: [survivor, donor, ...backlinksToRedirect],
+        confidence: Math.max(0.3, Math.min(0.95, result.confidence)),
+        rationale: result.rationale,
+        metadata: {
+          survivorPath: survivor as string,
+          donorPath: donor as string,
+          mergedContent: result.mergedContent,
+          mergedTags,
+          sourceBlock,
+          backlinksToRedirect: backlinksToRedirect.map(p => p as string),
+        },
+      });
+    } catch {
+      return null;
+    }
   }
 
   private async collectFolders(): Promise<ReadonlyArray<string>> {

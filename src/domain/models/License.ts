@@ -1,7 +1,7 @@
 export type LicenseTier = 'free' | 'pro';
 
 export type ProFeatureId =
-  | 'organize-folder'
+  | 'organize-vault'
   | 'auto-maintenance';
 
 export interface LicenseStatus {
@@ -15,6 +15,6 @@ export const PRO_FEATURES: ReadonlyArray<{
   readonly id: ProFeatureId;
   readonly i18nKey: string;
 }> = [
-  { id: 'organize-folder', i18nKey: 'pro.organizeFolder' },
+  { id: 'organize-vault', i18nKey: 'pro.organizeVault' },
   { id: 'auto-maintenance', i18nKey: 'pro.autoMaintenance' },
 ];

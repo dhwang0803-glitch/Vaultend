@@ -87,6 +87,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'btn.createNote': '노트 생성',
   'btn.openSideBySide': '나란히 열기',
   'btn.mergeTags': '병합',
+  'btn.mergeWithAI': 'AI 병합',
   'btn.ask': '질문하기',
   'btn.close': '닫기',
 
@@ -316,7 +317,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeVault.generateScanDesc': 'Vault를 스캔하고 변경 제안서를 생성합니다',
   'organizeVault.rescan': '다시 스캔',
   'organizeVault.summary': '{{count}}건의 제안',
-  'organizeVault.summaryByType': '재배치: {{reposition}} | 링크: {{links}} | 태그: {{tags}} | 아카이브: {{archive}}',
+  'organizeVault.summaryByType': '재배치: {{reposition}} | 링크: {{links}} | 태그: {{tags}} | 아카이브: {{archive}} | 병합: {{merge}}',
   'organizeVault.proposal': '제안 {{index}}/{{total}}',
   'organizeVault.confidence.high': '높은 신뢰도',
   'organizeVault.confidence.medium': '확인 필요',
@@ -335,6 +336,10 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeVault.type.merge-duplicate-tags': '태그 병합',
   'organizeVault.type.apply-missing-tags': '태그 추가',
   'organizeVault.type.archive-empty': '아카이브',
+  'organizeVault.type.merge-duplicate-notes': '노트 병합',
+  'organizeVault.mergePreview': '병합 결과 미리보기',
+  'organizeVault.mergeSurvivor': '유지할 노트',
+  'organizeVault.mergeDonor': '보관될 노트',
   'organizeVault.diff.before': '변경 전',
   'organizeVault.diff.after': '변경 후',
   'organizeVault.rationale': '근거',
@@ -344,9 +349,9 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeVault.status.applied': '적용됨',
   'organizeVault.status.rolled-back': '되돌림',
 
-  'pro.organizeFolder': '폴더 일괄 정리',
-  'pro.autoMaintenance': '자동 유지보수',
-  'pro.featureLocked': '{{feature}}은(는) Pro 기능입니다. 설정에서 라이선스 키를 입력하세요.',
+  'pro.organizeVault': 'Vault 정리',
+  'pro.autoMaintenance': '예약 유지보수',
+  'pro.featureLocked': '{{feature}}은(는) Pro 기능입니다 — 안전한 일괄 실행과 전체 롤백을 제공합니다. AI 비용은 사용자의 API 키로 직접 부담합니다. 설정에서 라이선스 키를 입력하세요.',
   'pro.badge': 'PRO',
 };
 

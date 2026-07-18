@@ -5,7 +5,6 @@ import { OrganizeApplyActions } from './OrganizeResultModal';
 import { ConfigPort } from '../application/ports/ConfigPort';
 import { HistoryPort } from '../application/ports/HistoryPort';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
-import type { LicensePort } from '../application/ports/LicensePort';
 import { NotePath } from '../domain/values/NotePath';
 import { createTimestamp } from '../domain/values/Timestamp';
 import { ORGANIZE_FOLDER_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
@@ -44,7 +43,6 @@ export class OrganizeFolderResultView extends ItemView {
     private readonly configPort: ConfigPort,
     private readonly historyPort: HistoryPort,
     private readonly vault: VaultAccessPort,
-    private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly onProcessingStateChange: (isProcessing: boolean) => void,
   ) {
@@ -137,10 +135,6 @@ export class OrganizeFolderResultView extends ItemView {
 
   async triggerScan(folderPath: string): Promise<void> {
     if (this.scanInProgress) return;
-    if (!await this.licensePort.canUseFeature('organize-folder')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeFolder') }), 5000);
-      return;
-    }
     this.scanInProgress = true;
     this.targetFolder = folderPath;
     this.entries = [];

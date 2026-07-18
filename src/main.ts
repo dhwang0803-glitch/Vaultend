@@ -48,7 +48,8 @@ import { PRO_FEATURES } from './domain/models/License';
 import type { ProFeatureId } from './domain/models/License';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
-import type { MaintenancePlan } from './domain/models/OrganizeModels';
+import type { MaintenancePlan, DuplicatePair } from './domain/models/OrganizeModels';
+import { timestampNow } from './domain/values/Timestamp';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
@@ -379,6 +380,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (fileA instanceof TFile) this.app.workspace.getLeaf(false).openFile(fileA);
           if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
         },
+        (pair) => this.triggerMergeForPair(pair),
       ),
     );
 
@@ -391,7 +393,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.configPort,
         this.historyAdapter,
         this.vaultAdapter,
-        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -409,6 +410,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.applyOrganizeVaultUseCase,
         this.rollbackOrganizeVaultUseCase,
         this.organizeVaultAdapter,
+        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -482,11 +484,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: t('command.runMaintenance'),
       callback: async () => {
-        await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-        const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-        if (leaves.length > 0) {
-          const view = leaves[0].view as OrganizeVaultView;
-          await view.triggerScan();
+        if (await this.licenseAdapter.canUseFeature('organize-vault')) {
+          await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeVaultView;
+            await view.triggerScan();
+          }
+        } else {
+          await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as MaintenanceResultView;
+            await view.triggerScan();
+          }
         }
       },
     });
@@ -497,10 +508,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: async () => {
         if (this.isOrganizing) {
           new Notice(t('notice.organizeAlreadyRunning'));
-          return;
-        }
-        if (!await this.licenseAdapter.canUseFeature('organize-folder')) {
-          this.showProUpgradeNotice('organize-folder');
           return;
         }
         new FolderSuggestModal(this.app, async (folder) => {
@@ -566,11 +573,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .setTitle(t('command.scanFolder'))
             .setIcon('shield-check')
             .onClick(async () => {
-              await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-              if (leaves.length > 0) {
-                const view = leaves[0].view as OrganizeVaultView;
-                await view.triggerScan(file.path);
+              if (await this.licenseAdapter.canUseFeature('organize-vault')) {
+                await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+                const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view as OrganizeVaultView;
+                  await view.triggerScan(file.path);
+                }
+              } else {
+                await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+                const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view as MaintenanceResultView;
+                  await view.triggerScanForFolder(file.path);
+                }
               }
             });
         });
@@ -581,10 +597,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .onClick(async () => {
               if (this.isOrganizing) {
                 new Notice(t('notice.organizeAlreadyRunning'));
-                return;
-              }
-              if (!await this.licenseAdapter.canUseFeature('organize-folder')) {
-                this.showProUpgradeNotice('organize-folder');
                 return;
               }
               await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
@@ -701,6 +713,32 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       view.showPlan(organizeVaultPlan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
+  }
+
+  private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {
+    const minPlan: MaintenancePlan = {
+      orphanNotes: [],
+      duplicateCandidates: [pair],
+      brokenLinks: [],
+      missingTags: [],
+      emptyNotes: [],
+      duplicateTags: [],
+      untaggedNotes: [],
+      timestamp: timestampNow(),
+    };
+    try {
+      const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(minPlan);
+      if (organizeVaultPlan.proposals.length === 0) {
+        new Notice(t('organizeVault.empty'));
+        return;
+      }
+      const leaf = this.app.workspace.getLeaf('tab');
+      await leaf.setViewState({ type: ORGANIZE_VAULT_VIEW_TYPE, active: true });
+      const view = leaf.view as OrganizeVaultView;
+      view.showPlan(organizeVaultPlan);
+    } catch (err) {
+      new Notice(t('organizeVault.scanFailed', { error: String(err) }));
+    }
   }
 
   private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {

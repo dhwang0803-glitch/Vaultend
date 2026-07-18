@@ -11,7 +11,8 @@ export type ProposalType =
   | 'fix-broken-link'
   | 'merge-duplicate-tags'
   | 'apply-missing-tags'
-  | 'archive-empty';
+  | 'archive-empty'
+  | 'merge-duplicate-notes';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
@@ -37,6 +38,7 @@ export interface OrganizeVaultProposal {
   readonly confidenceLevel: ConfidenceLevel;
   readonly rationale: string;
   readonly status: ProposalStatus;
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface OrganizeVaultPlan {
@@ -69,6 +71,15 @@ export interface MergeDuplicateTagsDetail {
   readonly affectedNotes: ReadonlyArray<NotePath>;
 }
 
+export interface MergeDuplicateNotesDetail {
+  readonly survivorPath: string;
+  readonly donorPath: string;
+  readonly mergedContent: string;
+  readonly mergedTags: ReadonlyArray<string>;
+  readonly sourceBlock: string;
+  readonly backlinksToRedirect: ReadonlyArray<string>;
+}
+
 export function createOrganizeVaultPlan(
   proposals: ReadonlyArray<OrganizeVaultProposal>,
   timestamp: Timestamp,
@@ -88,6 +99,7 @@ export function createProposal(params: {
   affectedPaths: ReadonlyArray<NotePath>;
   confidence: number;
   rationale: string;
+  metadata?: Record<string, unknown>;
 }): OrganizeVaultProposal {
   return {
     id: crypto.randomUUID(),
@@ -99,6 +111,7 @@ export function createProposal(params: {
     confidenceLevel: classifyConfidence(params.confidence),
     rationale: params.rationale,
     status: 'pending',
+    ...(params.metadata ? { metadata: params.metadata } : {}),
   };
 }
 

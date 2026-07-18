@@ -42,9 +42,9 @@ export class ApplyOrganizeVaultUseCase {
 
     for (const proposal of approved) {
       try {
-        const entryId = await this.applyProposal(proposal, transactionId);
-        if (entryId) {
-          historyEntryIds.push(entryId);
+        const entryIds = await this.applyProposal(proposal, transactionId);
+        if (entryIds && entryIds.length > 0) {
+          historyEntryIds.push(...entryIds);
           appliedProposalIds.push(proposal.id);
         }
       } catch {
@@ -75,21 +75,27 @@ export class ApplyOrganizeVaultUseCase {
   private async applyProposal(
     proposal: OrganizeVaultProposal,
     transactionId: string,
-  ): Promise<string | null> {
+  ): Promise<string[] | null> {
     switch (proposal.type) {
       case 'fix-broken-link':
-        return this.applyFixBrokenLink(proposal, transactionId);
+        return this.wrapSingle(await this.applyFixBrokenLink(proposal, transactionId));
       case 'merge-duplicate-tags':
-        return this.applyMergeDuplicateTags(proposal, transactionId);
+        return this.wrapSingle(await this.applyMergeDuplicateTags(proposal, transactionId));
       case 'apply-missing-tags':
-        return this.applyMissingTags(proposal, transactionId);
+        return this.wrapSingle(await this.applyMissingTags(proposal, transactionId));
       case 'archive-empty':
-        return this.applyArchive(proposal, transactionId);
+        return this.wrapSingle(await this.applyArchive(proposal, transactionId));
       case 'reposition':
-        return this.applyReposition(proposal, transactionId);
+        return this.wrapSingle(await this.applyReposition(proposal, transactionId));
+      case 'merge-duplicate-notes':
+        return this.applyMergeDuplicateNotes(proposal, transactionId);
       default:
         return null;
     }
+  }
+
+  private wrapSingle(id: string | null): string[] | null {
+    return id ? [id] : null;
   }
 
   private async applyReposition(
@@ -291,6 +297,112 @@ export class ApplyOrganizeVaultUseCase {
     };
     await this.history.record(entry);
     return entry.id;
+  }
+
+  private async applyMergeDuplicateNotes(
+    proposal: OrganizeVaultProposal,
+    transactionId: string,
+  ): Promise<string[] | null> {
+    const meta = proposal.metadata as {
+      survivorPath: string;
+      donorPath: string;
+      mergedContent: string;
+      mergedTags: string[];
+      sourceBlock: string;
+      backlinksToRedirect: string[];
+    };
+    if (!meta?.survivorPath || !meta?.donorPath || !meta?.mergedContent) return null;
+
+    const survivorPath = createNotePath(meta.survivorPath);
+    const donorPath = createNotePath(meta.donorPath);
+    const entryIds: string[] = [];
+
+    const survivorNote = await this.vault.readNote(survivorPath);
+    if (!survivorNote) return null;
+
+    const fmMatch = survivorNote.content.match(/^---\n[\s\S]*?\n---\n?/);
+    const existingFrontmatter = fmMatch ? fmMatch[0] : '';
+    const finalContent = existingFrontmatter + meta.mergedContent + meta.sourceBlock;
+    await this.vault.writeNote(survivorPath, finalContent);
+
+    if (meta.mergedTags.length > 0) {
+      await this.vault.updateFrontmatter(survivorPath, { tags: meta.mergedTags });
+    }
+
+    const survivorEntry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'merge-notes',
+      notePath: survivorPath,
+      timestamp: this.clock.now(),
+      description: `Organize Vault: merged ${meta.donorPath} → ${meta.survivorPath}`,
+      previousContent: survivorNote.content,
+      metadata: {
+        transactionId,
+        organizeVaultProposalId: proposal.id,
+        donorPath: meta.donorPath,
+      },
+    };
+    await this.history.record(survivorEntry);
+    entryIds.push(survivorEntry.id);
+
+    const donorBasename = meta.donorPath.split('/').pop()?.replace('.md', '') ?? '';
+    const survivorBasename = meta.survivorPath.split('/').pop()?.replace('.md', '') ?? '';
+
+    for (const linkingPathStr of meta.backlinksToRedirect) {
+      if (linkingPathStr === meta.survivorPath || linkingPathStr === meta.donorPath) continue;
+
+      const linkingPath = createNotePath(linkingPathStr);
+      const linkingNote = await this.vault.readNote(linkingPath);
+      if (!linkingNote) continue;
+
+      const wikiPattern = new RegExp(
+        `\\[\\[${this.escapeRegex(donorBasename)}(\\|[^\\]]+)?\\]\\]`,
+        'g',
+      );
+      const newContent = linkingNote.content.replace(wikiPattern, `[[${survivorBasename}]]`);
+
+      if (newContent !== linkingNote.content) {
+        await this.vault.writeNote(linkingPath, newContent);
+
+        const backlinkEntry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          action: 'modify',
+          notePath: linkingPath,
+          timestamp: this.clock.now(),
+          description: `Organize Vault: backlink redirected — [[${donorBasename}]] → [[${survivorBasename}]]`,
+          previousContent: linkingNote.content,
+          metadata: {
+            transactionId,
+            organizeVaultProposalId: proposal.id,
+          },
+        };
+        await this.history.record(backlinkEntry);
+        entryIds.push(backlinkEntry.id);
+      }
+    }
+
+    const settings = await this.config.getSettings();
+    const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
+    const donorFileName = meta.donorPath.split('/').pop() ?? '';
+    const archiveDest = createNotePath(`${archiveFolder}/${donorFileName}`);
+    await this.vault.moveNote(donorPath, archiveDest);
+
+    const archiveEntry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'archive',
+      notePath: donorPath,
+      timestamp: this.clock.now(),
+      description: `Organize Vault: donor archived — ${meta.donorPath} → ${archiveFolder}/`,
+      metadata: {
+        transactionId,
+        organizeVaultProposalId: proposal.id,
+        archivedTo: archiveDest as string,
+      },
+    };
+    await this.history.record(archiveEntry);
+    entryIds.push(archiveEntry.id);
+
+    return entryIds;
   }
 
   private async rollbackEntries(entryIds: ReadonlyArray<string>): Promise<void> {
