@@ -69,6 +69,41 @@ export class FileHistoryAdapter implements HistoryPort {
       const target = entries.find(e => e.id === entryId);
       if (!target) continue;
 
+      if (target.action === 'tag-merge' && Array.isArray(target.metadata?.affectedFiles)) {
+        const files = (target.metadata.affectedFiles as Array<{ path: string; previousContent: string }>)
+          .filter(f => typeof f.path === 'string' && typeof f.previousContent === 'string');
+        if (files.length === 0) break;
+
+        const failed: string[] = [];
+        for (const file of files) {
+          try {
+            await this.vault.writeNote(createNotePath(file.path), file.previousContent);
+          } catch {
+            failed.push(file.path);
+          }
+        }
+
+        const idx = entries.indexOf(target);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { affectedFiles: _af, ...preservedMeta } = target.metadata as Record<string, unknown>;
+        entries[idx] = { ...target, metadata: preservedMeta } as HistoryEntry;
+
+        const restored = files.length - failed.length;
+        entries.push({
+          id: crypto.randomUUID(),
+          action: 'restore' as const,
+          notePath: target.notePath,
+          timestamp: this.clock.now(),
+          description: `복원: 태그 병합 취소 (${restored}/${files.length}개 노트${failed.length > 0 ? `, 실패: ${failed.join(', ')}` : ''})`,
+        });
+
+        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        if (failed.length > 0) {
+          console.warn(`[Vaultend] tag-merge undo partial failure: ${failed.join(', ')}`);
+        }
+        return;
+      }
+
       if (target.action === 'archive' && target.metadata?.archivedTo) {
         const archivedPath = createNotePath(target.metadata.archivedTo as string);
         await this.vault.moveNote(archivedPath, target.notePath);

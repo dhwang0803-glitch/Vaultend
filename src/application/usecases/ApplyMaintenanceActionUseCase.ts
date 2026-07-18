@@ -166,6 +166,7 @@ export class ApplyMaintenanceActionUseCase {
     const replaceSet = new Set(replaceTags.map(t => (t as string).toLowerCase()));
     const keepStr = keepTag as string;
     let mergedCount = 0;
+    const affectedFiles: Array<{ path: string; previousContent: string }> = [];
 
     for (const notePath of affectedNotes) {
       const note = await this.vault.readNote(notePath);
@@ -192,6 +193,7 @@ export class ApplyMaintenanceActionUseCase {
       }
 
       if (changed) {
+        affectedFiles.push({ path: notePath as string, previousContent: note.content });
         if (!keepAlreadyPresent) {
           updatedTags.push(keepStr);
         }
@@ -212,10 +214,11 @@ export class ApplyMaintenanceActionUseCase {
         keepTag: keepStr,
         replacedTags: replaceTags.map(t => t as string),
         mergedNoteCount: mergedCount,
+        affectedFiles,
       },
     };
     await this.history.record(entry);
-    return { entryId: entry.id, undoable: false };
+    return { entryId: entry.id, undoable: true };
   }
 
   private extractFrontmatterTags(content: string): string[] {

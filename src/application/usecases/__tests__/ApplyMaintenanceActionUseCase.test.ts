@@ -267,6 +267,84 @@ describe('ApplyMaintenanceActionUseCase', () => {
     });
   });
 
+  describe('merge-duplicate-tags', () => {
+    it('태그를 병합하고 undoable=true로 이력에 기록한다', async () => {
+      const noteA = createTestNote({
+        path: np('a.md'),
+        content: '---\ntags:\n  - typescript\n  - ts\n---\n# A',
+        metadata: createTestMetadata({ tags: [tn('#typescript'), tn('#ts')] }),
+      });
+      const noteB = createTestNote({
+        path: np('b.md'),
+        content: '---\ntags:\n  - ts\n  - react\n---\n# B',
+        metadata: createTestMetadata({ tags: [tn('#ts'), tn('#react')] }),
+      });
+
+      const { uc, vault, history } = createUseCase({
+        readNote: vi.fn()
+          .mockResolvedValueOnce(noteA)
+          .mockResolvedValueOnce(noteB),
+      });
+
+      const action: MaintenanceAction = {
+        kind: 'merge-duplicate-tags',
+        keepTag: tn('#typescript'),
+        replaceTags: [tn('#ts')],
+        affectedNotes: [np('a.md'), np('b.md')],
+      };
+      const result = await uc.execute(action);
+
+      expect(result).not.toBeNull();
+      expect(result!.undoable).toBe(true);
+
+      expect(vault.updateFrontmatter).toHaveBeenCalledTimes(2);
+
+      const entry = (history.record as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(entry.action).toBe('tag-merge');
+      expect(entry.metadata.affectedFiles).toHaveLength(2);
+      expect(entry.metadata.affectedFiles[0].path).toBe('a.md');
+      expect(entry.metadata.affectedFiles[0].previousContent).toBe(noteA.content);
+      expect(entry.metadata.affectedFiles[1].path).toBe('b.md');
+      expect(entry.metadata.affectedFiles[1].previousContent).toBe(noteB.content);
+    });
+
+    it('변경이 없는 노트는 affectedFiles에 포함하지 않는다', async () => {
+      const noteWithoutTag = createTestNote({
+        path: np('c.md'),
+        content: '---\ntags:\n  - react\n---\n# C',
+        metadata: createTestMetadata({ tags: [tn('#react')] }),
+      });
+
+      const { uc, history } = createUseCase({
+        readNote: vi.fn().mockResolvedValue(noteWithoutTag),
+      });
+
+      const result = await uc.execute({
+        kind: 'merge-duplicate-tags',
+        keepTag: tn('#typescript'),
+        replaceTags: [tn('#ts')],
+        affectedNotes: [np('c.md')],
+      });
+
+      expect(result).toBeNull();
+      expect(history.record).not.toHaveBeenCalled();
+    });
+
+    it('affectedNotes가 비어있으면 null을 반환한다', async () => {
+      const { uc, history } = createUseCase();
+
+      const result = await uc.execute({
+        kind: 'merge-duplicate-tags',
+        keepTag: tn('#typescript'),
+        replaceTags: [tn('#ts')],
+        affectedNotes: [],
+      });
+
+      expect(result).toBeNull();
+      expect(history.record).not.toHaveBeenCalled();
+    });
+  });
+
   describe('dismiss', () => {
     it('vault 변경 없이 이력만 기록한다', async () => {
       const { uc, vault, history } = createUseCase();

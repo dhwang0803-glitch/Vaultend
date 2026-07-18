@@ -188,6 +188,90 @@ describe('FileHistoryAdapter', () => {
       expect(restoreEntry.description).toContain('복원');
     });
 
+    it('tag-merge 항목은 모든 affectedFiles의 내용을 복원한다', async () => {
+      const entries = [makeEntry({
+        id: 'merge-1',
+        action: 'tag-merge',
+        notePath: np('a.md'),
+        metadata: {
+          keepTag: '#typescript',
+          replacedTags: ['#ts'],
+          mergedNoteCount: 2,
+          affectedFiles: [
+            { path: 'a.md', previousContent: '---\ntags: [ts]\n---\n# A' },
+            { path: 'b.md', previousContent: '---\ntags: [ts, react]\n---\n# B' },
+          ],
+        },
+      })];
+      const vault = createMockVault({
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
+      });
+      const adapter = new FileHistoryAdapter(vault, createMockClock());
+
+      await adapter.undo('merge-1');
+
+      expect(vault.writeNote).toHaveBeenCalledTimes(2);
+      expect(vault.writeNote).toHaveBeenCalledWith(np('a.md'), '---\ntags: [ts]\n---\n# A');
+      expect(vault.writeNote).toHaveBeenCalledWith(np('b.md'), '---\ntags: [ts, react]\n---\n# B');
+
+      const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
+      const restoreEntry = written.find((e: any) => e.action === 'restore');
+      expect(restoreEntry).toBeDefined();
+      expect(restoreEntry.description).toContain('2/2개 노트');
+
+      const original = written.find((e: any) => e.id === 'merge-1');
+      expect(original.metadata.keepTag).toBe('#typescript');
+      expect(original.metadata.affectedFiles).toBeUndefined();
+    });
+
+    it('tag-merge undo 중 일부 파일 실패 시 나머지는 복원하고 실패를 기록한다', async () => {
+      const entries = [makeEntry({
+        id: 'merge-2',
+        action: 'tag-merge',
+        notePath: np('a.md'),
+        metadata: {
+          keepTag: '#ts',
+          affectedFiles: [
+            { path: 'a.md', previousContent: 'content-a' },
+            { path: 'b.md', previousContent: 'content-b' },
+          ],
+        },
+      })];
+      const vault = createMockVault({
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
+        writeNote: vi.fn()
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error('disk full')),
+      });
+      const adapter = new FileHistoryAdapter(vault, createMockClock());
+
+      await adapter.undo('merge-2');
+
+      expect(vault.writeNote).toHaveBeenCalledTimes(2);
+      const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
+      const restoreEntry = written.find((e: any) => e.action === 'restore');
+      expect(restoreEntry.description).toContain('1/2개 노트');
+      expect(restoreEntry.description).toContain('실패: b.md');
+    });
+
+    it('tag-merge 빈 affectedFiles는 HistoryEntryNotFoundError를 던진다', async () => {
+      const entries = [makeEntry({
+        id: 'merge-3',
+        action: 'tag-merge',
+        notePath: np('a.md'),
+        metadata: { keepTag: '#ts', affectedFiles: [] },
+      })];
+      const vault = createMockVault({
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
+      });
+      const adapter = new FileHistoryAdapter(vault, createMockClock());
+
+      await expect(adapter.undo('merge-3')).rejects.toThrow(HistoryEntryNotFoundError);
+    });
+
     it('해당 ID가 없으면 HistoryEntryNotFoundError를 던진다', async () => {
       const vault = createMockVault({
         listFiles: vi.fn().mockResolvedValue(['f.json']),

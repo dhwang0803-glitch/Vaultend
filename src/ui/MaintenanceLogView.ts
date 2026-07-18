@@ -74,7 +74,8 @@ export class MaintenanceLogView extends ItemView {
       setting.setDesc(entry.description);
 
       const canUndo = entry.previousContent !== undefined
-        || (entry.action === 'archive' && entry.metadata?.archivedTo);
+        || (entry.action === 'archive' && entry.metadata?.archivedTo)
+        || (entry.action === 'tag-merge' && Array.isArray(entry.metadata?.affectedFiles) && (entry.metadata!.affectedFiles as unknown[]).length > 0);
       if (canUndo) {
         setting.addButton(btn => btn
           .setButtonText(t('log.undo'))
