@@ -24,6 +24,7 @@ import { ConfigPort } from '../ports/ConfigPort';
 import type { PreferencePort } from '../ports/PreferencePort';
 
 const AI_BATCH_SIZE = 10;
+const MERGE_BATCH_SIZE = 3;
 const CONTENT_PREVIEW_LENGTH = 500;
 const MERGE_CONTENT_MAX_LENGTH = 3000;
 const BROKEN_LINK_SEARCH_LIMIT = 5;
@@ -176,89 +177,143 @@ Return a JSON array where each element has:
     if (brokenLinks.length === 0) return [];
 
     const results: OrganizeVaultProposal[] = [];
+    for (let i = 0; i < brokenLinks.length; i += AI_BATCH_SIZE) {
+      const batch = brokenLinks.slice(i, i + AI_BATCH_SIZE);
+      const batchResults = await this.analyzeBrokenLinkBatch(batch);
+      results.push(...batchResults);
+    }
+    return results;
+  }
 
+  private async analyzeBrokenLinkBatch(
+    brokenLinks: ReadonlyArray<BrokenLink>,
+  ): Promise<OrganizeVaultProposal[]> {
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
 
+    const linkData: Array<{
+      link: BrokenLink;
+      candidatePaths: string[];
+      candidateScores: number[];
+      descriptions: string[];
+    }> = [];
+
     for (const link of brokenLinks) {
       const candidates = await this.searchIndex.search(link.targetLink, BROKEN_LINK_SEARCH_LIMIT);
-      let bestMatch: string | null = null;
-      let matchConfidence = 0.7;
+      const descriptions: string[] = [];
+      const paths: string[] = [];
+      const scores: number[] = [];
 
-      if (candidates.length > 0) {
-        const candidateDescriptions = await Promise.all(
-          candidates.map(async (c, i) => {
-            const candidateNote = await this.vault.readNote(c.notePath);
-            const preview = candidateNote
-              ? applyContentRedaction(
-                  candidateNote.content.substring(0, 150).replace(/\n/g, ' '),
-                  privacyRules,
-                )
-              : '';
-            const scorePercent = Math.round(c.score * 100);
-            return `${i + 1}. ${c.notePath as string} (relevance: ${scorePercent}%)${preview ? ` — "${preview}"` : ''}`;
-          }),
-        );
-
-        let aiCallFailed = false;
-        try {
-          const prefCtxBroken = this.preference ? await this.preference.getPreferenceContext('organize') : '';
-          const response = await this.ai.callCompletion({
-            systemPrompt: 'You resolve broken wiki-links in a knowledge vault by matching them to existing notes. You are biased toward finding a match — partial or fuzzy matches count. Respond ONLY with valid JSON.',
-            prompt: `${prefCtxBroken ? prefCtxBroken + '\n\n' : ''}A broken link [[${link.targetLink}]] was found in "${link.sourcePath as string}" (line ${link.lineNumber}). The linked note does not exist.
-
-Below are candidate notes found by searching the vault. Pick the one that best matches the link text:
-${candidateDescriptions.join('\n')}
-
-Rules:
-1. The link text is likely a partial name, synonym, abbreviation, or informal reference.
-2. "${link.targetLink}" → compare each candidate's filename and content topic.
-3. You MUST select a candidate if ANY candidate covers the same topic as the link text, even partially.
-4. Only set targetIndex to null if EVERY candidate is about a completely unrelated topic.
-
-Return JSON: {"targetIndex": <1-based number or null>, "confidence": 0.0-1.0, "rationale": "one sentence"}`,
-            maxTokens: 200,
-            temperature: 0.2,
-            jsonMode: true,
-          });
-
-          const result = JSON.parse(response.content) as {
-            targetIndex: number | null;
-            confidence: number;
-            rationale: string;
-          };
-
-          if (result.targetIndex !== null && result.targetIndex >= 1 && result.targetIndex <= candidates.length) {
-            bestMatch = candidates[result.targetIndex - 1].notePath as string;
-            matchConfidence = Math.max(0.5, Math.min(0.95, result.confidence));
-          }
-        } catch {
-          aiCallFailed = true;
-        }
-
-        if (aiCallFailed && !bestMatch && candidates[0].score >= BROKEN_LINK_FALLBACK_SCORE) {
-          bestMatch = candidates[0].notePath as string;
-          matchConfidence = 0.5;
-        }
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const candidateNote = await this.vault.readNote(c.notePath);
+        const preview = candidateNote
+          ? applyContentRedaction(
+              candidateNote.content.substring(0, 150).replace(/\n/g, ' '),
+              privacyRules,
+            )
+          : '';
+        const scorePercent = Math.round(c.score * 100);
+        descriptions.push(`${i + 1}. ${c.notePath as string} (relevance: ${scorePercent}%)${preview ? ` — "${preview}"` : ''}`);
+        paths.push(c.notePath as string);
+        scores.push(c.score);
       }
 
-      const diffs: ProposalDiff[] = bestMatch
-        ? [{ field: 'link', before: `[[${link.targetLink}]]`, after: `[[${bestMatch.replace('.md', '')}]]` }]
-        : [{ field: 'link', before: `[[${link.targetLink}]]`, after: `${link.targetLink} (link removed)` }];
+      linkData.push({ link, candidatePaths: paths, candidateScores: scores, descriptions });
+    }
 
-      results.push(createProposal({
-        type: 'fix-broken-link',
-        targetPath: link.sourcePath,
-        diffs,
-        affectedPaths: [link.sourcePath],
-        confidence: matchConfidence,
-        rationale: bestMatch
-          ? `Broken link at line ${link.lineNumber}. Suggested target: ${bestMatch}`
-          : `Broken link at line ${link.lineNumber}: [[${link.targetLink}]] — target does not exist.`,
-      }));
+    const withCandidates = linkData.filter(d => d.candidatePaths.length > 0);
+    const withoutCandidates = linkData.filter(d => d.candidatePaths.length === 0);
+    const results: OrganizeVaultProposal[] = [];
+
+    if (withCandidates.length > 0) {
+      try {
+        const prefCtx = this.preference ? await this.preference.getPreferenceContext('organize') : '';
+        const linkList = withCandidates.map((d, idx) =>
+          `[${idx + 1}] Broken link: [[${d.link.targetLink}]] in "${d.link.sourcePath as string}" (line ${d.link.lineNumber})\nCandidates:\n${d.descriptions.join('\n')}`,
+        ).join('\n---\n');
+
+        const response = await this.ai.callCompletion({
+          systemPrompt: 'You resolve broken wiki-links in a knowledge vault by matching them to existing notes. You are biased toward finding a match — partial or fuzzy matches count. Respond ONLY with a JSON array.',
+          prompt: `${prefCtx ? prefCtx + '\n\n' : ''}These broken links need to be resolved. For each, pick the best matching candidate.
+
+${linkList}
+
+Rules:
+1. Link text is likely a partial name, synonym, abbreviation, or informal reference.
+2. Compare each link text against candidate filenames and content topics.
+3. Select a candidate if ANY candidate covers the same topic, even partially.
+4. Only set targetIndex to null if EVERY candidate is about a completely unrelated topic.
+
+Return a JSON array where each element has:
+- "index": link number (1-based)
+- "targetIndex": candidate number (1-based) or null if no match
+- "confidence": 0.0-1.0
+- "rationale": one-sentence explanation`,
+          maxTokens: 200 * withCandidates.length,
+          temperature: 0.2,
+          jsonMode: true,
+        });
+
+        const aiResults = JSON.parse(response.content) as Array<{
+          index: number;
+          targetIndex: number | null;
+          confidence: number;
+          rationale: string;
+        }>;
+
+        for (let idx = 0; idx < withCandidates.length; idx++) {
+          const d = withCandidates[idx];
+          const aiResult = aiResults.find(r => r.index === idx + 1);
+
+          let bestMatch: string | null = null;
+          let matchConfidence = 0.7;
+
+          if (aiResult?.targetIndex != null
+              && aiResult.targetIndex >= 1
+              && aiResult.targetIndex <= d.candidatePaths.length) {
+            bestMatch = d.candidatePaths[aiResult.targetIndex - 1];
+            matchConfidence = Math.max(0.5, Math.min(0.95, aiResult.confidence));
+          }
+
+          results.push(this.createBrokenLinkProposal(d.link, bestMatch, matchConfidence));
+        }
+      } catch {
+        for (const d of withCandidates) {
+          const bestMatch = d.candidateScores[0] >= BROKEN_LINK_FALLBACK_SCORE
+            ? d.candidatePaths[0]
+            : null;
+          results.push(this.createBrokenLinkProposal(d.link, bestMatch, 0.5));
+        }
+      }
+    }
+
+    for (const d of withoutCandidates) {
+      results.push(this.createBrokenLinkProposal(d.link, null, 0.7));
     }
 
     return results;
+  }
+
+  private createBrokenLinkProposal(
+    link: BrokenLink,
+    bestMatch: string | null,
+    confidence: number,
+  ): OrganizeVaultProposal {
+    const diffs: ProposalDiff[] = bestMatch
+      ? [{ field: 'link', before: `[[${link.targetLink}]]`, after: `[[${bestMatch.replace('.md', '')}]]` }]
+      : [{ field: 'link', before: `[[${link.targetLink}]]`, after: `${link.targetLink} (link removed)` }];
+
+    return createProposal({
+      type: 'fix-broken-link',
+      targetPath: link.sourcePath,
+      diffs,
+      affectedPaths: [link.sourcePath],
+      confidence,
+      rationale: bestMatch
+        ? `Broken link at line ${link.lineNumber}. Suggested target: ${bestMatch}`
+        : `Broken link at line ${link.lineNumber}: [[${link.targetLink}]] — target does not exist.`,
+    });
   }
 
   private generateDuplicateTagProposals(
@@ -410,180 +465,208 @@ Return a JSON array where each element has:
     const results: OrganizeVaultProposal[] = [];
     const usedNotes = new Set<string>();
 
-    for (const pair of candidates) {
-      const noteAStr = pair.noteA as string;
-      const noteBStr = pair.noteB as string;
-      if (usedNotes.has(noteAStr) || usedNotes.has(noteBStr)) continue;
-
-      const proposal = await this.analyzeMergePair(pair);
-      if (proposal) {
-        results.push(proposal);
-        usedNotes.add(noteAStr);
-        usedNotes.add(noteBStr);
+    for (let i = 0; i < candidates.length; i += MERGE_BATCH_SIZE) {
+      const batch: DuplicatePair[] = [];
+      const batchNotes = new Set<string>();
+      for (const pair of candidates.slice(i, i + MERGE_BATCH_SIZE)) {
+        const a = pair.noteA as string;
+        const b = pair.noteB as string;
+        if (usedNotes.has(a) || usedNotes.has(b)) continue;
+        if (batchNotes.has(a) || batchNotes.has(b)) continue;
+        batch.push(pair);
+        batchNotes.add(a);
+        batchNotes.add(b);
       }
+
+      if (batch.length === 0) continue;
+      const batchResults = await this.analyzeMergeBatch(batch);
+      for (const proposal of batchResults) {
+        const meta = proposal.metadata as Record<string, unknown>;
+        usedNotes.add(meta.survivorPath as string);
+        usedNotes.add(meta.donorPath as string);
+      }
+      results.push(...batchResults);
     }
     return results;
   }
 
-  private async analyzeMergePair(
-    pair: DuplicatePair,
-  ): Promise<OrganizeVaultProposal | null> {
-    const noteA = await this.vault.readNote(pair.noteA);
-    const noteB = await this.vault.readNote(pair.noteB);
-    if (!noteA || !noteB) return null;
-
+  private async analyzeMergeBatch(
+    pairs: ReadonlyArray<DuplicatePair>,
+  ): Promise<OrganizeVaultProposal[]> {
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
+    const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
 
-    const aAllowed = isNoteAllowedByRules(
-      pair.noteA as string,
-      noteA.metadata.tags.map(t => t as string),
-      [...noteA.metadata.frontmatterKeys],
-      privacyRules,
-    );
-    const bAllowed = isNoteAllowedByRules(
-      pair.noteB as string,
-      noteB.metadata.tags.map(t => t as string),
-      [...noteB.metadata.frontmatterKeys],
-      privacyRules,
-    );
-    if (!aAllowed || !bAllowed) return null;
+    const validPairs: Array<{
+      pair: DuplicatePair;
+      noteA: NonNullable<Awaited<ReturnType<VaultAccessPort['readNote']>>>;
+      noteB: NonNullable<Awaited<ReturnType<VaultAccessPort['readNote']>>>;
+      contentA: string;
+      contentB: string;
+      aTruncated: boolean;
+      bTruncated: boolean;
+    }> = [];
 
-    const aTruncated = noteA.content.length > MERGE_CONTENT_MAX_LENGTH;
-    const bTruncated = noteB.content.length > MERGE_CONTENT_MAX_LENGTH;
+    for (const pair of pairs) {
+      const noteA = await this.vault.readNote(pair.noteA);
+      const noteB = await this.vault.readNote(pair.noteB);
+      if (!noteA || !noteB) continue;
 
-    const contentA = applyContentRedaction(
-      noteA.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
-      privacyRules,
-    );
-    const contentB = applyContentRedaction(
-      noteB.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
-      privacyRules,
-    );
+      const aAllowed = isNoteAllowedByRules(
+        pair.noteA as string,
+        noteA.metadata.tags.map(t => t as string),
+        [...noteA.metadata.frontmatterKeys],
+        privacyRules,
+      );
+      const bAllowed = isNoteAllowedByRules(
+        pair.noteB as string,
+        noteB.metadata.tags.map(t => t as string),
+        [...noteB.metadata.frontmatterKeys],
+        privacyRules,
+      );
+      if (!aAllowed || !bAllowed) continue;
 
-    const truncationNotice = (aTruncated || bTruncated)
-      ? `\n\nIMPORTANT: ${aTruncated ? `Note A content is truncated (showing ${MERGE_CONTENT_MAX_LENGTH} of ${noteA.content.length} chars). ` : ''}${bTruncated ? `Note B content is truncated (showing ${MERGE_CONTENT_MAX_LENGTH} of ${noteB.content.length} chars). ` : ''}Preserve ALL shown content and note that additional content exists beyond what is shown.`
-      : '';
+      validPairs.push({
+        pair,
+        noteA,
+        noteB,
+        contentA: applyContentRedaction(noteA.content.substring(0, MERGE_CONTENT_MAX_LENGTH), privacyRules),
+        contentB: applyContentRedaction(noteB.content.substring(0, MERGE_CONTENT_MAX_LENGTH), privacyRules),
+        aTruncated: noteA.content.length > MERGE_CONTENT_MAX_LENGTH,
+        bTruncated: noteB.content.length > MERGE_CONTENT_MAX_LENGTH,
+      });
+    }
 
-    const aBacklinks = noteA.metadata.backlinks.length;
-    const bBacklinks = noteB.metadata.backlinks.length;
-    const scorePercent = Math.round(pair.similarityScore * 100);
+    if (validPairs.length === 0) return [];
 
     try {
-      const prefCtxMerge = this.preference ? await this.preference.getPreferenceContext('organize') : '';
-      const response = await this.ai.callCompletion({
-        systemPrompt: 'You are a knowledge vault merger. You analyze two similar notes and produce a single merged document that preserves ALL unique information from both. Respond ONLY with valid JSON.',
-        prompt: `${prefCtxMerge ? prefCtxMerge + '\n\n' : ''}Two notes in a vault are ${scorePercent}% similar. Merge them into one document.
+      const prefCtx = this.preference ? await this.preference.getPreferenceContext('organize') : '';
 
-Note A: "${pair.noteA as string}"
-Backlinks: ${aBacklinks}
+      const pairList = validPairs.map((d, idx) => {
+        const scorePercent = Math.round(d.pair.similarityScore * 100);
+        const truncNote = (d.aTruncated || d.bTruncated)
+          ? `\nIMPORTANT: ${d.aTruncated ? `Note A truncated (${MERGE_CONTENT_MAX_LENGTH}/${d.noteA.content.length} chars). ` : ''}${d.bTruncated ? `Note B truncated (${MERGE_CONTENT_MAX_LENGTH}/${d.noteB.content.length} chars). ` : ''}Preserve ALL shown content.`
+          : '';
+
+        return `[Pair ${idx + 1}] Similarity: ${scorePercent}%
+Note A: "${d.pair.noteA as string}" (backlinks: ${d.noteA.metadata.backlinks.length})
 Content A:
-${contentA}
+${d.contentA}
 
-Note B: "${pair.noteB as string}"
-Backlinks: ${bBacklinks}
+Note B: "${d.pair.noteB as string}" (backlinks: ${d.noteB.metadata.backlinks.length})
 Content B:
-${contentB}
+${d.contentB}${truncNote}`;
+      }).join('\n\n===\n\n');
 
-Merge rules:
-1. The survivor note should be the one with more backlinks, more content, or more established structure. If equal, prefer Note A.
-2. The merged content MUST preserve every unique piece of information from both notes. Never discard content.
+      const response = await this.ai.callCompletion({
+        systemPrompt: 'You are a knowledge vault merger. You analyze pairs of similar notes and produce merged documents that preserve ALL unique information. Respond ONLY with a JSON array.',
+        prompt: `${prefCtx ? prefCtx + '\n\n' : ''}Merge each pair of similar notes into one document.
+
+${pairList}
+
+Merge rules (apply to each pair):
+1. The survivor note should have more backlinks, more content, or more established structure. If equal, prefer Note A.
+2. Merged content MUST preserve every unique piece of information from both notes.
 3. Merge frontmatter tags from both notes (deduplicate).
-4. If information conflicts, keep the more detailed/complete version and note the conflict with a "> [!warning] Conflict" callout.
-5. Structure the merged document logically with clear headings.
-6. The merged content should be valid Markdown without a frontmatter --- block.${truncationNotice}
+4. If information conflicts, keep the more detailed version and note with a "> [!warning] Conflict" callout.
+5. Structure logically with clear headings.
+6. Merged content should be valid Markdown without a frontmatter --- block.
 
-Return JSON:
-{
-  "survivorIndex": 1 or 2,
-  "mergedContent": "full merged markdown content (no frontmatter --- block)",
-  "mergedTags": ["tag1", "tag2"],
-  "confidence": 0.0-1.0,
-  "rationale": "one-sentence explanation of the merge decision"
-}`,
-        maxTokens: 4000,
+Return a JSON array where each element has:
+- "pairIndex": pair number (1-based)
+- "survivorIndex": 1 or 2
+- "mergedContent": "full merged markdown content (no frontmatter)"
+- "mergedTags": ["tag1", "tag2"]
+- "confidence": 0.0-1.0
+- "rationale": "one-sentence explanation"`,
+        maxTokens: 4000 * validPairs.length,
         temperature: 0.2,
         jsonMode: true,
       });
 
-      const parsed: unknown = JSON.parse(response.content);
-      if (!this.isMergeAIResponse(parsed)) {
-        console.warn(`[Vaultend] Merge AI response validation failed for pair: ${pair.noteA as string} + ${pair.noteB as string}`);
-        return null;
+      const aiResults = JSON.parse(response.content) as Array<{
+        pairIndex: number;
+        survivorIndex: number;
+        mergedContent: string;
+        mergedTags: string[];
+        confidence: number;
+        rationale: string;
+      }>;
+
+      const results: OrganizeVaultProposal[] = [];
+      for (let idx = 0; idx < validPairs.length; idx++) {
+        const d = validPairs[idx];
+        const result = aiResults.find(r => r.pairIndex === idx + 1);
+        if (!result || !this.isMergeAIResponse(result)) continue;
+
+        const scorePercent = Math.round(d.pair.similarityScore * 100);
+        const survivor = result.survivorIndex === 2 ? d.pair.noteB : d.pair.noteA;
+        const donor = survivor === d.pair.noteA ? d.pair.noteB : d.pair.noteA;
+        const donorNote = donor === d.pair.noteA ? d.noteA : d.noteB;
+        const survivorNote = survivor === d.pair.noteA ? d.noteA : d.noteB;
+
+        const backlinksToRedirect = [...donorNote.metadata.backlinks];
+        const donorBasename = (donor as string).split('/').pop()?.replace('.md', '') ?? '';
+        const survivorBasename = (survivor as string).split('/').pop()?.replace('.md', '') ?? '';
+        const sourceBlock = `\n\n> [!info] Merged Note\n> Merged from [[${donorBasename}]] (similarity: ${scorePercent}%).`;
+        const donorFileName = (donor as string).split('/').pop() ?? '';
+
+        const allTags = [
+          ...survivorNote.metadata.tags.map(t => t as string),
+          ...donorNote.metadata.tags.map(t => t as string),
+        ].filter((v, i, a) => a.indexOf(v) === i);
+        const mergedTags = result.mergedTags.length > 0 ? result.mergedTags : allTags;
+
+        const diffs: ProposalDiff[] = [
+          {
+            field: 'merge',
+            before: `${(d.pair.noteA as string).split('/').pop()} + ${(d.pair.noteB as string).split('/').pop()}`,
+            after: `→ ${survivorBasename}.md (survivor)`,
+          },
+          {
+            field: 'content',
+            before: `${d.noteA.content.length} + ${d.noteB.content.length} chars`,
+            after: `${result.mergedContent.length} chars (merged)`,
+          },
+          {
+            field: 'tags',
+            before: allTags.join(', ') || '(none)',
+            after: mergedTags.join(', ') || '(none)',
+          },
+          {
+            field: 'backlinks',
+            before: `${backlinksToRedirect.length} notes link to ${donorBasename}`,
+            after: `redirected to ${survivorBasename}`,
+          },
+          {
+            field: 'donor',
+            before: donor as string,
+            after: `${archiveFolder}/${donorFileName}`,
+          },
+        ];
+
+        results.push(createProposal({
+          type: 'merge-duplicate-notes',
+          targetPath: survivor,
+          diffs,
+          affectedPaths: [survivor, donor, ...backlinksToRedirect],
+          confidence: Math.max(0.3, Math.min(0.95, result.confidence)),
+          rationale: result.rationale,
+          metadata: {
+            survivorPath: survivor as string,
+            donorPath: donor as string,
+            mergedContent: result.mergedContent,
+            mergedTags,
+            sourceBlock,
+            backlinksToRedirect: backlinksToRedirect.map(p => p as string),
+            contentTruncated: d.aTruncated || d.bTruncated,
+          },
+        }));
       }
-      const result = parsed;
-
-      const survivor = result.survivorIndex === 2 ? pair.noteB : pair.noteA;
-      const donor = survivor === pair.noteA ? pair.noteB : pair.noteA;
-      const donorNote = donor === pair.noteA ? noteA : noteB;
-      const survivorNote = survivor === pair.noteA ? noteA : noteB;
-
-      const backlinksToRedirect = [...donorNote.metadata.backlinks];
-
-      const donorBasename = (donor as string).split('/').pop()?.replace('.md', '') ?? '';
-      const survivorBasename = (survivor as string).split('/').pop()?.replace('.md', '') ?? '';
-      const sourceBlock = `\n\n> [!info] Merged Note\n> Merged from [[${donorBasename}]] (similarity: ${scorePercent}%).`;
-
-      const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
-      const donorFileName = (donor as string).split('/').pop() ?? '';
-
-      const allTags = [
-        ...survivorNote.metadata.tags.map(t => t as string),
-        ...donorNote.metadata.tags.map(t => t as string),
-      ].filter((v, i, a) => a.indexOf(v) === i);
-      const mergedTags = result.mergedTags.length > 0 ? result.mergedTags : allTags;
-
-      const diffs: ProposalDiff[] = [
-        {
-          field: 'merge',
-          before: `${(pair.noteA as string).split('/').pop()} + ${(pair.noteB as string).split('/').pop()}`,
-          after: `→ ${survivorBasename}.md (survivor)`,
-        },
-        {
-          field: 'content',
-          before: `${noteA.content.length} + ${noteB.content.length} chars`,
-          after: `${result.mergedContent.length} chars (merged)`,
-        },
-        {
-          field: 'tags',
-          before: allTags.join(', ') || '(none)',
-          after: mergedTags.join(', ') || '(none)',
-        },
-        {
-          field: 'backlinks',
-          before: `${backlinksToRedirect.length} notes link to ${donorBasename}`,
-          after: `redirected to ${survivorBasename}`,
-        },
-        {
-          field: 'donor',
-          before: donor as string,
-          after: `${archiveFolder}/${donorFileName}`,
-        },
-      ];
-
-      return createProposal({
-        type: 'merge-duplicate-notes',
-        targetPath: survivor,
-        diffs,
-        affectedPaths: [survivor, donor, ...backlinksToRedirect],
-        confidence: Math.max(0.3, Math.min(0.95, result.confidence)),
-        rationale: result.rationale,
-        metadata: {
-          survivorPath: survivor as string,
-          donorPath: donor as string,
-          mergedContent: result.mergedContent,
-          mergedTags,
-          sourceBlock,
-          backlinksToRedirect: backlinksToRedirect.map(p => p as string),
-          contentTruncated: aTruncated || bTruncated,
-        },
-      });
+      return results;
     } catch (err) {
-      console.warn(
-        `[Vaultend] Merge analysis failed for pair: ${pair.noteA as string} + ${pair.noteB as string}`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
+      console.warn('[Vaultend] Merge batch analysis failed:', err instanceof Error ? err.message : err);
+      return [];
     }
   }
 

@@ -9,6 +9,7 @@ import { detectContentLanguage } from '../../application/utils/detectContentLang
 export class OpenAICompatAdapter implements AIProviderPort {
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_BASE_MS = 2000;
+  private rateLimitedUntil = 0;
 
   constructor(
     private readonly baseUrl: string,
@@ -162,6 +163,11 @@ export class OpenAICompatAdapter implements AIProviderPort {
   }
 
   private async requestWithRetry(params: RequestUrlParam): Promise<unknown> {
+    const now = Date.now();
+    if (now < this.rateLimitedUntil) {
+      throw new RateLimitError(this.rateLimitedUntil - now);
+    }
+
     let lastError: unknown;
     let lastRetryAfterMs = 60_000;
 
@@ -170,31 +176,33 @@ export class OpenAICompatAdapter implements AIProviderPort {
         const response = await requestUrl(params);
         if (response.status === 200) return response.json;
 
-        if (response.status === 429 || response.status === 503) {
+        if (response.status === 429) {
           lastRetryAfterMs = this.parseRetryAfter(response.headers);
+          this.rateLimitedUntil = Date.now() + lastRetryAfterMs;
+          throw new RateLimitError(lastRetryAfterMs);
+        } else if (response.status === 503) {
           lastError = new AIProviderError(this.providerName, response.status, 'retryable');
         } else {
           throw new AIProviderError(this.providerName, response.status, JSON.stringify(response.json));
         }
       } catch (err) {
-        if (err instanceof AIProviderError && !(err.statusCode === 429 || err.statusCode === 503)) throw err;
+        if (err instanceof RateLimitError) throw err;
+        if (err instanceof AIProviderError && !(err.statusCode === 503)) throw err;
         lastError = err;
 
         const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('429') && !msg.includes('503') && !(err instanceof AIProviderError)) {
+        if (!msg.includes('503') && !(err instanceof AIProviderError)) {
           throw new AIProviderError(this.providerName, 0, msg);
         }
       }
 
       if (attempt < OpenAICompatAdapter.MAX_RETRIES) {
         const backoff = OpenAICompatAdapter.RETRY_BASE_MS * Math.pow(2, attempt);
-        const delay = Math.max(backoff, lastRetryAfterMs);
-        await new Promise(resolve => window.setTimeout(resolve, delay));
+        await new Promise(resolve => window.setTimeout(resolve, backoff));
       }
     }
 
     const msg = lastError instanceof Error ? lastError.message : String(lastError);
-    if (msg.includes('429')) throw new RateLimitError(lastRetryAfterMs);
     throw new AIProviderError(this.providerName, 0, `${OpenAICompatAdapter.MAX_RETRIES} retries failed: ${msg}`);
   }
 

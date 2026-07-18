@@ -102,7 +102,7 @@ describe('GeminiAdapter', () => {
       }
     });
 
-    it('429 응답 시 재시도 후 RateLimitError를 던진다', async () => {
+    it('429 응답 시 즉시 RateLimitError를 던진다 (circuit breaker)', async () => {
       mockRequestUrl.mockResolvedValue({
         status: 429,
         json: {},
@@ -114,8 +114,8 @@ describe('GeminiAdapter', () => {
       await expect(adapter.callCompletion({
         prompt: 'x', maxTokens: 10, temperature: 0,
       })).rejects.toThrow(RateLimitError);
-      expect(mockRequestUrl).toHaveBeenCalledTimes(4);
-    }, 30_000);
+      expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+    });
 
     it('에러 응답 시 AIProviderError를 던진다', async () => {
       mockRequestUrl.mockResolvedValue({

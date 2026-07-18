@@ -10,6 +10,7 @@ export class GeminiAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_BASE_MS = 2000;
+  private rateLimitedUntil = 0;
 
   constructor(
     private readonly apiKey: string,
@@ -151,6 +152,11 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   private async requestWithRetry(params: RequestUrlParam) {
+    const now = Date.now();
+    if (now < this.rateLimitedUntil) {
+      throw new RateLimitError(this.rateLimitedUntil - now);
+    }
+
     let lastError: unknown;
     let lastRetryAfterMs = 60_000;
     for (let attempt = 0; attempt <= GeminiAdapter.MAX_RETRIES; attempt++) {
@@ -158,13 +164,17 @@ export class GeminiAdapter implements AIProviderPort {
         const response = await requestUrl(params);
         if (response.status === 200) return response;
 
-        if (response.status === 429 || response.status === 503) {
+        if (response.status === 429) {
           lastRetryAfterMs = this.parseRetryAfter(response.headers);
+          this.rateLimitedUntil = Date.now() + lastRetryAfterMs;
+          throw new RateLimitError(lastRetryAfterMs);
+        } else if (response.status === 503) {
           lastError = new AIProviderError('Gemini', response.status, 'retryable');
         } else {
           throw new AIProviderError('Gemini', response.status, JSON.stringify(response.json));
         }
       } catch (err) {
+        if (err instanceof RateLimitError) throw err;
         if (err instanceof AIProviderError && !this.isRetryable(err)) throw err;
 
         lastError = err;
@@ -176,13 +186,11 @@ export class GeminiAdapter implements AIProviderPort {
 
       if (attempt < GeminiAdapter.MAX_RETRIES) {
         const backoff = GeminiAdapter.RETRY_BASE_MS * Math.pow(2, attempt);
-        const delay = Math.max(backoff, lastRetryAfterMs);
-        await this.sleep(delay);
+        await this.sleep(backoff);
       }
     }
 
     const msg = lastError instanceof Error ? lastError.message : String(lastError);
-    if (msg.includes('429')) throw new RateLimitError(lastRetryAfterMs);
     throw new AIProviderError('Gemini', 0, `${GeminiAdapter.MAX_RETRIES}회 재시도 후 실패: ${msg}`);
   }
 
