@@ -45,3 +45,4 @@
 - **클립보드 캡처 제거** (2026-07-16, PR #117, ADR-0006): 플러그인 범위를 vault 내부 관리로 한정. ClipboardPort, CaptureClipboardUseCase, ObsidianClipboardAdapter 및 관련 코드 전체 삭제.
 - **Free/Pro 게이팅 — 진입점 전용** (2026-07-17, PR #128, ADR-0007): 게이팅은 main.ts 커맨드 핸들러와 UI View에서만 수행. UseCase/Domain은 라이선스를 모름. LicensePort 인터페이스로 검증 방식 교체 가능. 초기 LocalLicenseAdapter는 로컬 체크섬만 사용 (Phase 3에서 Ed25519 전환).
 - **Grace period 영속화** (2026-07-17, PR #128): 기존 사용자 14일 유예를 `proGraceDeadline`에 영속화. Codex 교차검증에서 재시작 시 무한 갱신 버그 발견 → `loadSettings()` 마이그레이션 후 즉시 `saveData()` 호출로 수정.
+- **Pro 게이팅 재분류** (2026-07-18, PRD v2): `smart-scheduling`은 `auto-maintenance`의 하위 동작으로 통합 (별도 `ProFeatureId` 제거). `batch-merge-tags`는 Free로 전환 (사용자 API를 쓰므로 게이팅 부당). 결과적으로 `ProFeatureId`는 `organize-folder`과 `auto-maintenance` 2개만 유지. ADR-0007 부분 수정.
