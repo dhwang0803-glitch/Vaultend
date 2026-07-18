@@ -39,6 +39,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   private createMiniSearch(): MiniSearch<IndexedDocument> {
     return new MiniSearch<IndexedDocument>({
       ...MINISEARCH_OPTIONS,
+      autoVacuum: false,
       searchOptions: {
         prefix: true,
         fuzzy: false,
@@ -54,8 +55,8 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     const noteName = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
 
     const existingIds = this.noteDocIds.get(pathStr) ?? [];
-    for (const id of existingIds) {
-      this.miniSearch.discard(id);
+    if (existingIds.length > 0) {
+      this.miniSearch.discardAll(existingIds);
     }
 
     const newIds: string[] = [];
@@ -113,8 +114,8 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     await this.ensureLoaded();
 
     const ids = this.noteDocIds.get(notePath as string) ?? [];
-    for (const id of ids) {
-      this.miniSearch.discard(id);
+    if (ids.length > 0) {
+      this.miniSearch.discardAll(ids);
     }
     this.noteDocIds.delete(notePath as string);
     this.dirty = true;
@@ -139,7 +140,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
         if (data.miniSearchIndex && data.noteDocIds && data.version === INDEX_VERSION) {
           this.miniSearch = MiniSearch.loadJSON<IndexedDocument>(
             JSON.stringify(data.miniSearchIndex),
-            { ...MINISEARCH_OPTIONS, searchOptions: { prefix: true, fuzzy: false, boost: { noteName: 3 } } },
+            { ...MINISEARCH_OPTIONS, autoVacuum: false, searchOptions: { prefix: true, fuzzy: false, boost: { noteName: 3 } } },
           );
           this.noteDocIds = new Map(Object.entries(data.noteDocIds as Record<string, string[]>));
         } else {
