@@ -3,6 +3,7 @@ import { VaultAccessPort, VaultEventHandler } from '../../application/ports/Vaul
 import { Note, createNote } from '../../domain/models/Note';
 import { NoteMetadata } from '../../domain/models/NoteMetadata';
 import { NoteChunk } from '../../domain/models/NoteChunk';
+import type { NoteMetadataEntry } from '../../domain/models/RefactorModels';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createNoteId } from '../../domain/values/NoteId';
 import { createNoteTitle } from '../../domain/values/NoteTitle';
@@ -210,6 +211,64 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       }
     }
     return result;
+  }
+
+  async listNotesWithMetadata(): Promise<ReadonlyArray<NoteMetadataEntry>> {
+    const files = this.app.vault.getMarkdownFiles();
+    const entries: NoteMetadataEntry[] = [];
+
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      const frontmatter = cache?.frontmatter ?? {};
+
+      const rawTags: string[] = [];
+      if (cache?.tags) {
+        for (const t of cache.tags) rawTags.push(t.tag);
+      }
+      if (Array.isArray(frontmatter.tags)) {
+        for (const t of frontmatter.tags) {
+          const tag = String(t);
+          rawTags.push(tag.startsWith('#') ? tag : `#${tag}`);
+        }
+      }
+      const tags = [...new Set(rawTags)];
+
+      const links: string[] = [];
+      if (cache?.links) {
+        for (const link of cache.links) {
+          const resolved = this.app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+          if (resolved) links.push(resolved.path);
+        }
+      }
+
+      const backlinks: string[] = [];
+      const resolvedLinks = this.app.metadataCache.resolvedLinks;
+      for (const sourcePath of Object.keys(resolvedLinks)) {
+        if (resolvedLinks[sourcePath]?.[file.path]) {
+          backlinks.push(sourcePath);
+        }
+      }
+
+      const wordCount = Math.round(file.stat.size / 6);
+
+      const folder = file.path.includes('/')
+        ? file.path.substring(0, file.path.lastIndexOf('/'))
+        : '';
+
+      entries.push({
+        path: file.path,
+        tags,
+        links,
+        backlinks,
+        wordCount,
+        createdAt: file.stat.ctime,
+        modifiedAt: file.stat.mtime,
+        folder,
+        fileSize: file.stat.size,
+      });
+    }
+
+    return entries;
   }
 
   watchEvents(handler: VaultEventHandler): () => void {

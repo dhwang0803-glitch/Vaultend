@@ -1,4 +1,5 @@
 import { Note } from '../../domain/models/Note';
+import type { NoteMetadataEntry } from '../../domain/models/RefactorModels';
 import { NotePath } from '../../domain/values/NotePath';
 
 /**
@@ -40,6 +41,9 @@ export interface VaultAccessPort {
 
   /** 비-마크다운 파일에 원시 텍스트를 쓴다. 폴더가 없으면 생성한다. */
   writeFileRaw(path: string, content: string): Promise<void>;
+
+  /** Vault 전체 노트의 메타데이터를 일괄 반환. 콘텐츠 I/O 없이 메타데이터 캐시만 사용. */
+  listNotesWithMetadata(): Promise<ReadonlyArray<NoteMetadataEntry>>;
 
   /** 파일 이벤트 감시 등록. 해제를 위한 콜백 반환. */
   watchEvents(handler: VaultEventHandler): () => void;

@@ -63,3 +63,13 @@ export {
   getApprovedProposals,
   countByType,
 } from './OrganizeVaultPlan';
+export type {
+  RefactorGoalType,
+  RefactorGoal,
+  RefactorParameters,
+  RefactorCostEstimate,
+  NoteMetadataEntry,
+  VaultMetadataSnapshot,
+  RefactorPhase,
+  RefactorProgress,
+} from './RefactorModels';

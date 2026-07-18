@@ -27,6 +27,8 @@ import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseC
 import { GenerateOrganizeVaultUseCase } from './application/usecases/GenerateOrganizeVaultUseCase';
 import { ApplyOrganizeVaultUseCase } from './application/usecases/ApplyOrganizeVaultUseCase';
 import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrganizeVaultUseCase';
+import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefactorCostUseCase';
+import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
@@ -144,6 +146,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private generateOrganizeVaultUseCase!: GenerateOrganizeVaultUseCase;
   private applyOrganizeVaultUseCase!: ApplyOrganizeVaultUseCase;
   private rollbackOrganizeVaultUseCase!: RollbackOrganizeVaultUseCase;
+  private estimateRefactorCostUseCase!: EstimateRefactorCostUseCase;
+  private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -353,6 +357,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
       this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
     );
+
+    this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase();
+
+    this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
+      this.clockAdapter, this.vaultAdapter,
+      this.searchIndex, this.organizeVaultAdapter,
+      this.aiAdapter, this.configPort,
+    );
   }
 
   private registerViews(): void {
@@ -415,6 +427,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
         },
+        this.vaultAdapter,
+        this.estimateRefactorCostUseCase,
+        this.generateRefactorPlanUseCase,
       ),
     );
   }

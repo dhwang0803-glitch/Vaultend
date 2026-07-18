@@ -3,7 +3,10 @@ import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUse
 import { GenerateOrganizeVaultUseCase } from '../application/usecases/GenerateOrganizeVaultUseCase';
 import { ApplyOrganizeVaultUseCase } from '../application/usecases/ApplyOrganizeVaultUseCase';
 import { RollbackOrganizeVaultUseCase } from '../application/usecases/RollbackOrganizeVaultUseCase';
+import type { EstimateRefactorCostUseCase } from '../application/usecases/EstimateRefactorCostUseCase';
+import type { GenerateRefactorPlanUseCase } from '../application/usecases/GenerateRefactorPlanUseCase';
 import type { OrganizeVaultPort } from '../application/ports/OrganizeVaultPort';
+import type { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import type { LicensePort } from '../application/ports/LicensePort';
 import {
   OrganizeVaultPlan,
@@ -12,6 +15,7 @@ import {
   countByType,
   getApprovedProposals,
 } from '../domain/models/OrganizeVaultPlan';
+import { RefactorGoalModal } from './RefactorGoalModal';
 import { localizeError } from './localizeError';
 import { ORGANIZE_VAULT_VIEW_TYPE } from '../constants';
 import { t } from '../i18n';
@@ -43,6 +47,9 @@ export class OrganizeVaultView extends ItemView {
     private readonly store: OrganizeVaultPort,
     private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
+    private readonly vaultAdapter?: VaultAccessPort,
+    private readonly estimateRefactorCost?: EstimateRefactorCostUseCase,
+    private readonly generateRefactorPlan?: GenerateRefactorPlanUseCase,
   ) {
     super(leaf);
   }
@@ -113,11 +120,17 @@ export class OrganizeVaultView extends ItemView {
     emptyDiv.createEl('h3', { text: t('organizeVault.title') });
     emptyDiv.createEl('p', { text: t('organizeVault.generateScanDesc') });
 
-    new Setting(emptyDiv)
+    const setting = new Setting(emptyDiv)
       .addButton(btn => btn
         .setButtonText(t('organizeVault.generateScan'))
         .setCta()
         .onClick(() => this.triggerScan()));
+
+    if (this.generateRefactorPlan) {
+      setting.addButton(btn => btn
+        .setButtonText(t('refactor.title' as any))
+        .onClick(() => this.openRefactorModal()));
+    }
   }
 
   private render(): void {
@@ -204,6 +217,10 @@ export class OrganizeVaultView extends ItemView {
 
     const typeLabel = header.createSpan({ cls: 'vaultend-organize-vault-proposal-type' });
     typeLabel.setText(t(`organizeVault.type.${proposal.type}` as any));
+
+    if (proposal.metadata?.source === 'refactor') {
+      header.createSpan({ text: t('refactor.source' as any), cls: 'vaultend-refactor-badge' });
+    }
 
     const confidenceBadge = header.createSpan({ cls: 'vaultend-organize-vault-confidence-badge' });
     confidenceBadge.setText(`${CONFIDENCE_ICONS[proposal.confidenceLevel]} ${Math.round(proposal.confidence * 100)}%`);
@@ -293,10 +310,16 @@ export class OrganizeVaultView extends ItemView {
           .setDisabled(approvedCount === 0)
           .onClick(() => this.applyAll()));
 
-      new Setting(actionsBar)
+      const rescanSetting = new Setting(actionsBar)
         .addButton(btn => btn
           .setButtonText(t('organizeVault.rescan'))
           .onClick(() => this.triggerScan()));
+
+      if (this.generateRefactorPlan) {
+        rescanSetting.addButton(btn => btn
+          .setButtonText(t('refactor.title' as any))
+          .onClick(() => this.openRefactorModal()));
+      }
     }
 
     if (plan.status === 'applied') {
@@ -424,6 +447,18 @@ export class OrganizeVaultView extends ItemView {
         this.openFile(meta.donorPath!);
       });
     }
+  }
+
+  private openRefactorModal(): void {
+    if (!this.vaultAdapter || !this.estimateRefactorCost || !this.generateRefactorPlan) return;
+    new RefactorGoalModal(
+      this.app,
+      this.vaultAdapter,
+      this.estimateRefactorCost,
+      this.generateRefactorPlan,
+      this.licensePort,
+      (plan) => this.showPlan(plan),
+    ).open();
   }
 
   private async rollbackAll(): Promise<void> {

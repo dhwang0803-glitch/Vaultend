@@ -107,6 +107,7 @@ export class ApplyOrganizeVaultUseCase {
   ): Promise<string | null> {
     const folderDiff = proposal.diffs.find(d => d.field === 'folder');
     if (!folderDiff) {
+      if (proposal.metadata?.source === 'refactor') return null;
       return this.applyArchive(proposal, transactionId);
     }
 

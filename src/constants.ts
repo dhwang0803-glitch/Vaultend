@@ -42,3 +42,12 @@ export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
+
+/** Refactor 파이프라인 상수 */
+export const REFACTOR_BATCH_SIZE = 50;
+export const REFACTOR_CONTENT_PREVIEW = 300;
+export const FLEETING_WORD_COUNT_THRESHOLD = 150;
+export const FLEETING_MIN_CLUSTER_SIZE = 2;
+export const REFACTOR_MAX_TAGS_IN_PROMPT = 200;
+export const REORG_LOW_CONFIDENCE_THRESHOLD = 0.5;
+export const REORG_TIER2_TRIGGER_RATIO = 0.3;
