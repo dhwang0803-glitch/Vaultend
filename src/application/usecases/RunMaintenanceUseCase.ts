@@ -576,7 +576,8 @@ export class RunMaintenanceUseCase {
           const sim = TagNormalizationService.cosineSimilarity(
             resp.embeddings[i], resp.embeddings[j],
           );
-          if (sim >= EMBEDDING_SIMILARITY_THRESHOLD) {
+          const threshold = TagNormalizationService.embeddingMergeThreshold(tags[i], tags[j]);
+          if (sim >= threshold) {
             group.push(...capped[j].variants);
             merged.add(j);
           }

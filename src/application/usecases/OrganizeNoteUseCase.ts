@@ -216,7 +216,10 @@ export class OrganizeNoteUseCase {
             bestTag = tag;
           }
         }
-        if (bestSim >= EMBEDDING_SIMILARITY_THRESHOLD && bestTag) {
+        const pairThreshold = bestTag
+          ? TagNormalizationService.embeddingMergeThreshold(newTags[i], bestTag)
+          : EMBEDDING_SIMILARITY_THRESHOLD;
+        if (bestSim >= pairThreshold && bestTag) {
           result.set(newTags[i], bestTag);
         }
       }

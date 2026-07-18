@@ -73,6 +73,32 @@ export class TagNormalizationService {
     return [...index, ...newGroups];
   }
 
+  static embeddingMergeThreshold(tagA: string, tagB: string): number {
+    const STRICT = 0.88;
+    const RELAXED = 0.75;
+
+    const a = (tagA.startsWith('#') ? tagA.slice(1) : tagA).toLowerCase();
+    const b = (tagB.startsWith('#') ? tagB.slice(1) : tagB).toLowerCase();
+
+    if (/[^\x00-\x7F]/.test(a) || /[^\x00-\x7F]/.test(b)) return RELAXED;
+
+    const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+
+    if (longer.startsWith(shorter) && longer.length - shorter.length <= 3) {
+      return RELAXED;
+    }
+
+    if (shorter.length <= 3) {
+      const words = longer.split(/[-_]/);
+      if (words.length >= shorter.length) {
+        const initials = words.map(w => w[0]).join('');
+        if (initials.startsWith(shorter)) return RELAXED;
+      }
+    }
+
+    return STRICT;
+  }
+
   static cosineSimilarity(
     a: ArrayLike<number>,
     b: ArrayLike<number>,

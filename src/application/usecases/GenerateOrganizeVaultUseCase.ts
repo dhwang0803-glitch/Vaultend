@@ -13,7 +13,7 @@ import {
   MissingTagSuggestion,
   EmptyNoteEntry,
 } from '../../domain/models/OrganizeModels';
-import { NotePath } from '../../domain/values/NotePath';
+import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { ClockPort } from '../ports/ClockPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
@@ -23,6 +23,8 @@ import { ConfigPort } from '../ports/ConfigPort';
 
 const AI_BATCH_SIZE = 10;
 const CONTENT_PREVIEW_LENGTH = 500;
+const BROKEN_LINK_SEARCH_LIMIT = 5;
+const BROKEN_LINK_FALLBACK_SCORE = 0.4;
 
 export class GenerateOrganizeVaultUseCase {
   constructor(
@@ -87,6 +89,9 @@ export class GenerateOrganizeVaultUseCase {
     if (noteData.length === 0) return [];
 
     try {
+      const settings = await this.config.getSettings();
+      const knownTags = settings.knownTags ?? [];
+
       const noteList = noteData.map((n, idx) =>
         `[${idx + 1}] Path: ${n.orphan.notePath as string}\nContent: ${n.content}`,
       ).join('\n---\n');
@@ -96,6 +101,7 @@ export class GenerateOrganizeVaultUseCase {
         prompt: `These notes have no links to or from other notes. For each, suggest where it belongs.
 
 Available folders: ${folders.slice(0, 50).join(', ')}
+${knownTags.length > 0 ? `Existing vault tags (prefer these over inventing new ones): ${knownTags.slice(0, 50).join(', ')}` : ''}
 
 Notes:
 ${noteList}
@@ -103,7 +109,7 @@ ${noteList}
 Return a JSON array where each element has:
 - "index": note number (1-based)
 - "folder": best existing folder to move to, or current folder if it's fine
-- "tags": array of suggested tags (max 3, use existing vault conventions)
+- "tags": array of suggested tags (max 3, MUST use tags from the existing vault tags list above when applicable)
 - "confidence": 0.0-1.0 how certain you are
 - "rationale": one-sentence explanation`,
         maxTokens: 1500,
@@ -165,22 +171,45 @@ Return a JSON array where each element has:
 
     const results: OrganizeVaultProposal[] = [];
 
+    const settings = await this.config.getSettings();
+    const privacyRules = [...settings.privacyRules];
+
     for (const link of brokenLinks) {
-      const candidates = await this.searchIndex.search(link.targetLink, 3);
+      const candidates = await this.searchIndex.search(link.targetLink, BROKEN_LINK_SEARCH_LIMIT);
       let bestMatch: string | null = null;
       let matchConfidence = 0.7;
 
       if (candidates.length > 0) {
+        const candidateDescriptions = await Promise.all(
+          candidates.map(async (c, i) => {
+            const candidateNote = await this.vault.readNote(c.notePath);
+            const preview = candidateNote
+              ? applyContentRedaction(
+                  candidateNote.content.substring(0, 150).replace(/\n/g, ' '),
+                  privacyRules,
+                )
+              : '';
+            const scorePercent = Math.round(c.score * 100);
+            return `${i + 1}. ${c.notePath as string} (relevance: ${scorePercent}%)${preview ? ` — "${preview}"` : ''}`;
+          }),
+        );
+
+        let aiCallFailed = false;
         try {
           const response = await this.ai.callCompletion({
-            systemPrompt: 'You fix broken links in a knowledge vault. Respond ONLY with JSON.',
-            prompt: `A link [[${link.targetLink}]] in "${link.sourcePath as string}" (line ${link.lineNumber}) is broken.
+            systemPrompt: 'You resolve broken wiki-links in a knowledge vault by matching them to existing notes. You are biased toward finding a match — partial or fuzzy matches count. Respond ONLY with valid JSON.',
+            prompt: `A broken link [[${link.targetLink}]] was found in "${link.sourcePath as string}" (line ${link.lineNumber}). The linked note does not exist.
 
-Possible targets:
-${candidates.map((c, i) => `${i + 1}. ${c.notePath as string}`).join('\n')}
+Below are candidate notes found by searching the vault. Pick the one that best matches the link text:
+${candidateDescriptions.join('\n')}
 
-Return JSON: {"targetIndex": number or null, "confidence": 0.0-1.0, "rationale": "..."}
-If none match, set targetIndex to null.`,
+Rules:
+1. The link text is likely a partial name, synonym, abbreviation, or informal reference.
+2. "${link.targetLink}" → compare each candidate's filename and content topic.
+3. You MUST select a candidate if ANY candidate covers the same topic as the link text, even partially.
+4. Only set targetIndex to null if EVERY candidate is about a completely unrelated topic.
+
+Return JSON: {"targetIndex": <1-based number or null>, "confidence": 0.0-1.0, "rationale": "one sentence"}`,
             maxTokens: 200,
             temperature: 0.2,
             jsonMode: true,
@@ -197,10 +226,12 @@ If none match, set targetIndex to null.`,
             matchConfidence = Math.max(0.5, Math.min(0.95, result.confidence));
           }
         } catch {
-          if (candidates.length === 1) {
-            bestMatch = candidates[0].notePath as string;
-            matchConfidence = 0.5;
-          }
+          aiCallFailed = true;
+        }
+
+        if (aiCallFailed && !bestMatch && candidates[0].score >= BROKEN_LINK_FALLBACK_SCORE) {
+          bestMatch = candidates[0].notePath as string;
+          matchConfidence = 0.5;
         }
       }
 
