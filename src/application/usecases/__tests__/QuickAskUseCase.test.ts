@@ -278,6 +278,7 @@ describe('QuickAskUseCase', () => {
       // Embedding returns a result that is NOT in BM25
       const mockEmbedding: EmbeddingPort = {
         initialize: vi.fn().mockResolvedValue(true),
+        initializeWithKnownDimension: vi.fn(),
         isReady: vi.fn().mockReturnValue(true),
         embed: vi.fn().mockResolvedValue(new Float32Array([0.1, 0.2, 0.3])),
         embedBatch: vi.fn().mockResolvedValue([]),

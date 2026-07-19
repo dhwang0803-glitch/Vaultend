@@ -130,6 +130,7 @@ export class GenerateRefactorPlanUseCase {
     }
 
     const chunkResults: string[] = [];
+    let lastError: unknown;
     for (let i = 0; i < tagChunks.length; i++) {
       this.checkAborted(signal);
       onProgress({
@@ -149,11 +150,15 @@ export class GenerateRefactorPlanUseCase {
         });
         chunkResults.push(response.content);
       } catch (err) {
+        lastError = err;
         console.warn(`[Vaultend] Tag cleanup chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
       }
     }
 
-    if (chunkResults.length === 0) return [];
+    if (chunkResults.length === 0) {
+      if (lastError) throw lastError;
+      return [];
+    }
 
     this.checkAborted(signal);
     onProgress({ phase: 'synthesizing', currentStep: 1, totalSteps: 1, message: 'Synthesizing tag analysis...' });
@@ -269,6 +274,8 @@ export class GenerateRefactorPlanUseCase {
 
     type PlacementResult = { path: string; suggestedFolder: string; confidence: number; rationale: string };
     const allPlacements: PlacementResult[] = [];
+    let lastReorgError: unknown;
+    let aiSuccessCount = 0;
 
     for (let i = 0; i < noteChunks.length; i++) {
       this.checkAborted(signal);
@@ -289,12 +296,16 @@ export class GenerateRefactorPlanUseCase {
           temperature: 0.3,
           jsonMode: true,
         });
+        aiSuccessCount++;
         const parsed = JSON.parse(response.content) as PlacementResult[];
         if (Array.isArray(parsed)) allPlacements.push(...parsed);
       } catch (err) {
+        lastReorgError = err;
         console.warn(`[Vaultend] Reorganize chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
       }
     }
+
+    if (aiSuccessCount === 0 && lastReorgError) throw lastReorgError;
 
     const lowConfCount = allPlacements.filter(p => p.confidence < REORG_LOW_CONFIDENCE_THRESHOLD).length;
     const lowConfRatio = allPlacements.length > 0 ? lowConfCount / allPlacements.length : 0;
@@ -448,6 +459,8 @@ export class GenerateRefactorPlanUseCase {
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
     const proposals: OrganizeVaultProposal[] = [];
+    let lastLinkError: unknown;
+    let linkAiSuccessCount = 0;
 
     for (let i = 0; i < orphans.length; i += REFACTOR_BATCH_SIZE) {
       const batch = orphans.slice(i, i + REFACTOR_BATCH_SIZE);
@@ -495,6 +508,7 @@ export class GenerateRefactorPlanUseCase {
             temperature: 0.2,
             jsonMode: true,
           });
+          linkAiSuccessCount++;
 
           const result = JSON.parse(response.content) as {
             suggestedLinks: Array<{ targetPath: string; confidence: number; rationale: string }>;
@@ -522,11 +536,13 @@ export class GenerateRefactorPlanUseCase {
             }));
           }
         } catch (err) {
+          lastLinkError = err;
           console.warn(`[Vaultend] Link suggestion failed for ${orphan.path}:`, err instanceof Error ? err.message : err);
         }
       }
     }
 
+    if (linkAiSuccessCount === 0 && lastLinkError) throw lastLinkError;
     return proposals;
   }
 
@@ -561,6 +577,8 @@ export class GenerateRefactorPlanUseCase {
     const privacyRules = [...settings.privacyRules];
     const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
     const proposals: OrganizeVaultProposal[] = [];
+    let lastFleetingError: unknown;
+    let fleetingAiSuccessCount = 0;
 
     for (let i = 0; i < clusters.length; i++) {
       this.checkAborted(signal);
@@ -584,6 +602,7 @@ export class GenerateRefactorPlanUseCase {
           temperature: 0.2,
           jsonMode: true,
         });
+        fleetingAiSuccessCount++;
 
         const result = JSON.parse(response.content) as {
           mergedTitle: string;
@@ -636,10 +655,12 @@ export class GenerateRefactorPlanUseCase {
           }));
         }
       } catch (err) {
+        lastFleetingError = err;
         console.warn(`[Vaultend] Fleeting cluster ${i + 1} merge failed:`, err instanceof Error ? err.message : err);
       }
     }
 
+    if (fleetingAiSuccessCount === 0 && lastFleetingError) throw lastFleetingError;
     return proposals;
   }
 

@@ -275,13 +275,24 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async reinitializeEmbeddings(generation?: number): Promise<void> {
-    await this.embeddingAdapter.initialize();
+    const provider = this.settings.aiProvider;
+    const model = this.getEmbeddingModelId();
+
+    const vsMeta = this.vectorStoreAdapter.getMeta();
+    const tcMeta = this.tagEmbeddingCacheAdapter.getMeta();
+    const cachedMeta = (vsMeta && vsMeta.provider === provider && vsMeta.model === model) ? vsMeta
+      : (tcMeta && tcMeta.provider === provider && tcMeta.model === model) ? tcMeta
+      : null;
+    if (cachedMeta && cachedMeta.dimension > 0) {
+      this.embeddingAdapter.initializeWithKnownDimension(cachedMeta.dimension);
+    } else {
+      await this.embeddingAdapter.initialize();
+    }
+
     if (!this.embeddingAdapter.isReady()) return;
     if (generation !== undefined && generation !== this.embeddingInitGeneration) return;
 
     const dim = this.embeddingAdapter.getDimension();
-    const provider = this.settings.aiProvider;
-    const model = this.getEmbeddingModelId();
 
     if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim, model)) {
       console.log('Vaultend: embedding config changed, rebuilding index');
