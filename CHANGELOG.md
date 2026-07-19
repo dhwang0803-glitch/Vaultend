@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.3] - 2026-07-20
+
+### Changed
+- **Multi-line card descriptions**: File path and AI suggestions (tags/links) now display on separate lines for clearer readability instead of a single concatenated string.
+
+---
+
 ## [0.8.2] - 2026-07-20
 
 ### Changed
