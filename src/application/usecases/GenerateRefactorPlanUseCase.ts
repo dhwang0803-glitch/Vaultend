@@ -261,7 +261,7 @@ export class GenerateRefactorPlanUseCase {
         const response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.tagCleanup.untaggedSystem,
           prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.tagCleanup.untaggedUser(chunkStr, knownTags),
-          maxTokens: 2000,
+          maxTokens: 8192,
           temperature: 0.2,
           jsonMode: true,
         });
@@ -405,13 +405,13 @@ export class GenerateRefactorPlanUseCase {
           const response = await this.ai.callCompletion({
             systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
             prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
-            maxTokens: 2000,
+            maxTokens: 8192,
             temperature: 0.3,
             jsonMode: true,
           });
           aiSuccessCount++;
-          const parsed = JSON.parse(response.content) as PlacementResult[];
-          if (Array.isArray(parsed)) allPlacements.push(...parsed);
+          const parsed = tryParseJsonArray<PlacementResult>(response.content);
+          if (parsed.length > 0) allPlacements.push(...parsed);
         } catch (err) {
           lastReorgError = err;
           console.warn(`[Vaultend] Reorganize orphan chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
@@ -443,7 +443,7 @@ export class GenerateRefactorPlanUseCase {
           const tier2Response = await this.ai.callCompletion({
             systemPrompt: REFACTOR_PROMPTS.noteReorganize.tier2System,
             prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
-            maxTokens: 2000,
+            maxTokens: 8192,
             temperature: 0.3,
             jsonMode: true,
           });
@@ -1026,4 +1026,29 @@ export class GenerateRefactorPlanUseCase {
 
 function clamp(confidence: number): number {
   return Math.max(0.3, Math.min(0.95, confidence));
+}
+
+function tryParseJsonArray<T>(raw: string): T[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // Mid-object truncation: find last complete element via `},` or trailing `}`
+    const lastComplete = raw.lastIndexOf('},');
+    if (lastComplete > 0) {
+      const trimmed = raw.substring(0, lastComplete + 1) + ']';
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { /* fall through */ }
+    }
+    // Trailing comma between elements: `[{...},{...},` → close array
+    const repaired = raw.replace(/,\s*$/, '') + ']';
+    try {
+      const parsed = JSON.parse(repaired);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
 }
