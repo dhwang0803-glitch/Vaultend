@@ -145,13 +145,13 @@ export class RunMaintenanceUseCase {
       const tags = note.metadata.tags.map(t => t as string);
       corpus.addDocument(notePath as string, tokens);
 
+      candidateData.push({ path: notePath as string, tags, tokens });
+
       const hasBacklinks = note.metadata.backlinks.length > 0;
       const hasLinks = note.metadata.links.length > 0;
       const referencedByCanvas = canvasRefs.has(notePath as string);
       if (!hasBacklinks && !hasLinks && !referencedByCanvas) {
         orphanData.push({ notePath, fileSize: note.metadata.fileSize, tags, tokens });
-      } else {
-        candidateData.push({ path: notePath as string, tags, tokens });
       }
     }
 

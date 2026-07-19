@@ -451,6 +451,8 @@ export class MaintenanceResultView extends ItemView {
     this.renderBatchControls(
       container, entries,
       hasSuggestions ? t('batch.selectedApplyTags') : undefined,
+      false, undefined, undefined, false,
+      hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
     );
 
     for (const notePath of filtered) {
@@ -1003,6 +1005,15 @@ export class MaintenanceResultView extends ItemView {
       : t('notice.batchComplete', { count: success });
     new Notice(msg);
     if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+  }
+
+  private async batchApplyTagsOnly(entries: BatchEntry[]): Promise<void> {
+    const taggable = entries.filter(e => e.checkbox.checked && e.status === 'pending' && e.action.kind === 'apply-missing-tags');
+    if (taggable.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    await this.executeBatch(taggable);
   }
 
   private async batchRemoveBrokenLinks(entries: BatchEntry[]): Promise<void> {
