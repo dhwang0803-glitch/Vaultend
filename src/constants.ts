@@ -60,3 +60,13 @@ export const FLEETING_MIN_CLUSTER_SIZE = 2;
 export const REFACTOR_MAX_TAGS_IN_PROMPT = 200;
 export const REORG_LOW_CONFIDENCE_THRESHOLD = 0.5;
 export const REORG_TIER2_TRIGGER_RATIO = 0.3;
+
+/** Vault Refactor 재설계 상수 */
+export const COMMAND_VAULT_REFACTOR = 'vault-refactor';
+export const MISPLACED_AFFINITY_THRESHOLD = 0.3;
+export const MISPLACED_BATCH_SIZE = 30;
+export const BLOATED_FOLDER_THRESHOLD = 30;
+export const THIN_FOLDER_THRESHOLD = 3;
+export const PROMOTE_MATURITY_AGE_DAYS = 7;
+export const PROMOTE_MIN_WORD_COUNT = 100;
+export const DEFAULT_FLEETING_FOLDERS: ReadonlyArray<string> = ['Inbox', 'Fleeting'];

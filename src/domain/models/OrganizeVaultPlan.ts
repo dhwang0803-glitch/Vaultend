@@ -12,7 +12,11 @@ export type ProposalType =
   | 'merge-duplicate-tags'
   | 'apply-missing-tags'
   | 'archive-empty'
-  | 'merge-duplicate-notes';
+  | 'merge-duplicate-notes'
+  | 'misplaced-reposition'
+  | 'split-folder'
+  | 'merge-folders'
+  | 'promote-note';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
@@ -78,6 +82,41 @@ export interface MergeDuplicateNotesDetail {
   readonly mergedTags: ReadonlyArray<string>;
   readonly sourceBlock: string;
   readonly backlinksToRedirect: ReadonlyArray<string>;
+}
+
+export interface MisplacedRepositionDetail {
+  readonly currentFolder: string;
+  readonly suggestedFolder: string;
+  readonly suggestedTags: ReadonlyArray<string>;
+  readonly suggestedLinks: ReadonlyArray<string>;
+  readonly affinityScore: number;
+  readonly topConnections: ReadonlyArray<{ path: string; folder: string }>;
+}
+
+export interface SplitFolderDetail {
+  readonly sourceFolder: string;
+  readonly suggestedSubfolders: ReadonlyArray<{
+    name: string;
+    noteCount: number;
+    notes: ReadonlyArray<string>;
+  }>;
+}
+
+export interface MergeFoldersDetail {
+  readonly folders: ReadonlyArray<string>;
+  readonly suggestedMergedFolder: string;
+  readonly totalNoteCount: number;
+}
+
+export interface PromoteNoteDetail {
+  readonly currentFolder: string;
+  readonly suggestedFolder: string;
+  readonly maturitySignals: {
+    readonly ageDays: number;
+    readonly wordCount: number;
+    readonly tagCount: number;
+    readonly linkCount: number;
+  };
 }
 
 export function createOrganizeVaultPlan(

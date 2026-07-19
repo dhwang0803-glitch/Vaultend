@@ -21,6 +21,9 @@ interface RefactorGoalOption {
 }
 
 const GOAL_OPTIONS: ReadonlyArray<RefactorGoalOption> = [
+  { type: 'detect-misplaced', titleKey: 'refactor.mode.misplaced', descKey: 'refactor.mode.misplacedDesc' },
+  { type: 'optimize-folders', titleKey: 'refactor.mode.folders', descKey: 'refactor.mode.foldersDesc' },
+  { type: 'promote-fleeting', titleKey: 'refactor.mode.promote', descKey: 'refactor.mode.promoteDesc' },
   { type: 'reorganize-notes', titleKey: 'refactor.mode.reorganize', descKey: 'refactor.mode.reorganizeDesc' },
   { type: 'clean-up-tags', titleKey: 'refactor.mode.tags', descKey: 'refactor.mode.tagsDesc' },
   { type: 'suggest-links', titleKey: 'refactor.mode.links', descKey: 'refactor.mode.linksDesc' },
@@ -28,8 +31,14 @@ const GOAL_OPTIONS: ReadonlyArray<RefactorGoalOption> = [
 ];
 
 export class RefactorGoalModal extends Modal {
-  private selectedType: RefactorGoalType = 'clean-up-tags';
+  private selectedType: RefactorGoalType = 'detect-misplaced';
   private fleetingThreshold = FLEETING_WORD_COUNT_THRESHOLD;
+  private affinityThreshold = 0.3;
+  private bloatedThreshold = 30;
+  private thinThreshold = 3;
+  private fleetingFolders = 'Inbox, Fleeting';
+  private maturityAgeDays = 7;
+  private maturityWordCount = 100;
   private estimate: RefactorCostEstimate | null = null;
   private snapshot: VaultMetadataSnapshot | null = null;
   private abortController: AbortController | null = null;
@@ -144,22 +153,94 @@ export class RefactorGoalModal extends Modal {
 
   private renderParams(container: HTMLElement): void {
     container.empty();
-    if (this.selectedType !== 'consolidate-fleeting') return;
 
-    new Setting(container)
-      .setName(t('refactor.fleetingThreshold' as any))
-      .setDesc(t('refactor.fleetingThresholdDesc' as any))
-      .addSlider(slider => slider
-        .setLimits(50, 500, 10)
-        .setValue(this.fleetingThreshold)
-        .setDynamicTooltip()
-        .onChange(val => {
-          this.fleetingThreshold = val;
-          this.updateEstimate();
-          this.renderEstimate(
-            this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement,
-          );
-        }));
+    if (this.selectedType === 'consolidate-fleeting') {
+      new Setting(container)
+        .setName(t('refactor.fleetingThreshold' as any))
+        .setDesc(t('refactor.fleetingThresholdDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(50, 500, 10)
+          .setValue(this.fleetingThreshold)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.fleetingThreshold = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+    } else if (this.selectedType === 'detect-misplaced') {
+      new Setting(container)
+        .setName(t('refactor.affinityThreshold' as any))
+        .setDesc(t('refactor.affinityThresholdDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(0.1, 0.6, 0.05)
+          .setValue(this.affinityThreshold)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.affinityThreshold = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+    } else if (this.selectedType === 'optimize-folders') {
+      new Setting(container)
+        .setName(t('refactor.bloatedThreshold' as any))
+        .setDesc(t('refactor.bloatedThresholdDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(10, 100, 5)
+          .setValue(this.bloatedThreshold)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.bloatedThreshold = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+      new Setting(container)
+        .setName(t('refactor.thinThreshold' as any))
+        .setDesc(t('refactor.thinThresholdDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(1, 10, 1)
+          .setValue(this.thinThreshold)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.thinThreshold = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+    } else if (this.selectedType === 'promote-fleeting') {
+      new Setting(container)
+        .setName(t('refactor.fleetingFolders' as any))
+        .setDesc(t('refactor.fleetingFoldersDesc' as any))
+        .addText(text => text
+          .setValue(this.fleetingFolders)
+          .onChange(val => {
+            this.fleetingFolders = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+      new Setting(container)
+        .setName(t('refactor.maturityAge' as any))
+        .setDesc(t('refactor.maturityAgeDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(1, 60, 1)
+          .setValue(this.maturityAgeDays)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.maturityAgeDays = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+      new Setting(container)
+        .setName(t('refactor.maturityWordCount' as any))
+        .setDesc(t('refactor.maturityWordCountDesc' as any))
+        .addSlider(slider => slider
+          .setLimits(50, 500, 10)
+          .setValue(this.maturityWordCount)
+          .setDynamicTooltip()
+          .onChange(val => {
+            this.maturityWordCount = val;
+            this.updateEstimate();
+            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
+          }));
+    }
   }
 
   private renderEstimate(container: HTMLElement): void {
@@ -199,6 +280,24 @@ export class RefactorGoalModal extends Modal {
       parameters: {
         fleetingWordCountThreshold: this.selectedType === 'consolidate-fleeting'
           ? this.fleetingThreshold
+          : undefined,
+        misplacedAffinityThreshold: this.selectedType === 'detect-misplaced'
+          ? this.affinityThreshold
+          : undefined,
+        bloatedFolderThreshold: this.selectedType === 'optimize-folders'
+          ? this.bloatedThreshold
+          : undefined,
+        thinFolderThreshold: this.selectedType === 'optimize-folders'
+          ? this.thinThreshold
+          : undefined,
+        fleetingFolders: this.selectedType === 'promote-fleeting'
+          ? this.fleetingFolders.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined,
+        maturityAgeDays: this.selectedType === 'promote-fleeting'
+          ? this.maturityAgeDays
+          : undefined,
+        maturityMinWordCount: this.selectedType === 'promote-fleeting'
+          ? this.maturityWordCount
           : undefined,
       },
     };

@@ -89,7 +89,12 @@ export class ApplyOrganizeVaultUseCase {
       case 'archive-empty':
         return this.wrapSingle(await this.applyArchive(proposal, transactionId));
       case 'reposition':
+      case 'misplaced-reposition':
+      case 'promote-note':
         return this.wrapSingle(await this.applyReposition(proposal, transactionId));
+      case 'split-folder':
+      case 'merge-folders':
+        return this.applyBulkReposition(proposal, transactionId);
       case 'merge-duplicate-notes':
         return this.applyMergeDuplicateNotes(proposal, transactionId);
       default:
@@ -448,6 +453,61 @@ export class ApplyOrganizeVaultUseCase {
       }
       throw err;
     }
+  }
+
+  private async applyBulkReposition(
+    proposal: OrganizeVaultProposal,
+    transactionId: string,
+  ): Promise<string[] | null> {
+    const entryIds: string[] = [];
+    const meta = proposal.metadata as Record<string, unknown> | undefined;
+
+    if (proposal.type === 'split-folder') {
+      const subfolders = meta?.suggestedSubfolders as Array<{ name: string; notes: string[] }> | undefined;
+      if (!subfolders || subfolders.length === 0) return null;
+
+      for (const sf of subfolders) {
+        for (const notePath of sf.notes) {
+          const basename = notePath.split('/').pop() ?? '';
+          const destPath = createNotePath(`${sf.name}/${basename}`);
+          await this.vault.moveNote(createNotePath(notePath), destPath);
+
+          const entry: HistoryEntry = {
+            id: crypto.randomUUID(),
+            action: 'move',
+            notePath: createNotePath(notePath),
+            timestamp: this.clock.now(),
+            description: `Organize Vault: split-folder move ${notePath} → ${sf.name}/`,
+            metadata: { transactionId, organizeVaultProposalId: proposal.id, movedTo: destPath as string, sequence: this.txSequence++ },
+          };
+          await this.history.record(entry);
+          entryIds.push(entry.id);
+        }
+      }
+    } else if (proposal.type === 'merge-folders') {
+      const mergedFolder = meta?.suggestedMergedFolder as string | undefined;
+      if (!mergedFolder) return null;
+
+      for (const notePath of proposal.affectedPaths) {
+        const basename = (notePath as string).split('/').pop() ?? '';
+        const destPath = createNotePath(`${mergedFolder}/${basename}`);
+        if (notePath === destPath) continue;
+        await this.vault.moveNote(notePath, destPath);
+
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          action: 'move',
+          notePath,
+          timestamp: this.clock.now(),
+          description: `Organize Vault: merge-folders move ${notePath as string} → ${mergedFolder}/`,
+          metadata: { transactionId, organizeVaultProposalId: proposal.id, movedTo: destPath as string, sequence: this.txSequence++ },
+        };
+        await this.history.record(entry);
+        entryIds.push(entry.id);
+      }
+    }
+
+    return entryIds.length > 0 ? entryIds : null;
   }
 
   private async rollbackEntries(entryIds: ReadonlyArray<string>): Promise<void> {

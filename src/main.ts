@@ -69,6 +69,7 @@ import {
   DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
   DEFAULT_ARCHIVE_FOLDER,
   DEFAULT_LOCALE,
+  COMMAND_VAULT_REFACTOR,
 } from './constants';
 import { t, setLocale, detectObsidianLocale } from './i18n';
 
@@ -614,6 +615,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'open-maintenance-log',
       name: t('command.openLog'),
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
+    });
+
+    this.addCommand({
+      id: COMMAND_VAULT_REFACTOR,
+      name: t('command.vaultRefactor'),
+      callback: async () => {
+        if (!await this.licenseAdapter.canUseFeature('organize-vault')) {
+          this.showProUpgradeNotice('organize-vault');
+          return;
+        }
+        await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as OrganizeVaultView;
+          view.openRefactorModal();
+        }
+      },
     });
 
   }

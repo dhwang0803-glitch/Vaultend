@@ -490,7 +490,7 @@ export class OrganizeVaultView extends ItemView {
     }
   }
 
-  private openRefactorModal(): void {
+  openRefactorModal(): void {
     if (!this.vaultAdapter || !this.estimateRefactorCost || !this.generateRefactorPlan) return;
     new RefactorGoalModal(
       this.app,
