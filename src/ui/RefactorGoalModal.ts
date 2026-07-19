@@ -2,7 +2,6 @@ import { Modal, App, Setting, Notice } from 'obsidian';
 import type { EstimateRefactorCostUseCase } from '../application/usecases/EstimateRefactorCostUseCase';
 import type { GenerateRefactorPlanUseCase } from '../application/usecases/GenerateRefactorPlanUseCase';
 import type { VaultAccessPort } from '../application/ports/VaultAccessPort';
-import type { LicensePort } from '../application/ports/LicensePort';
 import type {
   RefactorGoalType,
   RefactorGoal,
@@ -49,7 +48,6 @@ export class RefactorGoalModal extends Modal {
     private readonly vault: VaultAccessPort,
     private readonly estimateCost: EstimateRefactorCostUseCase,
     private readonly generatePlan: GenerateRefactorPlanUseCase,
-    private readonly licensePort: LicensePort,
     private readonly onComplete: (plan: OrganizeVaultPlan) => void,
   ) {
     super(app);
@@ -58,12 +56,6 @@ export class RefactorGoalModal extends Modal {
   async onOpen(): Promise<void> {
     const { contentEl } = this;
     contentEl.addClass('vaultend-refactor-modal');
-
-    if (!await this.licensePort.canUseFeature('organize-vault')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
-      this.close();
-      return;
-    }
 
     contentEl.createEl('h2', { text: t('refactor.title' as any) });
 
@@ -85,14 +77,6 @@ export class RefactorGoalModal extends Modal {
       this.vault.listAllTags(),
     ]);
 
-    console.log(`[Vaultend:refactor] loadSnapshot: ${noteEntries.length} notes, ${tagFrequencies.length} tags`);
-    if (noteEntries.length > 0) {
-      const orphans = noteEntries.filter(n => n.backlinks.length === 0 && n.links.length === 0);
-      const empty = noteEntries.filter(n => n.wordCount === 0);
-      const untagged = noteEntries.filter(n => n.tags.length === 0 && n.wordCount > 0);
-      console.log(`[Vaultend:refactor]   orphans=${orphans.length}, empty=${empty.length}, untagged=${untagged.length}`);
-      console.log(`[Vaultend:refactor]   sample entry:`, JSON.stringify(noteEntries[0]));
-    }
 
     const folderSet = new Set<string>();
     for (const entry of noteEntries) {
@@ -271,7 +255,6 @@ export class RefactorGoalModal extends Modal {
     if (!this.snapshot) return;
     const goal = this.buildGoal();
     this.estimate = this.estimateCost.execute(goal, this.snapshot);
-    console.log(`[Vaultend:refactor] estimate for ${goal.goalType}: noteCount=${this.estimate.noteCount}, aiCalls=${this.estimate.estimatedAICalls}`);
   }
 
   private buildGoal(): RefactorGoal {

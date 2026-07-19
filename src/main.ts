@@ -15,7 +15,6 @@ import { TfIdfCorpus } from './domain/services/TfIdfCorpus';
 import { tokenizeForTfIdf } from './domain/services/tokenize';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
 import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
-import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
 
 // Use Cases
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
@@ -49,9 +48,6 @@ import { localizeError } from './ui/localizeError';
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
-import type { LicensePort } from './application/ports/LicensePort';
-import { PRO_FEATURES } from './domain/models/License';
-import type { ProFeatureId } from './domain/models/License';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
 import type { MaintenancePlan, DuplicatePair } from './domain/models/OrganizeModels';
@@ -130,7 +126,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
   private embeddingAdapter!: AIEmbeddingAdapter;
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
-  private licenseAdapter!: LicensePort;
   private organizeVaultAdapter!: FileOrganizeVaultAdapter;
   private preferenceAdapter!: FilePreferenceAdapter;
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
@@ -162,7 +157,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private embeddingInitGeneration = 0;
 
   async onload(): Promise<void> {
-    console.log('Vaultend Plugin: loading');
 
     // 1. Load settings
     await this.loadSettings();
@@ -186,7 +180,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. Register settings tab
-    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
       this.scheduleMaintenanceIfEnabled();
     }, this.preferenceAdapter, async () => {
       const gen = ++this.embeddingInitGeneration;
@@ -228,7 +222,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   onunload(): void {
-    console.log('Vaultend Plugin: unloading');
 
     // Persist dirty set before shutdown
     this.changeTracker.persist();
@@ -294,7 +287,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const dim = this.embeddingAdapter.getDimension();
 
     if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim, model)) {
-      console.log('Vaultend: embedding config changed, rebuilding index');
       await this.vectorStoreAdapter.clear();
     }
     this.vectorStoreAdapter.setMeta({ provider, dimension: dim, model });
@@ -324,18 +316,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       delete raw.inboxConfidenceThreshold;
     }
 
-    // Migrate: grant 14-day grace period for existing users on first license system introduction
-    let needsPersist = false;
-    if (!('licenseKey' in raw) && !('proGraceDeadline' in raw)) {
-      raw.proGraceDeadline = Date.now() + 14 * 24 * 60 * 60 * 1000;
-      needsPersist = true;
-    }
-
     this.settings = { ...DEFAULT_SETTINGS, ...raw };
-
-    if (needsPersist) {
-      await this.saveData(this.settings);
-    }
   }
 
   private wireAdapters(): void {
@@ -361,9 +342,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
     this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter);
-
-    // License adapter — local key validation, swappable for server validation later
-    this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
 
     // Organize Vault adapter — file-based storage for OrganizeVault plans
     this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
@@ -454,7 +432,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.applyMaintenanceActionUseCase,
         this.configPort,
         this.historyAdapter,
-        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -496,7 +473,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.applyOrganizeVaultUseCase,
         this.rollbackOrganizeVaultUseCase,
         this.organizeVaultAdapter,
-        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -509,11 +485,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     );
   }
 
-  private showProUpgradeNotice(feature: ProFeatureId): void {
-    const featureMeta = PRO_FEATURES.find(f => f.id === feature);
-    const featureName = featureMeta ? t(featureMeta.i18nKey as Parameters<typeof t>[0]) : feature;
-    new Notice(t('pro.featureLocked', { feature: featureName }), 5000);
-  }
 
   private registerCommands(): void {
     this.addCommand({
@@ -591,10 +562,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: COMMAND_VAULT_REFACTOR,
       name: t('command.vaultRefactor'),
       callback: async () => {
-        if (!await this.licenseAdapter.canUseFeature('organize-vault')) {
-          this.showProUpgradeNotice('organize-vault');
-          return;
-        }
         await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
         const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
         if (leaves.length > 0) {
@@ -727,17 +694,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     }
 
     if (!this.settings.maintenanceEnabled) return;
-    if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     let firstRun = true;
     this.maintenanceInterval = window.setInterval(async () => {
       if (this.isMaintenanceRunning) return;
-      if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) {
-        window.clearInterval(this.maintenanceInterval!);
-        this.maintenanceInterval = null;
-        return;
-      }
       const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
       if (leaves.length > 0) {
         const view = leaves[0].view as MaintenanceResultView;
@@ -852,13 +813,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private async syncEmbeddingsBackground(): Promise<void> {
     try {
       if (this.vectorStoreAdapter.isEmpty()) {
-        const count = await this.syncEmbeddingsUseCase.rebuildAll();
-        console.log(`Vaultend: embedding index built (${count} notes)`);
+        await this.syncEmbeddingsUseCase.rebuildAll();
       } else {
-        const result = await this.syncEmbeddingsUseCase.execute();
-        if (result.indexed > 0) {
-          console.log(`Vaultend: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
-        }
+        await this.syncEmbeddingsUseCase.execute();
       }
     } catch {
       // Embedding sync is best-effort
@@ -880,7 +837,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      console.log(`Vaultend: search index built (${indexed}/${notes.length} notes indexed)`);
     } catch (err) {
       console.error('Vaultend: search index build failed', err);
     }

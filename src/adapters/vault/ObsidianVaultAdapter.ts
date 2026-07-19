@@ -210,7 +210,6 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
 
   async listNotesWithMetadata(): Promise<ReadonlyArray<NoteMetadataEntry>> {
     const files = this.app.vault.getMarkdownFiles();
-    console.log(`[Vaultend:refactor] listNotesWithMetadata: ${files.length} markdown files found`);
     const entries: NoteMetadataEntry[] = [];
 
     for (const file of files) {
