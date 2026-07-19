@@ -1,39 +1,39 @@
 {
-  "name": "obsidian-vaultend",
-  "version": "0.6.5",
-  "description": "Vaultend — AI-powered vault maintenance for Obsidian. Auto-classify, tag, link, and organize your notes",
-  "main": "main.js",
-  "scripts": {
-    "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "postversion": "git push && git push --tags"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@eslint/js": "^9.28.0",
-    "@google/generative-ai": "^0.24.0",
-    "@types/node": "^22.15.21",
-    "builtin-modules": "4.0.0",
-    "dotenv": "^16.5.0",
-    "esbuild": "0.25.4",
-    "eslint": "^9.28.0",
-    "minisearch": "^7.1.2",
-    "obsidian": "latest",
-    "tslib": "2.8.1",
-    "typescript": "5.8.3",
-    "typescript-eslint": "^8.33.0",
-    "vitest": "^3.2.1"
-  },
-  "dependencies": {
-    "openai": "^5.1.0"
-  }
+	"name": "obsidian-vaultend",
+	"version": "0.6.8",
+	"description": "Vaultend — AI-powered vault maintenance for Obsidian. Auto-classify, tag, link, and organize your notes",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"lint": "eslint src/",
+		"lint:fix": "eslint src/ --fix",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"postversion": "git push && git push --tags"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.39.0",
+		"@eslint/js": "^9.28.0",
+		"@google/generative-ai": "^0.24.0",
+		"@types/node": "^22.15.21",
+		"builtin-modules": "4.0.0",
+		"dotenv": "^16.5.0",
+		"esbuild": "0.25.4",
+		"eslint": "^9.28.0",
+		"minisearch": "^7.1.2",
+		"obsidian": "latest",
+		"tslib": "2.8.1",
+		"typescript": "5.8.3",
+		"typescript-eslint": "^8.33.0",
+		"vitest": "^3.2.1"
+	},
+	"dependencies": {
+		"openai": "^5.1.0"
+	}
 }
