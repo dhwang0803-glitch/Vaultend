@@ -8,7 +8,18 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] (development)
 
-*No unreleased changes.*
+### Removed
+- **Quick Ask module extracted**: AI chat feature (Quick Ask) has been removed from Vaultend and extracted to a standalone plugin — [obsidian-vault-chat](https://github.com/dhwang0803-glitch/obsidian-vault-chat). Vaultend now focuses exclusively on vault maintenance and organization.
+  - Deleted: `QuickAskUseCase`, `QuickAskModal`, `QuickAskModels` (ChatSession, ChatMessage, QuickAskRequest, QuickAskResult)
+  - Removed: `quick-ask` command, Quick Ask save mode setting, all Quick Ask i18n keys, ~284 lines of Quick Ask CSS
+  - Removed: `'quick-ask-save'` from `HistoryAction` union type
+
+### Changed
+- **TokenUsage extracted**: `TokenUsage` interface moved from `QuickAskModels.ts` to standalone `src/domain/models/TokenUsage.ts` (shared by OrganizeModels, AIProviderPort, etc.)
+- **DEFAULT_SAVE_FOLDER**: Changed from `'QuickAsk'` to `'Vaultend'`
+
+### Breaking Changes
+- The `quick-ask` command no longer exists. Use [obsidian-vault-chat](https://github.com/dhwang0803-glitch/obsidian-vault-chat) for AI chat with vault context.
 
 ---
 
