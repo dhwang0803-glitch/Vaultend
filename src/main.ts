@@ -378,14 +378,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.tagEmbeddingCacheAdapter,
     );
 
-    if (ENABLE_PRO) {
-      this.organizeFolderUseCase = new OrganizeFolderUseCase(
-        this.organizeNoteUseCase, this.vaultAdapter,
-        this.configPort, this.historyAdapter, this.clockAdapter,
-        this.aiAdapter,
-        this.tagEmbeddingCacheAdapter,
-      );
-    }
+    this.organizeFolderUseCase = new OrganizeFolderUseCase(
+      this.organizeNoteUseCase, this.vaultAdapter,
+      this.configPort, this.historyAdapter, this.clockAdapter,
+      this.aiAdapter,
+      this.tagEmbeddingCacheAdapter,
+    );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
@@ -468,24 +466,24 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       ),
     );
 
-    if (ENABLE_PRO) {
-      this.registerView(
-        ORGANIZE_FOLDER_VIEW_TYPE,
-        (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
-          leaf,
-          this.organizeFolderUseCase,
-          this.buildOrganizeApplyActions(),
-          this.configPort,
-          this.historyAdapter,
-          this.vaultAdapter,
-          (path: string) => {
-            const file = this.app.vault.getAbstractFileByPath(path);
-            if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-          },
-          (v: boolean) => { this.isOrganizing = v; },
-        ),
-      );
+    this.registerView(
+      ORGANIZE_FOLDER_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
+        leaf,
+        this.organizeFolderUseCase,
+        this.buildOrganizeApplyActions(),
+        this.configPort,
+        this.historyAdapter,
+        this.vaultAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
+        (v: boolean) => { this.isOrganizing = v; },
+      ),
+    );
 
+    if (ENABLE_PRO) {
       this.registerView(
         ORGANIZE_VAULT_VIEW_TYPE,
         (leaf: WorkspaceLeaf) => new OrganizeVaultView(
@@ -556,26 +554,24 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       },
     });
 
-    if (ENABLE_PRO) {
-      this.addCommand({
-        id: 'organize-folder',
-        name: t('command.organizeFolder'),
-        callback: async () => {
-          if (this.isOrganizing) {
-            new Notice(t('notice.organizeAlreadyRunning'));
-            return;
+    this.addCommand({
+      id: 'organize-folder',
+      name: t('command.organizeFolder'),
+      callback: async () => {
+        if (this.isOrganizing) {
+          new Notice(t('notice.organizeAlreadyRunning'));
+          return;
+        }
+        new FolderSuggestModal(this.app, async (folder) => {
+          await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeFolderResultView;
+            view.triggerScan(folder.path);
           }
-          new FolderSuggestModal(this.app, async (folder) => {
-            await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-            const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-            if (leaves.length > 0) {
-              const view = leaves[0].view as OrganizeFolderResultView;
-              view.triggerScan(folder.path);
-            }
-          }).open();
-        },
-      });
-    }
+        }).open();
+      },
+    });
 
     this.addCommand({
       id: 'open-maintenance-log',
@@ -652,25 +648,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
               }
             });
         });
-        if (ENABLE_PRO) {
-          menu.addItem(item => {
-            item
-              .setTitle(t('command.organizeFolder'))
-              .setIcon('wand')
-              .onClick(async () => {
-                if (this.isOrganizing) {
-                  new Notice(t('notice.organizeAlreadyRunning'));
-                  return;
-                }
-                await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-                const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-                if (leaves.length > 0) {
-                  const view = leaves[0].view as OrganizeFolderResultView;
-                  view.triggerScan(file.path);
-                }
-              });
-          });
-        }
+        menu.addItem(item => {
+          item
+            .setTitle(t('command.organizeFolder'))
+            .setIcon('wand')
+            .onClick(async () => {
+              if (this.isOrganizing) {
+                new Notice(t('notice.organizeAlreadyRunning'));
+                return;
+              }
+              await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as OrganizeFolderResultView;
+                view.triggerScan(file.path);
+              }
+            });
+        });
       }),
     );
   }
