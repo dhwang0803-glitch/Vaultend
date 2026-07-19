@@ -76,6 +76,15 @@ export class RefactorGoalModal extends Modal {
       this.vault.listAllTags(),
     ]);
 
+    console.log(`[Vaultend:refactor] loadSnapshot: ${noteEntries.length} notes, ${tagFrequencies.length} tags`);
+    if (noteEntries.length > 0) {
+      const orphans = noteEntries.filter(n => n.backlinks.length === 0 && n.links.length === 0);
+      const empty = noteEntries.filter(n => n.wordCount === 0);
+      const untagged = noteEntries.filter(n => n.tags.length === 0 && n.wordCount > 0);
+      console.log(`[Vaultend:refactor]   orphans=${orphans.length}, empty=${empty.length}, untagged=${untagged.length}`);
+      console.log(`[Vaultend:refactor]   sample entry:`, JSON.stringify(noteEntries[0]));
+    }
+
     const folderSet = new Set<string>();
     for (const entry of noteEntries) {
       if (entry.folder) folderSet.add(entry.folder);
@@ -181,6 +190,7 @@ export class RefactorGoalModal extends Modal {
     if (!this.snapshot) return;
     const goal = this.buildGoal();
     this.estimate = this.estimateCost.execute(goal, this.snapshot);
+    console.log(`[Vaultend:refactor] estimate for ${goal.goalType}: noteCount=${this.estimate.noteCount}, aiCalls=${this.estimate.estimatedAICalls}`);
   }
 
   private buildGoal(): RefactorGoal {

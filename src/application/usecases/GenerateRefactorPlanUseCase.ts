@@ -91,6 +91,12 @@ export class GenerateRefactorPlanUseCase {
       isNoteAllowedByRules(n.path, n.tags, [], privacyRules),
     );
 
+    console.log(`[Vaultend:refactor] collectMetadata: raw=${noteEntries.length}, afterPrivacy=${filtered.length}, privacyRules=${privacyRules.length}`);
+    if (filtered.length < noteEntries.length) {
+      const excluded = noteEntries.filter(n => !isNoteAllowedByRules(n.path, n.tags, [], privacyRules));
+      console.log(`[Vaultend:refactor]   excluded samples:`, excluded.slice(0, 3).map(n => n.path));
+    }
+
     const folderSet = new Set<string>();
     for (const entry of filtered) {
       if (entry.folder) folderSet.add(entry.folder);
