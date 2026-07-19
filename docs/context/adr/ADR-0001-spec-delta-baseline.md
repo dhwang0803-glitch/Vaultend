@@ -37,7 +37,7 @@
 | R2 | 도메인 에러 미사용 | UseCase가 `new Error()`만 사용 | `NoteNotFoundError`, `PrivacyViolationError` 등 도메인 에러 클래스 활용 |
 | R3 | ConfigPort 중복 생성 | `main.ts`에 3개의 인라인 ConfigPort 객체 | 한 번만 생성하여 공유. registerViews의 no-op 구현 제거 |
 | R4 | SearchNotesUseCase 미연결 | import만 존재, wireUseCases()에서 미인스턴스화 | 독립 검색 명령 필요 시 연결. 불필요하면 import 제거 |
-| R5 | SaveTarget as any 캐스팅 | Quick Ask 명령에서 discriminated union 무시 | SaveTarget 팩토리 함수 또는 올바른 타입 리터럴로 생성 |
+| R5 | ~~SaveTarget as any 캐스팅~~ | ~~Quick Ask 명령에서 discriminated union 무시~~ | ~~해당 코드 제거됨 (Quick Ask → obsidian-vault-chat 분리, ADR-0008)~~ |
 | R6 | 상수 인라인 중복 | constants.ts와 뷰/어댑터에 동일 상수 중복 정의 | constants.ts를 SSOT로, 개별 파일은 import |
 
 ## Consequences
