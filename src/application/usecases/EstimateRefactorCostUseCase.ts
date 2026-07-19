@@ -115,7 +115,7 @@ export class EstimateRefactorCostUseCase {
     };
   }
 
-  private estimateMisplaced(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+  private estimateMisplaced(snapshot: VaultMetadataSnapshot, _goal: RefactorGoal): RefactorCostEstimate {
     const connectedCount = snapshot.noteEntries.filter(
       n => n.links.length > 0 || n.backlinks.length > 0,
     ).length;
