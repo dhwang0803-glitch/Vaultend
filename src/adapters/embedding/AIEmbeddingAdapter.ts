@@ -30,6 +30,15 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
     }
   }
 
+  initializeWithKnownDimension(dimension: number): void {
+    if (!Number.isSafeInteger(dimension) || dimension <= 0) {
+      this.ready = false;
+      return;
+    }
+    this.dimension = dimension;
+    this.ready = true;
+  }
+
   isReady(): boolean {
     return this.ready;
   }
