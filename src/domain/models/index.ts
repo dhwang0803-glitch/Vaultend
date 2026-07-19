@@ -13,11 +13,7 @@ export {
   isAppendToNote,
   isDailyNote,
 } from './SaveTarget';
-export type {
-  QuickAskRequest,
-  QuickAskResult,
-  TokenUsage,
-} from './QuickAskModels';
+export type { TokenUsage } from './TokenUsage';
 export type {
   OrganizeResult,
   MaintenancePlan,

@@ -18,7 +18,6 @@ import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAd
 import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
 
 // Use Cases
-import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
 import { OrganizeFolderUseCase } from './application/usecases/RunInboxProcessUseCase';
 import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseCase';
@@ -35,7 +34,6 @@ import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefa
 import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 
 // UI
-import { QuickAskModal } from './ui/QuickAskModal';
 import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
@@ -58,8 +56,6 @@ import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
 import type { MaintenancePlan, DuplicatePair } from './domain/models/OrganizeModels';
 import { timestampNow } from './domain/values/Timestamp';
-import { SaveTarget } from './domain/models/SaveTarget';
-import { createNoteTitle } from './domain/values/NoteTitle';
 import {
   DEFAULT_SAVE_FOLDER,
   DEFAULT_DAILY_NOTE_FOLDER,
@@ -95,7 +91,6 @@ const DEFAULT_SETTINGS: PluginSettings = {
   autoApplyOrganize: false,
   defaultSaveFolder: DEFAULT_SAVE_FOLDER,
   defaultSaveTarget: 'new-note',
-  quickAskSaveMode: 'timestamp',
   dailyNoteSizeLimitKB: DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
   maxContextChunks: DEFAULT_MAX_CONTEXT_CHUNKS,
   dailyNoteFormat: DEFAULT_DAILY_NOTE_FORMAT,
@@ -144,7 +139,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private configPort!: ConfigPort;
 
   // Use Cases
-  private quickAskUseCase!: QuickAskUseCase;
   private organizeNoteUseCase!: OrganizeNoteUseCase;
   private organizeFolderUseCase!: OrganizeFolderUseCase;
   private runMaintenanceUseCase!: RunMaintenanceUseCase;
@@ -383,14 +377,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.vaultAdapter, this.configPort, this.clockAdapter,
     );
 
-    this.quickAskUseCase = new QuickAskUseCase(
-      this.aiAdapter, this.vaultAdapter, this.searchIndex,
-      this.historyAdapter, this.configPort, this.clockAdapter,
-      this.saveNoteUseCase,
-      this.embeddingAdapter,
-      this.vectorStoreAdapter,
-    );
-
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
       this.aiAdapter, this.vaultAdapter,
       this.historyAdapter, this.configPort,
@@ -530,27 +516,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private registerCommands(): void {
-    this.addCommand({
-      id: 'quick-ask',
-      name: 'Quick Ask',
-      callback: () => {
-        const createSaveTarget = (): SaveTarget => {
-          if (this.settings.quickAskSaveMode === 'daily-note') {
-            return { kind: 'daily-note', position: 'bottom' };
-          }
-          const { dateFolder, title } = this.generateTimestampParts('Quick Ask');
-          const folder = `${this.settings.defaultSaveFolder}/${dateFolder}`;
-          return {
-            kind: 'new-note',
-            title: createNoteTitle(title),
-            folder: folder as unknown as NotePath,
-          };
-        };
-        new QuickAskModal(this.app, this.quickAskUseCase, createSaveTarget).open();
-      },
-    });
-
-
     this.addCommand({
       id: 'organize-current-note',
       name: t('command.organizeNote'),
@@ -882,20 +847,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     } catch (err) {
       new Notice(t('organizeVault.scanFailed', { error: String(err) }));
     }
-  }
-
-  private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {
-    const now = new Date();
-    const y = now.getFullYear();
-    const mo = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
-    const mi = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
-    return {
-      dateFolder: `${y}-${mo}-${d}`,
-      title: `${prefix} ${h}${mi}${s}`,
-    };
   }
 
   private async syncEmbeddingsBackground(): Promise<void> {

@@ -1,4 +1,4 @@
-import { TokenUsage } from '../../domain/models/QuickAskModels';
+import { TokenUsage } from '../../domain/models/TokenUsage';
 
 export interface AIProviderPort {
   callCompletion(request: CompletionRequest): Promise<CompletionResponse>;

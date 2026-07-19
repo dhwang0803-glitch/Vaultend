@@ -16,7 +16,6 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 - [Quick Start](#quick-start)
 - [Features](#features)
   - [Cost Transparency](#cost-transparency)
-  - [Quick Ask](#quick-ask)
   - [Note Organizer](#note-organizer)
   - [Organize Folder](#organize-folder)
   - [Vault Maintenance](#vault-maintenance)
@@ -40,7 +39,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 1. Install the plugin (see [Installation](#installation))
 2. Go to **Settings → Vaultend → AI Provider**
 3. Select your provider (OpenAI or Google Gemini) and enter your API key
-4. Open the Command Palette (`Ctrl/Cmd + P`) and try **Quick Ask**
+4. Open the Command Palette (`Ctrl/Cmd + P`) and try **Organize Current Note**
 
 That's it. The plugin is ready to organize your vault.
 
@@ -54,36 +53,10 @@ Every AI feature in this plugin shows **token usage and estimated cost** after e
 
 | Feature | Where cost is shown |
 |---------|-------------------|
-| Quick Ask | Below the AI response |
 | Note Organizer | Bottom of the result modal |
 | Organize Folder | Per-note in the result side panel |
 
 This is a deliberate design choice: AI tools should be transparent about resource consumption.
-
----
-
-### Quick Ask
-
-Multi-turn AI chat using your vault as context — ask follow-up questions and the AI re-searches your vault every turn.
-
-<!-- TODO: screenshot of Quick Ask modal -->
-
-**How to use**: `Ctrl/Cmd + P` → "Quick Ask" → type your question → `Enter` to send.
-
-| Feature | Description |
-|---------|-------------|
-| Multi-turn chat | Continue the conversation with follow-up questions in the same session |
-| Per-turn vault search | Every message triggers a fresh hybrid search (BM25 + optional embeddings via RRF) |
-| Save conversation | Save the entire chat as a Markdown note with `#vaultend-qa` tag |
-| Referenced Notes | Context source notes shown as references — click to preview content inline |
-| Link validation | AI-generated `[[wikilinks]]` are validated against vault; non-existent links are cleaned |
-| Token & cost display | Cumulative usage info shown across the conversation |
-| Markdown rendering | AI responses render with full Markdown formatting |
-| Sliding window | Conversations auto-trim to 20 messages + 20 context chunks for consistent quality |
-
-**Save modes**:
-- **Timestamp** — each conversation gets its own file in `QuickAsk/YYYY-MM-DD/`
-- **Daily Note** — all conversations for a day appended to one file (auto-splits when size limit is reached)
 
 ---
 
@@ -241,7 +214,7 @@ Track every action the plugin takes — and restore previous states.
 - Tag additions
 - Link removals
 - Issue dismissals
-- Quick Ask conversation saves
+
 - Note classifications
 - **Restorations** (when you use the Restore button)
 
@@ -274,7 +247,7 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 
 | Command | Description | Requires AI |
 |---------|-------------|:-----------:|
-| Quick Ask | Ask AI with vault context | Yes |
+
 | Organize Current Note | Classify and tag the active note | Yes |
 | Organize Folder | Select a folder and batch-organize its notes | Yes |
 | Run Maintenance | Scan entire vault for issues | Partial |
@@ -356,14 +329,6 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 | Setting | Description | Default |
 |---------|-------------|---------|
 | Auto-apply results | When enabled, AI classification results (move, tag, link) are applied immediately without manual review | Off |
-
-### Quick Ask
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Save Mode | Timestamp (per-file) or Daily Note (append) | Timestamp |
-| Daily Note Size Limit | Max KB before creating new file | 200 |
-| Max Response Tokens | Maximum token limit for AI responses | 8192 |
 
 ### Maintenance
 
@@ -451,13 +416,13 @@ Clean Architecture — dependencies always point inward toward the domain.
 
 ```
 domain/          ← Pure business logic (zero external deps)
-  models/        ← Note, MaintenanceAction, HistoryEntry, ChatSession, DuplicateTagGroup
+  models/        ← Note, MaintenanceAction, HistoryEntry, TokenUsage, DuplicateTagGroup
   values/        ← NotePath, TagName, Timestamp, Severity
   services/      ← TfIdfCorpus, TagNormalizationService, tokenize
   errors/        ← Domain-specific errors (i18n)
 
 application/     ← Use cases + port interfaces
-  usecases/      ← QuickAsk, RunMaintenance, OrganizeNote, SyncEmbeddings, etc.
+  usecases/      ← RunMaintenance, OrganizeNote, OrganizeVault, SyncEmbeddings, etc.
   ports/         ← AIProviderPort, VaultAccessPort, EmbeddingPort, VectorStorePort, etc.
 
 adapters/        ← Port implementations (external deps live here)
@@ -495,8 +460,8 @@ main.ts          ← Composition Root
 
 | Area | Limitation |
 |------|-----------|
-| AI dependency | Quick Ask, Organizer, Organize Folder require an API key. Maintenance scan (orphans, broken links) works without AI. |
-| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Organize Folder). |
+| AI dependency | Organizer and Organize Folder require an API key. Maintenance scan (orphans, broken links) works without AI. |
+| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Organizer, Organize Folder). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
 | Duplicates | Note duplicates use TF-IDF cosine similarity — may miss very short notes. Tag duplicates use 2-stage detection (string normalization + embedding); embedding stage requires AI and is capped at 500 tags. |

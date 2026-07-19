@@ -1,6 +1,5 @@
 // src/application/usecases/index.ts
 
-export { QuickAskUseCase } from './QuickAskUseCase';
 export { OrganizeNoteUseCase } from './OrganizeNoteUseCase';
 export type { OrganizeContext } from './OrganizeNoteUseCase';
 export { OrganizeFolderUseCase } from './RunInboxProcessUseCase';

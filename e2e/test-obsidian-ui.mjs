@@ -138,31 +138,7 @@ async function main() {
     await sleep(300);
   } catch (e) { fail('Command Palette', e); }
 
-  // --- Test 5: Quick Ask 모달 ---
-  try {
-    await page.keyboard.press('Control+p');
-    await sleep(500);
-    await page.keyboard.type('Quick Ask', { delay: 30 });
-    await sleep(500);
-    await page.keyboard.press('Enter');
-    await sleep(1500);
-    await page.screenshot({ path: 'e2e/screenshot-quickask.png' });
-
-    const modal = page.locator('.vaultend-quick-ask');
-    if (await modal.count() > 0) {
-      pass('Quick Ask 모달 열림');
-      if (await modal.locator('textarea').count() > 0) pass('Quick Ask 텍스트 입력란');
-      else fail('Quick Ask 텍스트 입력란', 'textarea not found');
-      if (await modal.locator('button').count() > 0) pass('Quick Ask 버튼');
-      else fail('Quick Ask 버튼', 'button not found');
-    } else {
-      fail('Quick Ask 모달 열림', 'modal not found');
-    }
-    await page.keyboard.press('Escape');
-    await sleep(300);
-  } catch (e) { fail('Quick Ask 모달', e); }
-
-  // --- Test 6: Maintenance Log 뷰 ---
+  // --- Test 5: Maintenance Log 뷰 ---
   try {
     await page.keyboard.press('Control+p');
     await sleep(500);

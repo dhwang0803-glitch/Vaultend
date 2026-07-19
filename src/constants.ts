@@ -21,7 +21,7 @@ export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
 export const ORGANIZE_VAULT_FOLDER = `${PLUGIN_DATA_FOLDER}/organize-vault`;
 
 /** 기본 설정값 */
-export const DEFAULT_SAVE_FOLDER = 'QuickAsk';
+export const DEFAULT_SAVE_FOLDER = 'Vaultend';
 export const DEFAULT_DAILY_NOTE_FOLDER = 'DailyNotes';
 export const DEFAULT_DAILY_NOTE_FORMAT = 'YYYY-MM-DD';
 export const DEFAULT_AI_MODEL = 'gpt-4o';
@@ -36,8 +36,6 @@ export const DEFAULT_ARCHIVE_FOLDER = 'Archive';
 export const DEFAULT_LOCALE: 'auto' | 'en' | 'ko' = 'auto';
 
 /** 명령 ID */
-export const COMMAND_QUICK_ASK = 'quick-ask';
-
 export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';

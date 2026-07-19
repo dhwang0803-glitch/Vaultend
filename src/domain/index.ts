@@ -26,7 +26,7 @@ export type {
   NoteChunk,
   NoteMetadata,
   SaveTarget, NewNote, AppendToNote, DailyNote,
-  QuickAskRequest, QuickAskResult, TokenUsage,
+  TokenUsage,
   OrganizeResult, MaintenancePlan, DuplicatePair, MissingTagSuggestion, BrokenLink, DuplicateTagGroup,
   PrivacyRule, PrivacyRuleType,
   HistoryEntry, HistoryAction,

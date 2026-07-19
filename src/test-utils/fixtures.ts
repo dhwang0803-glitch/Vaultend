@@ -56,7 +56,7 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     aiTemperature: 0.7,
     captureFolder: 'Inbox',
     autoApplyOrganize: false,
-    defaultSaveFolder: 'QuickAsk',
+    defaultSaveFolder: 'Vaultend',
     defaultSaveTarget: 'new-note',
     maxContextChunks: 5,
     dailyNoteFormat: 'YYYY-MM-DD',

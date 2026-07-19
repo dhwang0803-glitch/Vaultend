@@ -2,7 +2,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
-import { TokenUsage } from '../../domain/models/QuickAskModels';
+import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { AIProviderPort } from '../ports/AIProviderPort';

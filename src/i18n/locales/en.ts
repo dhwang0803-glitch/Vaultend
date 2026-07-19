@@ -3,8 +3,6 @@ const en = {
   'plugin.name': 'Vaultend',
 
   // ─── Commands ───
-  'command.quickAsk': 'Quick Ask',
-
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
   'command.organizeFolder': 'Organize Folder',
@@ -162,27 +160,6 @@ const en = {
   'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
   'organizeFolder.tokenNote': '{{count}} tokens · ${{cost}}',
 
-  // ─── Quick Ask Modal ───
-  'quickAsk.title': 'Quick Ask',
-  'quickAsk.placeholder': 'Enter your question... (Ctrl+Enter to send)',
-  'quickAsk.askButton': 'Ask',
-  'quickAsk.closeButton': 'Close',
-  'quickAsk.loading': 'Asking AI...',
-  'quickAsk.error': 'Error: {{error}}',
-  'quickAsk.emptyQuestion': 'Please enter a question.',
-  'quickAsk.tokens': 'Tokens: {{count}}',
-  'quickAsk.cost': 'Cost: ${{amount}}',
-  'quickAsk.tags': 'Tags: {{tags}}',
-  'quickAsk.suggestedTags': 'Suggested Tags: {{tags}}',
-  'quickAsk.references': 'Referenced Notes',
-  'quickAsk.truncated': '⚠ Response was truncated. Increase Max Response Tokens in Settings for longer answers.',
-  'quickAsk.sendButton': 'Send',
-  'quickAsk.saveConversation': 'Save Conversation',
-  'quickAsk.saved': 'Saved',
-  'quickAsk.noResults': 'No related notes found in your vault. Try asking after creating relevant notes.',
-  'quickAsk.turnLimit': 'Conversation length limit reached. Please start a new conversation.',
-  'quickAsk.chatPlaceholder': 'Type a message... (Enter to send, Shift+Enter for newline)',
-
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',
   'organize.category': 'Category',
@@ -249,11 +226,6 @@ const en = {
   'settings.autoApply': 'Auto-apply results',
   'settings.autoApplyDesc': 'When enabled, AI classification results (move, tag, link) are applied immediately without manual review after organizing the selected folder.',
 
-  'settings.quickAsk': 'Quick Ask',
-  'settings.saveMode': 'Save Mode',
-  'settings.saveModeDesc': 'Choose how Quick Ask answers are saved.',
-  'settings.saveModeTimestamp': 'Timestamp filename (separate file per question)',
-  'settings.saveModeDailyNote': 'Daily Note (append to one file per day)',
   'settings.maxTokens': 'Max Response Tokens',
   'settings.maxTokensDesc': 'Maximum tokens for AI response (1024–16384). Higher values allow longer answers but cost more.',
   'settings.dailyNoteLimit': 'Daily Note Size Limit (KB)',

@@ -155,24 +155,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
-    // --- Quick Ask ---
-    containerEl.createEl('h3', { text: t('settings.quickAsk') });
-
-    new Setting(containerEl)
-      .setName(t('settings.saveMode'))
-      .setDesc(t('settings.saveModeDesc'))
-      .addDropdown(dropdown => {
-        dropdown
-          .addOption('timestamp', t('settings.saveModeTimestamp'))
-          .addOption('daily-note', t('settings.saveModeDailyNote'))
-          .setValue(this.settings!.quickAskSaveMode)
-          .onChange(async (value) => {
-            await this.config.updateSettings({
-              quickAskSaveMode: value as 'timestamp' | 'daily-note',
-            });
-          });
-      });
-
     new Setting(containerEl)
       .setName(t('settings.maxTokens'))
       .setDesc(t('settings.maxTokensDesc'))

@@ -5,8 +5,6 @@ const ko: { [K in keyof typeof en]: string } = {
   'plugin.name': 'Vaultend',
 
   // ─── Commands ───
-  'command.quickAsk': 'Quick Ask',
-
   'command.organizeNote': '현재 노트 정리',
   'command.runMaintenance': '유지보수 실행',
   'command.organizeFolder': '폴더 정리',
@@ -164,27 +162,6 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
   'organizeFolder.tokenNote': '{{count}} 토큰 · ${{cost}}',
 
-  // ─── Quick Ask Modal ───
-  'quickAsk.title': 'Quick Ask',
-  'quickAsk.placeholder': '질문을 입력하세요... (Ctrl+Enter로 전송)',
-  'quickAsk.askButton': '질문하기',
-  'quickAsk.closeButton': '닫기',
-  'quickAsk.loading': 'AI에게 질문하는 중...',
-  'quickAsk.error': '오류: {{error}}',
-  'quickAsk.emptyQuestion': '질문을 입력해주세요.',
-  'quickAsk.tokens': '토큰: {{count}}',
-  'quickAsk.cost': '비용: ${{amount}}',
-  'quickAsk.tags': '태그: {{tags}}',
-  'quickAsk.suggestedTags': '제안 태���: {{tags}}',
-  'quickAsk.references': '참조된 노트',
-  'quickAsk.truncated': '⚠ 응답이 토큰 제한으로 잘렸습니다. Settings → Max Response Tokens 값을 늘려보세요.',
-  'quickAsk.sendButton': '전송',
-  'quickAsk.saveConversation': '대화 저장',
-  'quickAsk.saved': '저장 완료',
-  'quickAsk.noResults': 'vault에서 관련 노트를 찾지 못했습니다. 관련 노트를 작성한 후 다시 질문해 보세요.',
-  'quickAsk.turnLimit': '대화 길이 제한에 도달했습니다. 새 대화를 시작하세요.',
-  'quickAsk.chatPlaceholder': '메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)',
-
   // ─── Organize Result Modal ───
   'organize.title': '노트 정리',
   'organize.category': '분류',
@@ -249,11 +226,6 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.autoApply': '결과 자동 적용',
   'settings.autoApplyDesc': '활성화하면 선택한 폴더를 정리한 후 AI 분류 결과(이동·태깅·링크)를 검토 없이 즉시 적용합니다.',
 
-  'settings.quickAsk': 'Quick Ask',
-  'settings.saveMode': '저장 모드',
-  'settings.saveModeDesc': 'Quick Ask 답변의 저장 방식을 선택합니다.',
-  'settings.saveModeTimestamp': '타임스탬프 파일명 (질문마다 별도 파일)',
-  'settings.saveModeDailyNote': 'Daily Note (하루치를 하나의 파일에 추가)',
   'settings.maxTokens': '최대 응답 토큰',
   'settings.maxTokensDesc': 'AI 응답의 최대 토큰 수 (1024–16384). 높을수록 긴 답변이 가능하지만 비용이 증가합니다.',
   'settings.dailyNoteLimit': 'Daily Note 용량 제한 (KB)',

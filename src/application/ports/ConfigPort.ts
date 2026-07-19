@@ -41,10 +41,9 @@ export interface PluginSettings {
   readonly captureFolder: string;
   readonly autoApplyOrganize: boolean;
 
-  // Quick Ask settings
+  // Save settings
   readonly defaultSaveFolder: string;
   readonly defaultSaveTarget: 'new-note' | 'daily-note';
-  readonly quickAskSaveMode: 'timestamp' | 'daily-note';
   readonly dailyNoteSizeLimitKB: number;
   readonly maxContextChunks: number;
 

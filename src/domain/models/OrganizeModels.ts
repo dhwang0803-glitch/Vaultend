@@ -2,7 +2,7 @@ import { TagName } from '../values/TagName';
 import { NotePath } from '../values/NotePath';
 import { NoteId } from '../values/NoteId';
 import { Timestamp } from '../values/Timestamp';
-import { TokenUsage } from './QuickAskModels';
+import { TokenUsage } from './TokenUsage';
 
 /**
  * OrganizeResult — 단일 노트 정리 결과.
