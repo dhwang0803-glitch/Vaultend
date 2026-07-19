@@ -458,7 +458,7 @@ export class MaintenanceResultView extends ItemView {
     for (const notePath of filtered) {
       const suggestions = tagSuggestionMap.get(notePath as string);
       const desc = suggestions && suggestions.length > 0
-        ? `${notePath as string} · ${suggestions.join(', ')}`
+        ? `${notePath as string} · ${t('desc.suggestedTags', { tags: suggestions.join(', ') })}`
         : `${notePath as string} · ${t('untagged.noMatchingTags')}`;
       const settingEl = new Setting(container)
         .setName(this.basename(notePath))
@@ -512,7 +512,7 @@ export class MaintenanceResultView extends ItemView {
     for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(item.notePath))
-        .setDesc(t('duplicate.tagSuggestion', { tags: item.suggestedTags.join(', ') }));
+        .setDesc(`${item.notePath as string} · ${t('desc.suggestedTags', { tags: item.suggestedTags.join(', ') })}`);
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -628,7 +628,7 @@ export class MaintenanceResultView extends ItemView {
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
       const linkPreview = entry.suggestedLinks && entry.suggestedLinks.length > 0
-        ? ` · → ${entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ')}`
+        ? ` · ${t('desc.suggestedLinks', { links: entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ') })}`
         : '';
       const settingEl = new Setting(container)
         .setName(this.basename(entry.notePath))

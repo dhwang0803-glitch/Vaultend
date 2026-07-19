@@ -115,6 +115,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'impact.andMore': ' 외 {{count}}개',
 
   // Duplicates
+  'desc.suggestedTags': '제안 태그: {{tags}}',
+  'desc.suggestedLinks': '제안 링크: {{links}}',
   'duplicate.tagSuggestion': '{{tags}} 추가 제안',
   'duplicate.similarity': '유사도 {{score}}%',
   'duplicateTag.keep': '유지: {{tag}}',

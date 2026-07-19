@@ -147,9 +147,11 @@ export class OrganizeFolderUseCase {
           }
         }
 
-        const stillExists = await this.vault.exists(notePath);
-        if (stillExists) {
-          await this.vault.updateFrontmatter(notePath, { processed: true });
+        if (settings.autoApplyOrganize) {
+          const stillExists = await this.vault.exists(notePath);
+          if (stillExists) {
+            await this.vault.updateFrontmatter(notePath, { processed: true });
+          }
         }
       } catch (err) {
         errors.push({

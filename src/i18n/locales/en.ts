@@ -113,6 +113,8 @@ const en = {
   'impact.andMore': ' and {{count}} more',
 
   // Duplicates
+  'desc.suggestedTags': 'Suggested tags: {{tags}}',
+  'desc.suggestedLinks': 'Suggested links: {{links}}',
   'duplicate.tagSuggestion': '{{tags}} suggested',
   'duplicate.similarity': 'Similarity {{score}}%',
   'duplicateTag.keep': 'Keep: {{tag}}',

@@ -208,7 +208,36 @@
   color: var(--text-normal);
 }
 
-/* Maintenance Result View */
+/* Maintenance Result View — responsive card layout */
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item-info {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item-name {
+  word-break: break-word;
+}
+
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item-description {
+  word-break: break-word;
+  white-space: normal;
+}
+
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item-control {
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.workspace-leaf-content[data-type="vaultend-result"] .setting-item-control > button {
+  white-space: nowrap;
+}
+
 .maintenance-result-summary {
   padding: 8px 0;
   margin-bottom: 8px;
