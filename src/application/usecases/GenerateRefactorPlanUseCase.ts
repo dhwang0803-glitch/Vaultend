@@ -261,7 +261,7 @@ export class GenerateRefactorPlanUseCase {
         const response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.tagCleanup.untaggedSystem,
           prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.tagCleanup.untaggedUser(chunkStr, knownTags),
-          maxTokens: 2000,
+          maxTokens: 4096,
           temperature: 0.2,
           jsonMode: true,
         });
@@ -405,7 +405,7 @@ export class GenerateRefactorPlanUseCase {
           const response = await this.ai.callCompletion({
             systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
             prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
-            maxTokens: 2000,
+            maxTokens: 4096,
             temperature: 0.3,
             jsonMode: true,
           });
@@ -443,7 +443,7 @@ export class GenerateRefactorPlanUseCase {
           const tier2Response = await this.ai.callCompletion({
             systemPrompt: REFACTOR_PROMPTS.noteReorganize.tier2System,
             prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
-            maxTokens: 2000,
+            maxTokens: 4096,
             temperature: 0.3,
             jsonMode: true,
           });
