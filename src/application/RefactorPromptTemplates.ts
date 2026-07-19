@@ -78,13 +78,15 @@ Orphan notes:
 ${noteChunk}
 
 Rules:
-1. Prefer folders from the existing list. You may suggest "Archive" for notes that are outdated or irrelevant.
-2. Consider the note's content, tags, and folder context to determine the best placement
-3. Notes about specific projects/topics should go to their relevant folder
-4. Very short or stub notes with no clear purpose → suggest "Archive"
-5. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0)
+1. You MUST return EXACTLY one result per note listed above. Do NOT skip any note.
+2. Prefer folders from the existing list. You may suggest "Archive" for notes that are outdated or irrelevant.
+3. Consider the note's content, tags, and folder context to determine the best placement.
+4. Notes about specific projects/topics should go to their relevant folder.
+5. Very short or stub notes with no clear purpose → suggest "Archive".
+6. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0).
+7. Keep rationale under 15 words to save output space.
 
-Return JSON array:
+Return JSON array (one entry per note, same order as input):
 [
   { "path": "note.md", "suggestedFolder": "Projects", "confidence": 0.85, "rationale": "..." }
 ]`,
