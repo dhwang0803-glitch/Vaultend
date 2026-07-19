@@ -399,7 +399,8 @@ export class GenerateRefactorPlanUseCase {
           message: `Analyzing orphan batch ${i + 1}/${orphanChunks.length}...`,
         });
 
-        const chunkStr = await this.buildNoteChunkString(orphanChunks[i], privacyRules);
+        const chunkNotes = orphanChunks[i];
+        const chunkStr = await this.buildNoteChunkString(chunkNotes, privacyRules);
 
         try {
           const response = await this.ai.callCompletion({
@@ -411,9 +412,33 @@ export class GenerateRefactorPlanUseCase {
           });
           aiSuccessCount++;
           const parsed = tryParseJsonArray<PlacementResult>(response.content);
-          const expected = orphanChunks[i].length;
+          const expected = chunkNotes.length;
           console.log(`[Vaultend:refactor] orphan chunk ${i + 1}: sent=${expected}, returned=${parsed.length}${parsed.length < expected ? ' ⚠️ PARTIAL' : ''}`);
           if (parsed.length > 0) allPlacements.push(...parsed);
+
+          // Retry missing notes from partial response
+          if (parsed.length < expected && parsed.length > 0) {
+            const returnedPaths = new Set(parsed.map(p => p.path));
+            const missing = chunkNotes.filter(n => !returnedPaths.has(n.path));
+            if (missing.length > 0) {
+              this.checkAborted(signal);
+              const retryStr = await this.buildNoteChunkString(missing, privacyRules);
+              try {
+                const retryResp = await this.ai.callCompletion({
+                  systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
+                  prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(retryStr, foldersStr),
+                  maxTokens: 8192,
+                  temperature: 0.3,
+                  jsonMode: true,
+                });
+                const retryParsed = tryParseJsonArray<PlacementResult>(retryResp.content);
+                console.log(`[Vaultend:refactor] orphan chunk ${i + 1} retry: sent=${missing.length}, returned=${retryParsed.length}`);
+                if (retryParsed.length > 0) allPlacements.push(...retryParsed);
+              } catch (retryErr) {
+                console.warn(`[Vaultend] Orphan chunk ${i + 1} retry failed:`, retryErr instanceof Error ? retryErr.message : retryErr);
+              }
+            }
+          }
         } catch (err) {
           lastReorgError = err;
           console.warn(`[Vaultend] Reorganize orphan chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
