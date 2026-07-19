@@ -57,14 +57,15 @@ const EMBEDDING_TABLES: Record<string, Record<string, ModelPricing>> = {
 };
 
 export function getModelPricing(provider: string, model: string): ModelPricing | null {
-  if (provider === 'ollama') return OLLAMA_PRICING;
-  const table = PROVIDER_TABLES[provider];
+  const key = provider.toLowerCase();
+  if (key === 'ollama') return OLLAMA_PRICING;
+  const table = PROVIDER_TABLES[key];
   if (!table) return null;
   return table[model] ?? null;
 }
 
 export function getEmbeddingPricing(provider: string, model: string): ModelPricing | null {
-  const table = EMBEDDING_TABLES[provider];
+  const table = EMBEDDING_TABLES[provider.toLowerCase()];
   if (!table) return null;
   return table[model] ?? null;
 }
