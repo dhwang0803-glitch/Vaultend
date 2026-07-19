@@ -6,6 +6,15 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.1] - 2026-07-20
+
+### Fixed
+- **Responsive maintenance result layout**: Cards in narrow sidebar no longer break — flex-wrap, word-break, and proper control button positioning applied via scoped CSS.
+- **Processed marking timing**: `processed` frontmatter is now set only when the user explicitly applies (Apply/Apply All), not on scan. Previously, scanning alone marked notes as processed, excluding them from future scans.
+- **AI suggestion labels**: Added descriptive labels ("Suggested tags:", "Suggested links:") to AI-generated tag and link suggestions in maintenance results for improved readability.
+
+---
+
 ## [0.8.0] - 2026-07-20
 
 ### Removed
