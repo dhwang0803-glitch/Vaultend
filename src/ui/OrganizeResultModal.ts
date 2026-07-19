@@ -201,9 +201,12 @@ export class OrganizeResultModal extends Modal {
 
   private renderTokenUsage(container: HTMLElement): void {
     const usage = this.result.tokenUsage;
+    const costText = usage.estimatedCostUsd < 0
+      ? t('organize.costUnavailable' as any)
+      : t('organize.cost', { amount: usage.estimatedCostUsd.toFixed(4) });
     const parts = [
       t('organize.tokens', { count: usage.totalTokens.toLocaleString() }),
-      t('organize.cost', { amount: usage.estimatedCostUsd.toFixed(4) }),
+      costText,
     ];
     container.createEl('p', { text: parts.join(' · '), cls: 'organize-token-info' });
   }

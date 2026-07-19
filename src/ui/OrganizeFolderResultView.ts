@@ -242,11 +242,11 @@ export class OrganizeFolderResultView extends ItemView {
     if (result.results.length > 0) {
       const totalTokens = result.results.reduce((sum, r) => sum + r.tokenUsage.totalTokens, 0);
       const totalCost = result.results.reduce((sum, r) => sum + r.tokenUsage.estimatedCostUsd, 0);
+      const hasCostData = totalCost >= 0;
       summaryEl.createEl('span', {
-        text: t('organizeFolder.tokenTotal', {
-          count: totalTokens.toLocaleString(),
-          cost: totalCost.toFixed(4),
-        }),
+        text: hasCostData
+          ? t('organizeFolder.tokenTotal', { count: totalTokens.toLocaleString(), cost: totalCost.toFixed(4) })
+          : t('organizeFolder.tokenTotalUnavailable' as any, { count: totalTokens.toLocaleString() }),
         cls: 'organize-folder-token-info',
       });
     }
@@ -376,11 +376,16 @@ export class OrganizeFolderResultView extends ItemView {
 
     // Per-note token usage
     if (result.tokenUsage.totalTokens > 0) {
+      const costAvailable = result.tokenUsage.estimatedCostUsd >= 0;
       detailsEl.createEl('span', {
-        text: t('organizeFolder.tokenNote' as Parameters<typeof t>[0], {
-          count: result.tokenUsage.totalTokens,
-          cost: result.tokenUsage.estimatedCostUsd.toFixed(4),
-        }),
+        text: costAvailable
+          ? t('organizeFolder.tokenNote' as Parameters<typeof t>[0], {
+              count: result.tokenUsage.totalTokens,
+              cost: result.tokenUsage.estimatedCostUsd.toFixed(4),
+            })
+          : t('organizeFolder.tokenNoteUnavailable' as any, {
+              count: result.tokenUsage.totalTokens,
+            }),
         cls: 'organize-folder-token-note',
       });
     }

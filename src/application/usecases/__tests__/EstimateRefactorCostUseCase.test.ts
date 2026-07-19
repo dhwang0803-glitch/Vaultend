@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { EstimateRefactorCostUseCase } from '../EstimateRefactorCostUseCase';
 import type { RefactorGoal, VaultMetadataSnapshot } from '../../../domain/models/RefactorModels';
+import type { ConfigPort } from '../../ports/ConfigPort';
+import { createDefaultSettings } from '../../../test-utils/fixtures';
 
 function buildSnapshot(overrides?: Partial<VaultMetadataSnapshot>): VaultMetadataSnapshot {
   return {
@@ -26,16 +28,22 @@ function makeEntry(path: string, opts?: { wordCount?: number; tags?: string[]; l
   };
 }
 
+const mockConfig: ConfigPort = {
+  getSettings: async () => createDefaultSettings({ aiProvider: 'openai', aiModel: 'gpt-4o' }),
+  saveSettings: async () => {},
+  updateSettings: async () => {},
+};
+
 describe('EstimateRefactorCostUseCase', () => {
-  const useCase = new EstimateRefactorCostUseCase();
+  const useCase = new EstimateRefactorCostUseCase(mockConfig);
 
   describe('reorganize-notes', () => {
-    it('estimates based on orphan count and batch size', () => {
+    it('estimates based on orphan count and batch size', async () => {
       const goal: RefactorGoal = { goalType: 'reorganize-notes', parameters: {} };
       const orphans = Array.from({ length: 120 }, (_, i) => makeEntry(`orphan${i}.md`));
       const snapshot = buildSnapshot({ noteEntries: orphans, totalNotes: 120 });
 
-      const result = useCase.execute(goal, snapshot);
+      const result = await useCase.execute(goal, snapshot);
 
       expect(result.noteCount).toBe(120);
       expect(result.chunkCount).toBe(3); // 120 / 50 = 2.4 → ceil = 3
@@ -44,10 +52,10 @@ describe('EstimateRefactorCostUseCase', () => {
       expect(result.estimatedDurationSeconds).toBeGreaterThan(0);
     });
 
-    it('handles zero orphans', () => {
+    it('handles zero orphans', async () => {
       const goal: RefactorGoal = { goalType: 'reorganize-notes', parameters: {} };
       const linked = [makeEntry('linked.md', { links: ['other.md'] })];
-      const result = useCase.execute(goal, buildSnapshot({ noteEntries: linked, totalNotes: 1 }));
+      const result = await useCase.execute(goal, buildSnapshot({ noteEntries: linked, totalNotes: 1 }));
 
       expect(result.noteCount).toBe(0);
       expect(result.estimatedAICalls).toBe(1); // 0 chunks + 1 tier2
@@ -55,7 +63,7 @@ describe('EstimateRefactorCostUseCase', () => {
   });
 
   describe('clean-up-tags', () => {
-    it('estimates based on tag count including untagged notes', () => {
+    it('estimates based on tag count including untagged notes', async () => {
       const tags = Array.from({ length: 450 }, (_, i) => ({ tag: `#tag${i}`, count: 5 }));
       const tagged = Array.from({ length: 80 }, (_, i) => makeEntry(`tagged${i}.md`, { tags: ['#tag0'] }));
       const untagged = Array.from({ length: 20 }, (_, i) => makeEntry(`untagged${i}.md`, { tags: [] }));
@@ -66,7 +74,7 @@ describe('EstimateRefactorCostUseCase', () => {
         totalNotes: 100,
       });
 
-      const result = useCase.execute(goal, snapshot);
+      const result = await useCase.execute(goal, snapshot);
 
       expect(result.tagCount).toBe(450);
       expect(result.chunkCount).toBe(4); // ceil(450/200)=3 tag chunks + ceil(20/50)=1 untagged chunk
@@ -75,7 +83,7 @@ describe('EstimateRefactorCostUseCase', () => {
   });
 
   describe('suggest-links', () => {
-    it('estimates based on orphan count plus broken link scan', () => {
+    it('estimates based on orphan count plus broken link scan', async () => {
       const entries = [
         makeEntry('orphan1.md', { links: [] }),
         makeEntry('orphan2.md', { links: [] }),
@@ -84,7 +92,7 @@ describe('EstimateRefactorCostUseCase', () => {
       const goal: RefactorGoal = { goalType: 'suggest-links', parameters: {} };
       const snapshot = buildSnapshot({ noteEntries: entries, totalNotes: 3 });
 
-      const result = useCase.execute(goal, snapshot);
+      const result = await useCase.execute(goal, snapshot);
 
       expect(result.noteCount).toBe(5); // 2 orphans + 3 total (broken link scan)
       expect(result.estimatedAICalls).toBe(2); // ceil(2/50)=1 orphan chunk + 1 broken link scan
@@ -92,7 +100,7 @@ describe('EstimateRefactorCostUseCase', () => {
   });
 
   describe('consolidate-fleeting', () => {
-    it('estimates based on fleeting candidates', () => {
+    it('estimates based on fleeting candidates', async () => {
       const entries = [
         makeEntry('short1.md', { wordCount: 50, tags: [], links: [] }),
         makeEntry('short2.md', { wordCount: 80, tags: ['#tag'], links: [] }),
@@ -104,19 +112,19 @@ describe('EstimateRefactorCostUseCase', () => {
       };
       const snapshot = buildSnapshot({ noteEntries: entries, totalNotes: 3 });
 
-      const result = useCase.execute(goal, snapshot);
+      const result = await useCase.execute(goal, snapshot);
 
       expect(result.noteCount).toBe(2); // short1 + short2
     });
 
-    it('uses default threshold when not specified', () => {
+    it('uses default threshold when not specified', async () => {
       const entries = [
         makeEntry('short.md', { wordCount: 100, tags: [], links: [] }),
       ];
       const goal: RefactorGoal = { goalType: 'consolidate-fleeting', parameters: {} };
       const snapshot = buildSnapshot({ noteEntries: entries, totalNotes: 1 });
 
-      const result = useCase.execute(goal, snapshot);
+      const result = await useCase.execute(goal, snapshot);
 
       expect(result.noteCount).toBe(1);
     });

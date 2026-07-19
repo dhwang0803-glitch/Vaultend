@@ -160,7 +160,9 @@ const en = {
   'organizeFolder.skipped': 'Skipped',
   'organizeFolder.noChanges': 'No changes suggested',
   'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
+  'organizeFolder.tokenTotalUnavailable': 'Total tokens: {{count}} · Cost: N/A (unregistered model)',
   'organizeFolder.tokenNote': '{{count}} tokens · ${{cost}}',
+  'organizeFolder.tokenNoteUnavailable': '{{count}} tokens · Cost: N/A',
 
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',
@@ -188,6 +190,7 @@ const en = {
   'organize.nothingToApply': 'Nothing to apply.',
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
+  'organize.costUnavailable': 'Cost: N/A (unregistered model)',
 
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',

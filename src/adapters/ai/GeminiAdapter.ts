@@ -5,6 +5,7 @@ import { AIProviderPort, CompletionRequest, CompletionResponse,
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
+import { getModelPricing, estimateCostFromPricing } from '../../domain/models/PricingTable';
 
 export class GeminiAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
@@ -244,8 +245,7 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {
-    const promptCost = (promptTokens / 1_000_000) * 0.075;
-    const completionCost = (completionTokens / 1_000_000) * 0.30;
-    return promptCost + completionCost;
+    const pricing = getModelPricing('gemini', this.model);
+    return estimateCostFromPricing(pricing, promptTokens, completionTokens);
   }
 }

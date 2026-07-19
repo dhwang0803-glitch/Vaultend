@@ -110,14 +110,6 @@ export class GenerateRefactorPlanUseCase {
       isNoteAllowedByRules(n.path, n.tags, [], privacyRules),
     );
 
-    console.log(`[Vaultend:refactor] collectMetadata: raw=${noteEntries.length}, afterPrivacy=${filtered.length}, privacyRules=${privacyRules.length}`);
-    if (privacyRules.length > 0) {
-      console.log(`[Vaultend:refactor]   rules:`, privacyRules.map(r => ({ type: r.type, patternLen: r.pattern.length, enabled: r.enabled })));
-    }
-    if (filtered.length < noteEntries.length) {
-      const excluded = noteEntries.filter(n => !isNoteAllowedByRules(n.path, n.tags, [], privacyRules));
-      console.log(`[Vaultend:refactor]   excluded samples:`, excluded.slice(0, 3).map(n => n.path));
-    }
 
     const folderSet = new Set<string>();
     for (const entry of filtered) {
@@ -441,7 +433,6 @@ export class GenerateRefactorPlanUseCase {
               rationale: r.rationale,
             }));
           const expected = chunkNotes.length;
-          console.log(`[Vaultend:refactor] orphan chunk ${i + 1}: sent=${expected}, returned=${parsed.length}${parsed.length < expected ? ' ⚠️ PARTIAL' : ''}`);
           if (parsed.length > 0) allPlacements.push(...parsed);
 
           // Retry missing notes from partial response
@@ -468,7 +459,6 @@ export class GenerateRefactorPlanUseCase {
                     confidence: r.confidence,
                     rationale: r.rationale,
                   }));
-                console.log(`[Vaultend:refactor] orphan chunk ${i + 1} retry: sent=${missing.length}, returned=${retryParsed.length}`);
                 if (retryParsed.length > 0) allPlacements.push(...retryParsed);
               } catch (retryErr) {
                 console.warn(`[Vaultend] Orphan chunk ${i + 1} retry failed:`, retryErr instanceof Error ? retryErr.message : retryErr);
@@ -664,10 +654,6 @@ export class GenerateRefactorPlanUseCase {
         const folder = entry.folder || '/';
         sameFolderDetails.set(folder, (sameFolderDetails.get(folder) ?? 0) + 1);
       }
-    }
-    console.log(`[Vaultend:refactor] convertReorganize: total=${placements.length}, proposals=${proposals.length}, sameFolder=${sameFolderCount}, lowConf=${lowConfCount}, notFound=${notFoundCount}`);
-    if (sameFolderCount > 0) {
-      console.log(`[Vaultend:refactor] sameFolder breakdown:`, Object.fromEntries(sameFolderDetails));
     }
     return proposals;
   }

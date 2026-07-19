@@ -1,9 +1,9 @@
-name: Release Obsidian Plugin
+name: Release Beta (BRAT)
 
 on:
   push:
     tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+      - "*-beta*"
 
 permissions:
   contents: write
@@ -22,9 +22,9 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      - run: npm run build:beta
 
-      - name: Create release with assets
+      - name: Create pre-release with assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -32,5 +32,6 @@ jobs:
 
           gh release create "$tag" \
             --title "$tag" \
+            --prerelease \
             --generate-notes \
             main.js manifest.json styles.css

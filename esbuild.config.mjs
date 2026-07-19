@@ -9,6 +9,23 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = process.argv[2] === "production";
+const beta = process.argv.includes("--beta");
+
+/** Strip Pro modules from free builds — replaces imports with empty stubs. */
+const stripProPlugin = {
+  name: "strip-pro",
+  setup(build) {
+    if (beta) return;
+    build.onResolve({ filter: /\/adapters\/license\// }, (args) => ({
+      path: args.path,
+      namespace: "strip-pro",
+    }));
+    build.onLoad({ filter: /.*/, namespace: "strip-pro" }, () => ({
+      contents: "export class LocalLicenseAdapter {}",
+      loader: "ts",
+    }));
+  },
+};
 
 const context = await esbuild.context({
   banner: { js: banner },
@@ -30,6 +47,10 @@ const context = await esbuild.context({
     "@lezer/lr",
     ...builtins,
   ],
+  plugins: [stripProPlugin],
+  define: {
+    "ENABLE_PRO": beta ? "true" : "false",
+  },
   format: "cjs",
   target: "es2022",
   logLevel: "info",

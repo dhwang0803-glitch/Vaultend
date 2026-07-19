@@ -5,6 +5,7 @@ import { AIProviderPort, CompletionRequest, CompletionResponse,
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
+import { getModelPricing, estimateCostFromPricing } from '../../domain/models/PricingTable';
 
 export class OpenAICompatAdapter implements AIProviderPort {
   private static readonly MAX_RETRIES = 3;
@@ -47,13 +48,15 @@ export class OpenAICompatAdapter implements AIProviderPort {
 
     const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
+    const pricing = getModelPricing(this.providerName, this.model);
+
     return {
       content: response.choices[0].message.content,
       tokenUsage: {
         promptTokens: usage.prompt_tokens,
         completionTokens: usage.completion_tokens,
         totalTokens: usage.total_tokens,
-        estimatedCostUsd: 0,
+        estimatedCostUsd: estimateCostFromPricing(pricing, usage.prompt_tokens, usage.completion_tokens),
       },
       finishReason: response.choices[0].finish_reason as 'stop' | 'length' | 'content_filter',
     };

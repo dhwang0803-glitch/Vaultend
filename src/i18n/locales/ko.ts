@@ -162,7 +162,9 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.skipped': '건너뜀',
   'organizeFolder.noChanges': '제안된 변경이 없습니다',
   'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
+  'organizeFolder.tokenTotalUnavailable': '총 토큰: {{count}} · 비용: 추정 불가 (미등록 모델)',
   'organizeFolder.tokenNote': '{{count}} 토큰 · ${{cost}}',
+  'organizeFolder.tokenNoteUnavailable': '{{count}} 토큰 · 비용: 추정 불가',
 
   // ─── Organize Result Modal ───
   'organize.title': '노트 정리',
@@ -190,6 +192,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.nothingToApply': '적용할 항목이 없습니다.',
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
+  'organize.costUnavailable': '비용: 추정 불가 (미등록 모델)',
 
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
   'organizeFolder.cancel': '취소',

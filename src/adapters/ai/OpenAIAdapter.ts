@@ -5,6 +5,7 @@ import { AIProviderPort, CompletionRequest, CompletionResponse,
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
+import { getModelPricing, getEmbeddingPricing, estimateCostFromPricing, estimateEmbeddingCostFromPricing } from '../../domain/models/PricingTable';
 
 export class OpenAIAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://api.openai.com/v1';
@@ -102,7 +103,9 @@ export class OpenAIAdapter implements AIProviderPort {
         promptTokens: response.usage.prompt_tokens,
         completionTokens: 0,
         totalTokens: response.usage.total_tokens,
-        estimatedCostUsd: (response.usage.total_tokens / 1_000_000) * 0.02,
+        estimatedCostUsd: estimateEmbeddingCostFromPricing(
+          getEmbeddingPricing('openai', model), response.usage.total_tokens,
+        ),
       },
     };
   }
@@ -225,8 +228,7 @@ export class OpenAIAdapter implements AIProviderPort {
   }
 
   private estimateCost(promptTokens: number, completionTokens: number): number {
-    const promptCost = (promptTokens / 1_000_000) * 2.50;
-    const completionCost = (completionTokens / 1_000_000) * 10.00;
-    return promptCost + completionCost;
+    const pricing = getModelPricing('openai', this.model);
+    return estimateCostFromPricing(pricing, promptTokens, completionTokens);
   }
 }

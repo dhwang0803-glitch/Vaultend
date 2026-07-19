@@ -1,11 +1,12 @@
 {
   "name": "obsidian-vaultend",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Vaultend — AI-powered vault maintenance for Obsidian. Auto-classify, tag, link, and organize your notes",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "build:beta": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production --beta",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "test": "vitest run",

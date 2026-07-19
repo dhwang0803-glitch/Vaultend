@@ -8,7 +8,6 @@ import type { GenerateRefactorPlanUseCase } from '../application/usecases/Genera
 import type { RecordPreferenceUseCase } from '../application/usecases/RecordPreferenceUseCase';
 import type { OrganizeVaultPort } from '../application/ports/OrganizeVaultPort';
 import type { VaultAccessPort } from '../application/ports/VaultAccessPort';
-import type { LicensePort } from '../application/ports/LicensePort';
 import {
   OrganizeVaultPlan,
   OrganizeVaultProposal,
@@ -46,7 +45,6 @@ export class OrganizeVaultView extends ItemView {
     private readonly applyPlan: ApplyOrganizeVaultUseCase,
     private readonly rollbackPlan: RollbackOrganizeVaultUseCase,
     private readonly store: OrganizeVaultPort,
-    private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly vaultAdapter?: VaultAccessPort,
     private readonly estimateRefactorCost?: EstimateRefactorCostUseCase,
@@ -78,10 +76,6 @@ export class OrganizeVaultView extends ItemView {
 
   async triggerScan(folderPath?: string): Promise<void> {
     if (this.scanInProgress) return;
-    if (!await this.licensePort.canUseFeature('organize-vault')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
-      return;
-    }
     this.scanInProgress = true;
 
     const container = this.containerEl.children[1] as HTMLElement;
@@ -388,10 +382,6 @@ export class OrganizeVaultView extends ItemView {
 
   private async applyAll(): Promise<void> {
     if (!this.currentPlan) return;
-    if (!await this.licensePort.canUseFeature('organize-vault')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
-      return;
-    }
 
     const approved = getApprovedProposals(this.currentPlan);
     if (approved.length === 0) {
@@ -462,10 +452,6 @@ export class OrganizeVaultView extends ItemView {
 
   private async triggerScanThenRefactor(): Promise<void> {
     if (this.scanInProgress) return;
-    if (!await this.licensePort.canUseFeature('organize-vault')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
-      return;
-    }
     this.scanInProgress = true;
 
     const container = this.containerEl.children[1] as HTMLElement;
@@ -497,17 +483,12 @@ export class OrganizeVaultView extends ItemView {
       this.vaultAdapter,
       this.estimateRefactorCost,
       this.generateRefactorPlan,
-      this.licensePort,
       (plan) => this.showPlan(plan),
     ).open();
   }
 
   private async rollbackAll(): Promise<void> {
     if (!this.currentPlan) return;
-    if (!await this.licensePort.canUseFeature('organize-vault')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
-      return;
-    }
     try {
       const result = await this.rollbackPlan.execute(this.currentPlan.id);
       if (result) {

@@ -1,4 +1,5 @@
 import type { RefactorGoal, RefactorCostEstimate, VaultMetadataSnapshot } from '../../domain/models/RefactorModels';
+import type { ConfigPort } from '../ports/ConfigPort';
 import {
   REFACTOR_BATCH_SIZE,
   REFACTOR_MAX_TAGS_IN_PROMPT,
@@ -11,31 +12,42 @@ import {
   PROMOTE_MIN_WORD_COUNT,
   DEFAULT_FLEETING_FOLDERS,
 } from '../../constants';
+import { getModelPricing, estimateCostFromPricing } from '../../domain/models/PricingTable';
 
-const COST_PER_AI_CALL_USD = 0.012;
+const AVG_PROMPT_TOKENS_PER_CALL = 2000;
+const AVG_COMPLETION_TOKENS_PER_CALL = 500;
 const SECONDS_PER_AI_CALL = 8;
 
 export class EstimateRefactorCostUseCase {
-  execute(goal: RefactorGoal, snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
+  constructor(private readonly config: ConfigPort) {}
+
+  async execute(goal: RefactorGoal, snapshot: VaultMetadataSnapshot): Promise<RefactorCostEstimate> {
+    const settings = await this.config.getSettings();
+    const provider = settings.aiProvider;
+    const model = provider === 'deepseek' ? (settings.deepseekModel || 'deepseek-chat')
+                : provider === 'custom' ? (settings.customModel || '')
+                : settings.aiModel;
+    const pricing = getModelPricing(provider, model);
+    const costPerCall = estimateCostFromPricing(pricing, AVG_PROMPT_TOKENS_PER_CALL, AVG_COMPLETION_TOKENS_PER_CALL);
     switch (goal.goalType) {
       case 'reorganize-notes':
-        return this.estimateReorganize(snapshot);
+        return this.estimateReorganize(snapshot, costPerCall);
       case 'clean-up-tags':
-        return this.estimateTagCleanup(snapshot);
+        return this.estimateTagCleanup(snapshot, costPerCall);
       case 'suggest-links':
-        return this.estimateLinkSuggestions(snapshot);
+        return this.estimateLinkSuggestions(snapshot, costPerCall);
       case 'consolidate-fleeting':
-        return this.estimateFleetingNotes(goal, snapshot);
+        return this.estimateFleetingNotes(goal, snapshot, costPerCall);
       case 'detect-misplaced':
-        return this.estimateMisplaced(snapshot, goal);
+        return this.estimateMisplaced(snapshot, goal, costPerCall);
       case 'optimize-folders':
-        return this.estimateFolderOptimization(snapshot, goal);
+        return this.estimateFolderOptimization(snapshot, goal, costPerCall);
       case 'promote-fleeting':
-        return this.estimateFleetingPromotion(snapshot, goal);
+        return this.estimateFleetingPromotion(snapshot, goal, costPerCall);
     }
   }
 
-  private estimateReorganize(snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
+  private estimateReorganize(snapshot: VaultMetadataSnapshot, costPerCall: number): RefactorCostEstimate {
     const orphanCount = snapshot.noteEntries.filter(
       n => n.backlinks.length === 0 && n.links.length === 0,
     ).length;
@@ -50,14 +62,14 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount,
       chunkCount,
     };
   }
 
-  private estimateTagCleanup(snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
+  private estimateTagCleanup(snapshot: VaultMetadataSnapshot, costPerCall: number): RefactorCostEstimate {
     const tagCount = snapshot.tagFrequencies.length;
     const untaggedCount = snapshot.noteEntries.filter(
       n => n.tags.filter(t => t !== '#untagged').length === 0 && n.wordCount > 0,
@@ -70,7 +82,7 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount,
       chunkCount: tagChunkCount + untaggedChunkCount,
@@ -78,7 +90,7 @@ export class EstimateRefactorCostUseCase {
     };
   }
 
-  private estimateLinkSuggestions(snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
+  private estimateLinkSuggestions(snapshot: VaultMetadataSnapshot, costPerCall: number): RefactorCostEstimate {
     const orphanCount = snapshot.noteEntries.filter(
       n => n.backlinks.length === 0 && n.links.length === 0,
     ).length;
@@ -88,7 +100,7 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount: orphanCount + snapshot.totalNotes,
       chunkCount,
@@ -98,6 +110,7 @@ export class EstimateRefactorCostUseCase {
   private estimateFleetingNotes(
     goal: RefactorGoal,
     snapshot: VaultMetadataSnapshot,
+    costPerCall: number,
   ): RefactorCostEstimate {
     const threshold = goal.parameters.fleetingWordCountThreshold ?? FLEETING_WORD_COUNT_THRESHOLD;
     const candidates = snapshot.noteEntries.filter(
@@ -108,14 +121,14 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount: candidates.length,
       chunkCount: estimatedClusters,
     };
   }
 
-  private estimateMisplaced(snapshot: VaultMetadataSnapshot, _goal: RefactorGoal): RefactorCostEstimate {
+  private estimateMisplaced(snapshot: VaultMetadataSnapshot, _goal: RefactorGoal, costPerCall: number): RefactorCostEstimate {
     const connectedCount = snapshot.noteEntries.filter(
       n => n.links.length > 0 || n.backlinks.length > 0,
     ).length;
@@ -125,14 +138,14 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount: connectedCount,
       chunkCount,
     };
   }
 
-  private estimateFolderOptimization(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+  private estimateFolderOptimization(snapshot: VaultMetadataSnapshot, goal: RefactorGoal, costPerCall: number): RefactorCostEstimate {
     const bloatedThreshold = goal.parameters.bloatedFolderThreshold ?? BLOATED_FOLDER_THRESHOLD;
     const thinThreshold = goal.parameters.thinFolderThreshold ?? THIN_FOLDER_THRESHOLD;
 
@@ -148,14 +161,14 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls: Math.max(1, estimatedAICalls),
-      estimatedCostUsd: round(Math.max(1, estimatedAICalls) * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(Math.max(1, estimatedAICalls) * costPerCall),
       estimatedDurationSeconds: Math.max(1, estimatedAICalls) * SECONDS_PER_AI_CALL,
       noteCount: snapshot.totalNotes,
       chunkCount: bloatedCount + (thinCount > 1 ? 1 : 0),
     };
   }
 
-  private estimateFleetingPromotion(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+  private estimateFleetingPromotion(snapshot: VaultMetadataSnapshot, goal: RefactorGoal, costPerCall: number): RefactorCostEstimate {
     const fleetingFolders = goal.parameters.fleetingFolders ?? DEFAULT_FLEETING_FOLDERS;
     const maturityAgeDays = goal.parameters.maturityAgeDays ?? PROMOTE_MATURITY_AGE_DAYS;
     const maturityMinWordCount = goal.parameters.maturityMinWordCount ?? PROMOTE_MIN_WORD_COUNT;
@@ -179,7 +192,7 @@ export class EstimateRefactorCostUseCase {
 
     return {
       estimatedAICalls,
-      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedCostUsd: round(estimatedAICalls * costPerCall),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount: matureCount,
       chunkCount,
