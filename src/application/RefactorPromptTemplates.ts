@@ -79,17 +79,17 @@ ${noteChunk}
 
 Rules:
 1. You MUST return EXACTLY one result per note listed above. Do NOT skip any note.
-2. IMPORTANT: Do NOT suggest the note's current folder. These notes are flagged because they need to MOVE to a better location. Always suggest a DIFFERENT folder.
-3. Analyze each note's content, title, and tags to find the most semantically appropriate folder from the existing list.
+2. These notes need to be MOVED to a proper permanent folder. Suggest the best semantic match from the existing folders list.
+3. Analyze each note's content, title, and tags to find the most appropriate folder.
 4. Notes about specific projects/topics should go to their relevant folder.
 5. Very short or stub notes with no clear purpose → suggest "Archive".
 6. If no existing folder fits, suggest a new descriptive folder path.
 7. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0).
 8. Keep rationale under 15 words to save output space.
 
-Return JSON array (one entry per note, same order as input):
+Return JSON array (one entry per note, in order by index number):
 [
-  { "path": "note.md", "suggestedFolder": "Projects", "confidence": 0.85, "rationale": "..." }
+  { "index": 1, "suggestedFolder": "Projects", "confidence": 0.85, "rationale": "..." }
 ]`,
     tier2System: 'You are a vault architect. Suggest new folder structures for notes that do not fit existing folders. Respond ONLY with valid JSON.',
     tier2User: (noteChunk: string, existingFolders: string) =>

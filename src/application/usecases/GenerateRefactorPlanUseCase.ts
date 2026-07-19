@@ -385,6 +385,7 @@ export class GenerateRefactorPlanUseCase {
         orphanChunks.push([...orphans.slice(i, i + REFACTOR_BATCH_SIZE)]);
       }
 
+      type AiPlacementResult = { index: number; suggestedFolder: string; confidence: number; rationale: string };
       type PlacementResult = { path: string; suggestedFolder: string; confidence: number; rationale: string };
       const allPlacements: PlacementResult[] = [];
       let lastReorgError: unknown;
@@ -411,7 +412,15 @@ export class GenerateRefactorPlanUseCase {
             jsonMode: true,
           });
           aiSuccessCount++;
-          const parsed = tryParseJsonArray<PlacementResult>(response.content);
+          const rawParsed = tryParseJsonArray<AiPlacementResult>(response.content);
+          const parsed: PlacementResult[] = rawParsed
+            .filter(r => r.index >= 1 && r.index <= chunkNotes.length)
+            .map(r => ({
+              path: chunkNotes[r.index - 1].path,
+              suggestedFolder: r.suggestedFolder,
+              confidence: r.confidence,
+              rationale: r.rationale,
+            }));
           const expected = chunkNotes.length;
           console.log(`[Vaultend:refactor] orphan chunk ${i + 1}: sent=${expected}, returned=${parsed.length}${parsed.length < expected ? ' ⚠️ PARTIAL' : ''}`);
           if (parsed.length > 0) allPlacements.push(...parsed);
@@ -431,7 +440,15 @@ export class GenerateRefactorPlanUseCase {
                   temperature: 0.3,
                   jsonMode: true,
                 });
-                const retryParsed = tryParseJsonArray<PlacementResult>(retryResp.content);
+                const retryRaw = tryParseJsonArray<AiPlacementResult>(retryResp.content);
+                const retryParsed: PlacementResult[] = retryRaw
+                  .filter(r => r.index >= 1 && r.index <= missing.length)
+                  .map(r => ({
+                    path: missing[r.index - 1].path,
+                    suggestedFolder: r.suggestedFolder,
+                    confidence: r.confidence,
+                    rationale: r.rationale,
+                  }));
                 console.log(`[Vaultend:refactor] orphan chunk ${i + 1} retry: sent=${missing.length}, returned=${retryParsed.length}`);
                 if (retryParsed.length > 0) allPlacements.push(...retryParsed);
               } catch (retryErr) {
@@ -552,8 +569,10 @@ export class GenerateRefactorPlanUseCase {
         }
       } catch { /* skip */ }
 
+      const fileName = note.path.split('/').pop() ?? note.path;
+      const idx = lines.length + 1;
       lines.push(
-        `Path: ${note.path}\nTags: ${note.tags.join(', ') || '(none)'}\nLinks: ${note.links.length}\nBacklinks: ${note.backlinks.length}\nPreview: ${preview}`,
+        `[${idx}] File: ${fileName}\nTags: ${note.tags.join(', ') || '(none)'}\nPreview: ${preview}`,
       );
     }
     return lines.join('\n---\n');
@@ -619,7 +638,18 @@ export class GenerateRefactorPlanUseCase {
       }));
     }
 
+    const sameFolderDetails = new Map<string, number>();
+    for (const placement of placements) {
+      const entry = noteEntries.find(n => n.path === placement.path);
+      if (entry && placement.suggestedFolder === (entry.folder || '/')) {
+        const folder = entry.folder || '/';
+        sameFolderDetails.set(folder, (sameFolderDetails.get(folder) ?? 0) + 1);
+      }
+    }
     console.log(`[Vaultend:refactor] convertReorganize: total=${placements.length}, proposals=${proposals.length}, sameFolder=${sameFolderCount}, lowConf=${lowConfCount}, notFound=${notFoundCount}`);
+    if (sameFolderCount > 0) {
+      console.log(`[Vaultend:refactor] sameFolder breakdown:`, Object.fromEntries(sameFolderDetails));
+    }
     return proposals;
   }
 

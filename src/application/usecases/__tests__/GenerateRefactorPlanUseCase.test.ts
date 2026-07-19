@@ -197,7 +197,7 @@ describe('GenerateRefactorPlanUseCase', () => {
       vi.mocked(vault.readNote).mockResolvedValue(makeNote('Inbox/cooking-recipe.md', 'A delicious pasta recipe...'));
 
       const aiResponse = JSON.stringify([
-        { path: 'Inbox/cooking-recipe.md', suggestedFolder: 'Recipes', confidence: 0.85, rationale: 'Cooking content belongs in Recipes' },
+        { index: 1, suggestedFolder: 'Recipes', confidence: 0.85, rationale: 'Cooking content belongs in Recipes' },
       ]);
 
       vi.mocked(ai.callCompletion).mockResolvedValue(mockCompletionResponse(aiResponse));
@@ -219,7 +219,7 @@ describe('GenerateRefactorPlanUseCase', () => {
       vi.mocked(vault.readNote).mockResolvedValue(makeNote('Recipes/pasta.md', 'Pasta recipe'));
 
       const aiResponse = JSON.stringify([
-        { path: 'Recipes/pasta.md', suggestedFolder: 'Recipes', confidence: 0.95, rationale: 'Already correct' },
+        { index: 1, suggestedFolder: 'Recipes', confidence: 0.95, rationale: 'Already correct' },
       ]);
 
       vi.mocked(ai.callCompletion).mockResolvedValue(mockCompletionResponse(aiResponse));
