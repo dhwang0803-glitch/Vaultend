@@ -477,6 +477,7 @@ export class OrganizeVaultView extends ItemView {
 
     try {
       await this.runMaintenance.execute();
+      this.renderEmpty();
       this.openRefactorModal();
     } catch (err) {
       container.empty();
