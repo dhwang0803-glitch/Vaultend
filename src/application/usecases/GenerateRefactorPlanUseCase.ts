@@ -553,7 +553,7 @@ export class GenerateRefactorPlanUseCase {
       } catch { /* skip */ }
 
       lines.push(
-        `Path: ${note.path}\nFolder: ${note.folder || '/'}\nTags: ${note.tags.join(', ') || '(none)'}\nLinks: ${note.links.length}\nBacklinks: ${note.backlinks.length}\nPreview: ${preview}`,
+        `Path: ${note.path}\nTags: ${note.tags.join(', ') || '(none)'}\nLinks: ${note.links.length}\nBacklinks: ${note.backlinks.length}\nPreview: ${preview}`,
       );
     }
     return lines.join('\n---\n');

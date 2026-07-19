@@ -69,7 +69,7 @@ Return JSON:
   noteReorganize: {
     system: 'You are a vault organizer specializing in orphan note triage. Analyze disconnected and problematic notes, then suggest the best existing folder or archive destination. Respond ONLY with valid JSON.',
     user: (noteChunk: string, folders: string) =>
-      `These notes are ORPHANS — they have zero incoming links (backlinks) and zero outgoing links. They are completely disconnected from the rest of the vault. Suggest where each should be placed.
+      `These notes are ORPHANS — they have zero incoming links (backlinks) and zero outgoing links. They are completely disconnected from the rest of the vault and need to be reorganized into proper permanent folders.
 
 Existing folders:
 ${folders}
@@ -79,12 +79,13 @@ ${noteChunk}
 
 Rules:
 1. You MUST return EXACTLY one result per note listed above. Do NOT skip any note.
-2. Prefer folders from the existing list. You may suggest "Archive" for notes that are outdated or irrelevant.
-3. Consider the note's content, tags, and folder context to determine the best placement.
+2. IMPORTANT: Do NOT suggest the note's current folder. These notes are flagged because they need to MOVE to a better location. Always suggest a DIFFERENT folder.
+3. Analyze each note's content, title, and tags to find the most semantically appropriate folder from the existing list.
 4. Notes about specific projects/topics should go to their relevant folder.
 5. Very short or stub notes with no clear purpose → suggest "Archive".
-6. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0).
-7. Keep rationale under 15 words to save output space.
+6. If no existing folder fits, suggest a new descriptive folder path.
+7. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0).
+8. Keep rationale under 15 words to save output space.
 
 Return JSON array (one entry per note, same order as input):
 [
