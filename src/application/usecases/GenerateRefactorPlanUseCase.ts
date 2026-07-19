@@ -31,6 +31,13 @@ import {
   FLEETING_MIN_CLUSTER_SIZE,
   REORG_LOW_CONFIDENCE_THRESHOLD,
   REORG_TIER2_TRIGGER_RATIO,
+  MISPLACED_AFFINITY_THRESHOLD,
+  MISPLACED_BATCH_SIZE,
+  BLOATED_FOLDER_THRESHOLD,
+  THIN_FOLDER_THRESHOLD,
+  PROMOTE_MATURITY_AGE_DAYS,
+  PROMOTE_MIN_WORD_COUNT,
+  DEFAULT_FLEETING_FOLDERS,
 } from '../../constants';
 
 export class GenerateRefactorPlanUseCase {
@@ -69,6 +76,15 @@ export class GenerateRefactorPlanUseCase {
         break;
       case 'consolidate-fleeting':
         proposals = await this.analyzeFleetingNotes(goal, snapshot, signal, onProgress);
+        break;
+      case 'detect-misplaced':
+        proposals = await this.analyzeMisplacedNotes(goal, snapshot, signal, onProgress);
+        break;
+      case 'optimize-folders':
+        proposals = await this.analyzeFolderOptimization(goal, snapshot, signal, onProgress);
+        break;
+      case 'promote-fleeting':
+        proposals = await this.analyzeFleetingPromotion(goal, snapshot, signal, onProgress);
         break;
     }
 
@@ -1076,7 +1092,543 @@ export class GenerateRefactorPlanUseCase {
     return lines.join('\n===\n');
   }
 
+  // ─── Misplaced Note Detection ───
+
+  private async analyzeMisplacedNotes(
+    goal: RefactorGoal,
+    snapshot: VaultMetadataSnapshot,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<OrganizeVaultProposal[]> {
+    const affinityThreshold = goal.parameters.misplacedAffinityThreshold ?? MISPLACED_AFFINITY_THRESHOLD;
+
+    const connectedNotes = snapshot.noteEntries.filter(
+      n => n.links.length > 0 || n.backlinks.length > 0,
+    );
+
+    if (connectedNotes.length === 0) return [];
+
+    onProgress({ phase: 'analyzing', currentStep: 0, totalSteps: 3, message: 'Computing folder affinity...' });
+
+    const folderNotes = new Map<string, NoteMetadataEntry[]>();
+    for (const note of snapshot.noteEntries) {
+      if (!note.folder) continue;
+      const list = folderNotes.get(note.folder) ?? [];
+      list.push(note);
+      folderNotes.set(note.folder, list);
+    }
+
+    const folderTags = new Map<string, Set<string>>();
+    for (const [folder, notes] of folderNotes) {
+      const tags = new Set<string>();
+      for (const n of notes) {
+        for (const t of n.tags) tags.add(t);
+      }
+      folderTags.set(folder, tags);
+    }
+
+    const misplacedCandidates: Array<{ note: NoteMetadataEntry; bestFolder: string; affinity: number }> = [];
+
+    for (const note of connectedNotes) {
+      if (!note.folder) continue;
+      const currentFolderNotes = folderNotes.get(note.folder) ?? [];
+      if (currentFolderNotes.length <= 1) continue;
+
+      const currentAffinity = this.computeFolderAffinity(note, note.folder, folderNotes);
+
+      if (currentAffinity >= affinityThreshold) continue;
+
+      let bestFolder = note.folder;
+      let bestAffinity = currentAffinity;
+
+      for (const folder of snapshot.folderTree) {
+        if (folder === note.folder) continue;
+        const aff = this.computeFolderAffinity(note, folder, folderNotes);
+        if (aff > bestAffinity) {
+          bestAffinity = aff;
+          bestFolder = folder;
+        }
+      }
+
+      if (bestFolder !== note.folder && bestAffinity > currentAffinity + 0.15) {
+        misplacedCandidates.push({ note, bestFolder, affinity: bestAffinity });
+      }
+    }
+
+    this.checkAborted(signal);
+
+    if (misplacedCandidates.length === 0) return [];
+
+    onProgress({ phase: 'analyzing', currentStep: 1, totalSteps: 3, message: `Found ${misplacedCandidates.length} candidates. Sending to AI...` });
+
+    const settings = await this.config.getSettings();
+    const privacyRules = [...settings.privacyRules];
+    const proposals: OrganizeVaultProposal[] = [];
+    const chunks = this.chunkArray(misplacedCandidates, MISPLACED_BATCH_SIZE);
+    const knownTags = snapshot.tagFrequencies.slice(0, REFACTOR_MAX_TAGS_IN_PROMPT).map(t => t.tag).join(', ');
+
+    for (let i = 0; i < chunks.length; i++) {
+      this.checkAborted(signal);
+      onProgress({ phase: 'analyzing', currentStep: 2, totalSteps: 3, message: `AI batch ${i + 1}/${chunks.length}...` });
+
+      const chunk = chunks[i];
+      const noteChunkStr = await this.buildMisplacedChunkString(chunk, privacyRules);
+      const foldersStr = snapshot.folderTree.join('\n');
+
+      const response = await this.ai.callCompletion({
+        systemPrompt: REFACTOR_PROMPTS.misplacedDetect.system,
+        prompt: REFACTOR_PROMPTS.misplacedDetect.user(noteChunkStr, foldersStr, knownTags),
+        maxTokens: 4096,
+        temperature: 0.3,
+        jsonMode: true,
+      });
+
+      type AiMisplacedResult = {
+        index: number;
+        isMisplaced: boolean;
+        suggestedFolder: string;
+        suggestedTags?: string[];
+        suggestedLinks?: string[];
+        confidence: number;
+        rationale: string;
+      };
+
+      const parsed = tryParseJsonArray<AiMisplacedResult>(response.content);
+
+      for (const r of parsed) {
+        if (!r.isMisplaced || r.index < 1 || r.index > chunk.length) continue;
+        const candidate = chunk[r.index - 1];
+        const diffs: ProposalDiff[] = [
+          { field: 'folder', before: candidate.note.folder, after: r.suggestedFolder },
+        ];
+        if (r.suggestedTags && r.suggestedTags.length > 0) {
+          const newTags = r.suggestedTags.filter(t => !candidate.note.tags.includes(t));
+          if (newTags.length > 0) {
+            diffs.push({ field: 'tags', before: candidate.note.tags.join(', '), after: [...candidate.note.tags, ...newTags].join(', ') });
+          }
+        }
+        if (r.suggestedLinks && r.suggestedLinks.length > 0) {
+          const newLinks = r.suggestedLinks.filter(l => !candidate.note.links.includes(l));
+          if (newLinks.length > 0) {
+            diffs.push({ field: 'links', before: '', after: newLinks.join(', ') });
+          }
+        }
+
+        proposals.push(createProposal({
+          type: 'misplaced-reposition',
+          targetPath: createNotePath(candidate.note.path),
+          diffs,
+          affectedPaths: [createNotePath(candidate.note.path)],
+          confidence: clamp(r.confidence),
+          rationale: r.rationale,
+          metadata: {
+            source: 'refactor',
+            currentFolder: candidate.note.folder,
+            suggestedFolder: r.suggestedFolder,
+            suggestedTags: r.suggestedTags ?? [],
+            suggestedLinks: r.suggestedLinks ?? [],
+            affinityScore: candidate.affinity,
+          },
+        }));
+      }
+    }
+
+    onProgress({ phase: 'analyzing', currentStep: 3, totalSteps: 3, message: `${proposals.length} misplaced notes confirmed` });
+    return proposals;
+  }
+
+  private computeFolderAffinity(
+    note: NoteMetadataEntry,
+    targetFolder: string,
+    folderNotes: Map<string, NoteMetadataEntry[]>,
+  ): number {
+    const folderMembers = folderNotes.get(targetFolder) ?? [];
+    if (folderMembers.length === 0) return 0;
+
+    const otherMembers = folderMembers.filter(n => n.path !== note.path);
+    if (otherMembers.length === 0) return 0;
+
+    let linkScore = 0;
+    const allLinks = [...note.links, ...note.backlinks];
+    if (allLinks.length > 0) {
+      const folderPaths = new Set(otherMembers.map(n => n.path));
+      const linksToFolder = allLinks.filter(l => folderPaths.has(l)).length;
+      linkScore = linksToFolder / allLinks.length;
+    }
+
+    let tagScore = 0;
+    if (note.tags.length > 0) {
+      const folderTagSet = new Set<string>();
+      for (const m of otherMembers) {
+        for (const t of m.tags) folderTagSet.add(t);
+      }
+      const sharedTags = note.tags.filter(t => folderTagSet.has(t)).length;
+      tagScore = sharedTags / note.tags.length;
+    }
+
+    return linkScore * 0.6 + tagScore * 0.4;
+  }
+
+  private async buildMisplacedChunkString(
+    candidates: Array<{ note: NoteMetadataEntry; bestFolder: string; affinity: number }>,
+    privacyRules: PrivacyRule[],
+  ): Promise<string> {
+    const lines: string[] = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const { note } = candidates[i];
+      const fullNote = await this.vault.readNote(createNotePath(note.path));
+      const rawContent = fullNote?.content ?? '';
+      const preview = applyContentRedaction(
+        rawContent.slice(0, REFACTOR_CONTENT_PREVIEW),
+        privacyRules,
+      );
+      lines.push(
+        `[${i + 1}] File: ${note.path.split('/').pop()}\nCurrent Folder: ${note.folder}\nTags: ${note.tags.join(', ') || '(none)'}\nLinks: ${note.links.join(', ') || '(none)'}\nBacklinks: ${note.backlinks.join(', ') || '(none)'}\nPreview: ${preview}`,
+      );
+    }
+    return lines.join('\n---\n');
+  }
+
+  // ─── Folder Structure Optimization ───
+
+  private async analyzeFolderOptimization(
+    goal: RefactorGoal,
+    snapshot: VaultMetadataSnapshot,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<OrganizeVaultProposal[]> {
+    const bloatedThreshold = goal.parameters.bloatedFolderThreshold ?? BLOATED_FOLDER_THRESHOLD;
+    const thinThreshold = goal.parameters.thinFolderThreshold ?? THIN_FOLDER_THRESHOLD;
+
+    const folderCounts = new Map<string, NoteMetadataEntry[]>();
+    for (const note of snapshot.noteEntries) {
+      if (!note.folder) continue;
+      const list = folderCounts.get(note.folder) ?? [];
+      list.push(note);
+      folderCounts.set(note.folder, list);
+    }
+
+    const proposals: OrganizeVaultProposal[] = [];
+
+    // Phase 1: Bloated folder detection
+    const bloatedFolders = [...folderCounts.entries()].filter(([, notes]) => notes.length > bloatedThreshold);
+    const thinFolders = [...folderCounts.entries()].filter(([, notes]) => notes.length > 0 && notes.length < thinThreshold);
+
+    const totalSteps = bloatedFolders.length + (thinFolders.length > 1 ? 1 : 0);
+
+    onProgress({ phase: 'analyzing', currentStep: 0, totalSteps, message: `Analyzing ${bloatedFolders.length} bloated, ${thinFolders.length} thin folders...` });
+
+    for (let fi = 0; fi < bloatedFolders.length; fi++) {
+      this.checkAborted(signal);
+      const [folder, notes] = bloatedFolders[fi];
+      onProgress({ phase: 'analyzing', currentStep: fi, totalSteps, message: `Clustering "${folder}" (${notes.length} notes)...` });
+
+      const clusters = await this.clusterNotesByContent(notes);
+      if (clusters.length < 2) continue;
+
+      const existingSubfolders = snapshot.folderTree
+        .filter(f => f.startsWith(folder + '/') && f.split('/').length === folder.split('/').length + 1)
+        .join(', ');
+
+      const clustersStr = clusters.map((c, idx) =>
+        `Cluster ${idx}: ${c.length} notes\n  ${c.map(n => n.path.split('/').pop()).join(', ')}`,
+      ).join('\n');
+
+      const response = await this.ai.callCompletion({
+        systemPrompt: REFACTOR_PROMPTS.folderOptimize.splitSystem,
+        prompt: REFACTOR_PROMPTS.folderOptimize.splitUser(folder, clustersStr, existingSubfolders || '(none)'),
+        maxTokens: 2048,
+        temperature: 0.3,
+        jsonMode: true,
+      });
+
+      type AiSplitResult = { splits: Array<{ clusterIndex: number; suggestedName: string; confidence: number; rationale: string }> };
+      try {
+        const parsed: AiSplitResult = JSON.parse(response.content);
+        if (parsed.splits && parsed.splits.length > 0) {
+          const suggestedSubfolders = parsed.splits
+            .filter(s => s.clusterIndex >= 0 && s.clusterIndex < clusters.length)
+            .map(s => ({
+              name: `${folder}/${s.suggestedName}`,
+              noteCount: clusters[s.clusterIndex].length,
+              notes: clusters[s.clusterIndex].map(n => n.path),
+            }));
+
+          if (suggestedSubfolders.length >= 2) {
+            const avgConfidence = parsed.splits.reduce((sum, s) => sum + s.confidence, 0) / parsed.splits.length;
+            proposals.push(createProposal({
+              type: 'split-folder',
+              targetPath: createNotePath(notes[0].path),
+              diffs: suggestedSubfolders.map(sf => ({
+                field: 'new-subfolder',
+                before: folder,
+                after: `${sf.name} (${sf.noteCount} notes)`,
+              })),
+              affectedPaths: notes.map(n => createNotePath(n.path)),
+              confidence: clamp(avgConfidence),
+              rationale: parsed.splits.map(s => s.rationale).join('; '),
+              metadata: {
+                source: 'refactor',
+                sourceFolder: folder,
+                suggestedSubfolders,
+              },
+            }));
+          }
+        }
+      } catch { /* invalid AI response, skip */ }
+    }
+
+    // Phase 2: Thin folder merge detection
+    if (thinFolders.length > 1) {
+      this.checkAborted(signal);
+      onProgress({ phase: 'analyzing', currentStep: totalSteps - 1, totalSteps, message: 'Analyzing thin folder merge candidates...' });
+
+      const mergeCandidates: Array<{ folderA: string; folderB: string; overlap: number }> = [];
+
+      for (let i = 0; i < thinFolders.length; i++) {
+        for (let j = i + 1; j < thinFolders.length; j++) {
+          const [folderA, notesA] = thinFolders[i];
+          const [folderB, notesB] = thinFolders[j];
+
+          const parentA = folderA.includes('/') ? folderA.substring(0, folderA.lastIndexOf('/')) : '';
+          const parentB = folderB.includes('/') ? folderB.substring(0, folderB.lastIndexOf('/')) : '';
+          if (parentA !== parentB) continue;
+
+          const tagsA = new Set(notesA.flatMap(n => n.tags));
+          const tagsB = new Set(notesB.flatMap(n => n.tags));
+          const intersection = [...tagsA].filter(t => tagsB.has(t)).length;
+          const union = new Set([...tagsA, ...tagsB]).size;
+          const overlap = union > 0 ? intersection / union : 0;
+
+          if (overlap > 0.2) {
+            mergeCandidates.push({ folderA, folderB, overlap });
+          }
+        }
+      }
+
+      if (mergeCandidates.length > 0) {
+        const candidatesStr = mergeCandidates.map((c, idx) =>
+          `Pair ${idx}: "${c.folderA}" (${folderCounts.get(c.folderA)?.length ?? 0} notes) + "${c.folderB}" (${folderCounts.get(c.folderB)?.length ?? 0} notes) — tag overlap: ${(c.overlap * 100).toFixed(0)}%`,
+        ).join('\n');
+
+        const response = await this.ai.callCompletion({
+          systemPrompt: REFACTOR_PROMPTS.folderOptimize.mergeSystem,
+          prompt: REFACTOR_PROMPTS.folderOptimize.mergeUser(candidatesStr),
+          maxTokens: 2048,
+          temperature: 0.3,
+          jsonMode: true,
+        });
+
+        type AiMergeResult = { merges: Array<{ pairIndex: number; shouldMerge: boolean; suggestedName: string; confidence: number; rationale: string }> };
+        try {
+          const parsed: AiMergeResult = JSON.parse(response.content);
+          if (parsed.merges) {
+            for (const m of parsed.merges) {
+              if (!m.shouldMerge || m.pairIndex < 0 || m.pairIndex >= mergeCandidates.length) continue;
+              const pair = mergeCandidates[m.pairIndex];
+              const allNotes = [...(folderCounts.get(pair.folderA) ?? []), ...(folderCounts.get(pair.folderB) ?? [])];
+
+              proposals.push(createProposal({
+                type: 'merge-folders',
+                targetPath: createNotePath(allNotes[0]?.path ?? pair.folderA + '/placeholder.md'),
+                diffs: [
+                  { field: 'merge', before: `${pair.folderA} + ${pair.folderB}`, after: m.suggestedName },
+                ],
+                affectedPaths: allNotes.map(n => createNotePath(n.path)),
+                confidence: clamp(m.confidence),
+                rationale: m.rationale,
+                metadata: {
+                  source: 'refactor',
+                  folders: [pair.folderA, pair.folderB],
+                  suggestedMergedFolder: m.suggestedName,
+                  totalNoteCount: allNotes.length,
+                },
+              }));
+            }
+          }
+        } catch { /* invalid AI response, skip */ }
+      }
+    }
+
+    return proposals;
+  }
+
+  private async clusterNotesByContent(notes: NoteMetadataEntry[]): Promise<NoteMetadataEntry[][]> {
+    if (notes.length < 4) return [notes];
+
+    const corpus = new TfIdfCorpus();
+    const tokensByNote: string[][] = [];
+    for (const note of notes) {
+      const filename = note.path.split('/').pop() ?? '';
+      const linkTargets = note.links.map(l => (l.split('/').pop() ?? '').replace(/\.md$/, ''));
+      const fullNote = await this.vault.readNote(createNotePath(note.path));
+      const contentPreview = (fullNote?.content ?? '').slice(0, 200);
+
+      const tokens = [filename, ...note.tags, ...linkTargets, contentPreview]
+        .join(' ')
+        .toLowerCase()
+        .split(/\W+/)
+        .filter(t => t.length > 2);
+      tokensByNote.push(tokens);
+      corpus.addDocument(note.path, tokens);
+    }
+
+    const vectors = notes.map((_, idx) => corpus.computeTfIdfVector(tokensByNote[idx]));
+
+    const assigned = new Set<number>();
+    const clusters: NoteMetadataEntry[][] = [];
+    const SIMILARITY_THRESHOLD = 0.2;
+
+    for (let i = 0; i < notes.length; i++) {
+      if (assigned.has(i)) continue;
+      const cluster: NoteMetadataEntry[] = [notes[i]];
+      assigned.add(i);
+
+      for (let j = i + 1; j < notes.length; j++) {
+        if (assigned.has(j)) continue;
+        const sim = corpus.cosineSimilarity(vectors[i], vectors[j]);
+        if (sim >= SIMILARITY_THRESHOLD) {
+          cluster.push(notes[j]);
+          assigned.add(j);
+        }
+      }
+      clusters.push(cluster);
+    }
+
+    return clusters.filter(c => c.length >= 2);
+  }
+
+  // ─── Fleeting Promotion ───
+
+  private async analyzeFleetingPromotion(
+    goal: RefactorGoal,
+    snapshot: VaultMetadataSnapshot,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<OrganizeVaultProposal[]> {
+    const fleetingFolders = goal.parameters.fleetingFolders ?? DEFAULT_FLEETING_FOLDERS;
+    const maturityAgeDays = goal.parameters.maturityAgeDays ?? PROMOTE_MATURITY_AGE_DAYS;
+    const maturityMinWordCount = goal.parameters.maturityMinWordCount ?? PROMOTE_MIN_WORD_COUNT;
+
+    const now = this.clock.now();
+    const maturityAgeMs = maturityAgeDays * 24 * 60 * 60 * 1000;
+
+    const fleetingSet = new Set(fleetingFolders.map(f => f.toLowerCase()));
+    const matureNotes = snapshot.noteEntries.filter(note => {
+      if (!note.folder) return false;
+      const folderLower = note.folder.toLowerCase();
+      const isInFleeting = [...fleetingSet].some(f => folderLower === f || folderLower.startsWith(f + '/'));
+      if (!isInFleeting) return false;
+
+      const age = now - note.createdAt;
+      return age >= maturityAgeMs
+        && note.wordCount >= maturityMinWordCount
+        && note.tags.length > 0
+        && (note.links.length > 0 || note.backlinks.length > 0);
+    });
+
+    if (matureNotes.length === 0) return [];
+
+    onProgress({ phase: 'analyzing', currentStep: 0, totalSteps: 2, message: `Found ${matureNotes.length} mature fleeting notes. Sending to AI...` });
+
+    const settings = await this.config.getSettings();
+    const privacyRules = [...settings.privacyRules];
+    const proposals: OrganizeVaultProposal[] = [];
+    const chunks = this.chunkArray(matureNotes, REFACTOR_BATCH_SIZE);
+    const foldersStr = snapshot.folderTree
+      .filter(f => !fleetingSet.has(f.toLowerCase()))
+      .join('\n');
+
+    for (let i = 0; i < chunks.length; i++) {
+      this.checkAborted(signal);
+      onProgress({ phase: 'analyzing', currentStep: 1, totalSteps: 2, message: `AI batch ${i + 1}/${chunks.length}...` });
+
+      const chunk = chunks[i];
+      const noteChunkStr = await this.buildPromoteChunkString(chunk, privacyRules);
+
+      const response = await this.ai.callCompletion({
+        systemPrompt: REFACTOR_PROMPTS.fleetingPromote.system,
+        prompt: REFACTOR_PROMPTS.fleetingPromote.user(noteChunkStr, foldersStr),
+        maxTokens: 4096,
+        temperature: 0.3,
+        jsonMode: true,
+      });
+
+      type AiPromoteResult = {
+        index: number;
+        suggestedFolder: string;
+        isNewFolder: boolean;
+        confidence: number;
+        rationale: string;
+      };
+
+      const parsed = tryParseJsonArray<AiPromoteResult>(response.content);
+
+      for (const r of parsed) {
+        if (r.index < 1 || r.index > chunk.length) continue;
+        const note = chunk[r.index - 1];
+        const ageDays = Math.floor((now - note.createdAt) / (24 * 60 * 60 * 1000));
+
+        proposals.push(createProposal({
+          type: 'promote-note',
+          targetPath: createNotePath(note.path),
+          diffs: [
+            { field: 'folder', before: note.folder, after: r.suggestedFolder },
+          ],
+          affectedPaths: [createNotePath(note.path)],
+          confidence: clamp(r.confidence),
+          rationale: r.rationale,
+          metadata: {
+            source: 'refactor',
+            currentFolder: note.folder,
+            suggestedFolder: r.suggestedFolder,
+            isNewFolder: r.isNewFolder,
+            maturitySignals: {
+              ageDays,
+              wordCount: note.wordCount,
+              tagCount: note.tags.length,
+              linkCount: note.links.length + note.backlinks.length,
+            },
+          },
+        }));
+      }
+    }
+
+    onProgress({ phase: 'analyzing', currentStep: 2, totalSteps: 2, message: `${proposals.length} notes ready for promotion` });
+    return proposals;
+  }
+
+  private async buildPromoteChunkString(
+    notes: NoteMetadataEntry[],
+    privacyRules: PrivacyRule[],
+  ): Promise<string> {
+    const lines: string[] = [];
+    const now = this.clock.now();
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
+      const fullNote = await this.vault.readNote(createNotePath(note.path));
+      const rawContent = fullNote?.content ?? '';
+      const preview = applyContentRedaction(
+        rawContent.slice(0, REFACTOR_CONTENT_PREVIEW),
+        privacyRules,
+      );
+      const ageDays = Math.floor((now - note.createdAt) / (24 * 60 * 60 * 1000));
+      lines.push(
+        `[${i + 1}] File: ${note.path.split('/').pop()}\nFolder: ${note.folder}\nAge: ${ageDays} days\nWords: ${note.wordCount}\nTags: ${note.tags.join(', ')}\nLinks: ${note.links.join(', ') || '(none)'}\nBacklinks: ${note.backlinks.join(', ') || '(none)'}\nPreview: ${preview}`,
+      );
+    }
+    return lines.join('\n---\n');
+  }
+
   // ─── Shared ───
+
+  private chunkArray<T>(arr: T[] | ReadonlyArray<T>, size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size) as T[]);
+    }
+    return chunks;
+  }
 
   private checkAborted(signal: AbortSignal): void {
     if (signal.aborted) {

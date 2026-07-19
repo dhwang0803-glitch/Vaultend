@@ -4,6 +4,12 @@ import {
   REFACTOR_MAX_TAGS_IN_PROMPT,
   FLEETING_WORD_COUNT_THRESHOLD,
   FLEETING_MIN_CLUSTER_SIZE,
+  MISPLACED_BATCH_SIZE,
+  BLOATED_FOLDER_THRESHOLD,
+  THIN_FOLDER_THRESHOLD,
+  PROMOTE_MATURITY_AGE_DAYS,
+  PROMOTE_MIN_WORD_COUNT,
+  DEFAULT_FLEETING_FOLDERS,
 } from '../../constants';
 
 const COST_PER_AI_CALL_USD = 0.012;
@@ -20,6 +26,12 @@ export class EstimateRefactorCostUseCase {
         return this.estimateLinkSuggestions(snapshot);
       case 'consolidate-fleeting':
         return this.estimateFleetingNotes(goal, snapshot);
+      case 'detect-misplaced':
+        return this.estimateMisplaced(snapshot, goal);
+      case 'optimize-folders':
+        return this.estimateFolderOptimization(snapshot, goal);
+      case 'promote-fleeting':
+        return this.estimateFleetingPromotion(snapshot, goal);
     }
   }
 
@@ -100,6 +112,77 @@ export class EstimateRefactorCostUseCase {
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount: candidates.length,
       chunkCount: estimatedClusters,
+    };
+  }
+
+  private estimateMisplaced(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+    const connectedCount = snapshot.noteEntries.filter(
+      n => n.links.length > 0 || n.backlinks.length > 0,
+    ).length;
+    const estimatedCandidates = Math.ceil(connectedCount * 0.15);
+    const chunkCount = Math.ceil(estimatedCandidates / MISPLACED_BATCH_SIZE);
+    const estimatedAICalls = Math.max(1, chunkCount);
+
+    return {
+      estimatedAICalls,
+      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
+      noteCount: connectedCount,
+      chunkCount,
+    };
+  }
+
+  private estimateFolderOptimization(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+    const bloatedThreshold = goal.parameters.bloatedFolderThreshold ?? BLOATED_FOLDER_THRESHOLD;
+    const thinThreshold = goal.parameters.thinFolderThreshold ?? THIN_FOLDER_THRESHOLD;
+
+    const folderCounts = new Map<string, number>();
+    for (const note of snapshot.noteEntries) {
+      if (!note.folder) continue;
+      folderCounts.set(note.folder, (folderCounts.get(note.folder) ?? 0) + 1);
+    }
+
+    const bloatedCount = [...folderCounts.values()].filter(c => c > bloatedThreshold).length;
+    const thinCount = [...folderCounts.values()].filter(c => c > 0 && c < thinThreshold).length;
+    const estimatedAICalls = bloatedCount + (thinCount > 1 ? 1 : 0);
+
+    return {
+      estimatedAICalls: Math.max(1, estimatedAICalls),
+      estimatedCostUsd: round(Math.max(1, estimatedAICalls) * COST_PER_AI_CALL_USD),
+      estimatedDurationSeconds: Math.max(1, estimatedAICalls) * SECONDS_PER_AI_CALL,
+      noteCount: snapshot.totalNotes,
+      chunkCount: bloatedCount + (thinCount > 1 ? 1 : 0),
+    };
+  }
+
+  private estimateFleetingPromotion(snapshot: VaultMetadataSnapshot, goal: RefactorGoal): RefactorCostEstimate {
+    const fleetingFolders = goal.parameters.fleetingFolders ?? DEFAULT_FLEETING_FOLDERS;
+    const maturityAgeDays = goal.parameters.maturityAgeDays ?? PROMOTE_MATURITY_AGE_DAYS;
+    const maturityMinWordCount = goal.parameters.maturityMinWordCount ?? PROMOTE_MIN_WORD_COUNT;
+    const maturityAgeMs = maturityAgeDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const fleetingSet = new Set(fleetingFolders.map(f => f.toLowerCase()));
+    const matureCount = snapshot.noteEntries.filter(note => {
+      if (!note.folder) return false;
+      const folderLower = note.folder.toLowerCase();
+      const isInFleeting = [...fleetingSet].some(f => folderLower === f || folderLower.startsWith(f + '/'));
+      if (!isInFleeting) return false;
+      return (now - note.createdAt) >= maturityAgeMs
+        && note.wordCount >= maturityMinWordCount
+        && note.tags.length > 0
+        && (note.links.length > 0 || note.backlinks.length > 0);
+    }).length;
+
+    const chunkCount = Math.ceil(matureCount / REFACTOR_BATCH_SIZE);
+    const estimatedAICalls = Math.max(1, chunkCount);
+
+    return {
+      estimatedAICalls,
+      estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
+      estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
+      noteCount: matureCount,
+      chunkCount,
     };
   }
 }

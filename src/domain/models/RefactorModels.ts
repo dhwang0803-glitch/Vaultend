@@ -2,7 +2,10 @@ export type RefactorGoalType =
   | 'reorganize-notes'
   | 'clean-up-tags'
   | 'suggest-links'
-  | 'consolidate-fleeting';
+  | 'consolidate-fleeting'
+  | 'detect-misplaced'
+  | 'optimize-folders'
+  | 'promote-fleeting';
 
 export interface RefactorGoal {
   readonly goalType: RefactorGoalType;
@@ -12,6 +15,12 @@ export interface RefactorGoal {
 export interface RefactorParameters {
   readonly fleetingWordCountThreshold?: number;
   readonly targetTagCount?: number;
+  readonly misplacedAffinityThreshold?: number;
+  readonly bloatedFolderThreshold?: number;
+  readonly thinFolderThreshold?: number;
+  readonly fleetingFolders?: ReadonlyArray<string>;
+  readonly maturityAgeDays?: number;
+  readonly maturityMinWordCount?: number;
 }
 
 export interface RefactorCostEstimate {

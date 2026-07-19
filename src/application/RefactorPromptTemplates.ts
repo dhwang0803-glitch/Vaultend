@@ -207,4 +207,113 @@ Return JSON:
   "rationale": "..."
 }`,
   },
+
+  misplacedDetect: {
+    system: 'You are a vault organization expert. Analyze notes that may be in the wrong folder based on their content, tags, and link connections. For each misplaced note, suggest the correct folder AND relevant tags and links. Respond ONLY with valid JSON.',
+    user: (noteChunk: string, folders: string, knownTags: string) =>
+      `Analyze these notes and determine if they are misplaced. For each note, I provide its current folder, tags, links, and a content preview.
+
+Notes:
+${noteChunk}
+
+Existing folders in the vault:
+${folders}
+
+Known tags in the vault:
+${knownTags}
+
+Rules:
+1. A note is "misplaced" if its content/tags/links strongly suggest it belongs in a DIFFERENT existing folder
+2. Only flag notes where you are confident (>= 0.6) they are misplaced
+3. For each misplaced note, suggest the correct folder from the existing folder list (prefer existing folders over new ones)
+4. Also suggest additional tags that fit the note's content and match the target folder's context
+5. Suggest links to notes in the target folder that are topically related
+6. Keep existing tags — only ADD missing ones
+7. Do NOT suggest moving a note if it reasonably fits its current folder
+
+Return JSON array:
+[
+  {
+    "index": 1,
+    "isMisplaced": true,
+    "suggestedFolder": "Projects/WebDev",
+    "suggestedTags": ["#webdev", "#frontend"],
+    "suggestedLinks": ["Projects/WebDev/react-patterns.md"],
+    "confidence": 0.8,
+    "rationale": "Note discusses React hooks but is in Inbox..."
+  }
+]`,
+  },
+
+  folderOptimize: {
+    splitSystem: 'You are a vault structure optimizer. Given a folder with many notes grouped by content similarity clusters, suggest meaningful sub-folder names. Respond ONLY with valid JSON.',
+    splitUser: (folderName: string, clusters: string, existingSubfolders: string) =>
+      `This folder "${folderName}" is too large. Notes have been pre-clustered by content similarity.
+
+Clusters:
+${clusters}
+
+Existing sub-folders (for naming consistency):
+${existingSubfolders}
+
+Rules:
+1. Suggest a descriptive sub-folder name for each cluster
+2. Names should follow the naming style of existing folders
+3. Names should be concise (1-3 words) and descriptive
+4. Use existing sub-folder names if a cluster matches one
+
+Return JSON:
+{
+  "splits": [
+    { "clusterIndex": 0, "suggestedName": "web-development", "confidence": 0.85, "rationale": "..." }
+  ]
+}`,
+    mergeSystem: 'You are a vault structure optimizer. Given small folders that may be candidates for merging, confirm or reject merge proposals. Respond ONLY with valid JSON.',
+    mergeUser: (mergeCandidates: string) =>
+      `These folder pairs have been identified as potential merge candidates based on tag overlap and content similarity.
+
+Candidates:
+${mergeCandidates}
+
+Rules:
+1. Only confirm a merge if the folders genuinely cover the same topic area
+2. Suggest the best name for the merged folder (can be one of the existing names or a new one)
+3. Reject merges where folders represent distinct sub-topics that benefit from separation
+
+Return JSON:
+{
+  "merges": [
+    { "pairIndex": 0, "shouldMerge": true, "suggestedName": "design-resources", "confidence": 0.75, "rationale": "..." }
+  ]
+}`,
+  },
+
+  fleetingPromote: {
+    system: 'You are a knowledge vault curator. Identify mature notes that have outgrown their inbox/fleeting status and suggest a permanent folder. Respond ONLY with valid JSON.',
+    user: (noteChunk: string, folders: string) =>
+      `These notes are in inbox/fleeting folders but appear to have matured (high word count, tags, links, age). Suggest a permanent home folder for each.
+
+Notes:
+${noteChunk}
+
+Existing folders in the vault:
+${folders}
+
+Rules:
+1. Choose the best-fitting existing folder based on the note's content, tags, and links
+2. Only suggest a new folder if no existing folder fits well (confidence threshold: 0.7 for existing, 0.6 for new)
+3. Consider the note's tags and links to determine which folder's notes it relates to most
+4. If a note is still genuinely fleeting (incomplete thought, no clear topic), skip it
+
+Return JSON array:
+[
+  {
+    "index": 1,
+    "suggestedFolder": "Projects/WebDev",
+    "isNewFolder": false,
+    "confidence": 0.8,
+    "rationale": "Note has grown into a full React tutorial with tags and links to other webdev notes..."
+  }
+]`,
+  },
 } as const;
