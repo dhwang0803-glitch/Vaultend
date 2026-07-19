@@ -352,12 +352,18 @@ export class MaintenanceResultView extends ItemView {
 
   // ─── Section Headings with Severity Badge ───
 
-  private renderSectionHeading(container: HTMLElement, issueType: MaintenanceIssueType, label: string): void {
-    const heading = container.createEl('h5', { cls: 'maintenance-section-heading' });
+  private renderSectionHeading(container: HTMLElement, issueType: MaintenanceIssueType, label: string): HTMLElement {
+    const section = container.createDiv(`maintenance-section maintenance-section--${getSeverity(issueType)}`);
+    const heading = section.createEl('h5', { cls: 'maintenance-section-heading' });
     const severity = getSeverity(issueType);
     const badge = heading.createSpan({ cls: `maintenance-severity-badge severity-${severity}` });
     badge.textContent = t(`severity.${severity}` as const);
     heading.appendText(` ${label}`);
+    return section;
+  }
+
+  private applyCardClass(setting: Setting, issueType: MaintenanceIssueType): void {
+    setting.settingEl.addClass('maintenance-card', `maintenance-card--${getSeverity(issueType)}`);
   }
 
   // ─── Section Renderers ───
@@ -367,20 +373,21 @@ export class MaintenanceResultView extends ItemView {
       .filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`))
       .filter(i => this.matchesSearch(i.notePath as string));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'empty', t('issue.emptyNotes', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'empty', t('issue.emptyNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(
-      container, entries, t('batch.selectedArchive'), false,
+      section, entries, t('batch.selectedArchive'), false,
       t('batch.selectedDelete'),
       (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
       true,
     );
 
     for (const item of filtered) {
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(this.basename(item.notePath))
         .setDesc(item.notePath as string);
+      this.applyCardClass(settingEl, 'empty');
 
       if (item.backlinkCount > 0) {
         const warningEl = settingEl.settingEl.createDiv('maintenance-impact-warning');
@@ -437,7 +444,7 @@ export class MaintenanceResultView extends ItemView {
       .filter(p => !this.dismissedIds.has(`untagged:${p as string}`))
       .filter(p => this.matchesSearch(p as string));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
 
     const tagSuggestionMap = new Map<string, ReadonlyArray<TagName>>();
     if (missingTags) {
@@ -449,7 +456,7 @@ export class MaintenanceResultView extends ItemView {
     const hasSuggestions = filtered.some(p => tagSuggestionMap.has(p as string));
     const entries: BatchEntry[] = [];
     this.renderBatchControls(
-      container, entries,
+      section, entries,
       hasSuggestions ? t('batch.selectedApplyTags') : undefined,
       false, undefined, undefined, false,
       hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
@@ -460,9 +467,10 @@ export class MaintenanceResultView extends ItemView {
       const desc = suggestions && suggestions.length > 0
         ? `${notePath as string} · ${t('desc.suggestedTags', { tags: suggestions.join(', ') })}`
         : `${notePath as string} · ${t('untagged.noMatchingTags')}`;
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(this.basename(notePath))
         .setDesc(desc);
+      this.applyCardClass(settingEl, 'untagged');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -504,15 +512,16 @@ export class MaintenanceResultView extends ItemView {
       .filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`))
       .filter(i => this.matchesSearch(i.notePath as string));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'missing-tags', t('issue.missingTags', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'missing-tags', t('issue.missingTags', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, t('batch.selectedApplyTags'));
+    this.renderBatchControls(section, entries, t('batch.selectedApplyTags'));
 
     for (const item of filtered) {
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(this.basename(item.notePath))
         .setDesc(`${item.notePath as string} · ${t('desc.suggestedTags', { tags: item.suggestedTags.join(', ') })}`);
+      this.applyCardClass(settingEl, 'missing-tags');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -545,12 +554,12 @@ export class MaintenanceResultView extends ItemView {
       .filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`))
       .filter(i => this.matchesSearch(i.sourcePath as string));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'broken-link', t('issue.brokenLinks', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'broken-link', t('issue.brokenLinks', { count: filtered.length }));
 
     const hasFixes = filtered.some(i => i.suggestedFix);
     const entries: BatchEntry[] = [];
     this.renderBatchControls(
-      container, entries,
+      section, entries,
       t('batch.selectedRemoveLinks'), false,
       hasFixes ? t('batch.selectedFixLinks') : undefined,
       hasFixes ? (e) => this.batchFixBrokenLinks(e) : undefined,
@@ -562,9 +571,10 @@ export class MaintenanceResultView extends ItemView {
       const desc = item.suggestedFix
         ? `[[${item.targetLink}]] → [[${item.suggestedFix}]] (${Math.round((item.fixConfidence ?? 0) * 100)}%)`
         : `[[${item.targetLink}]]`;
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(`${this.basename(item.sourcePath)}:${item.lineNumber}`)
         .setDesc(desc);
+      this.applyCardClass(settingEl, 'broken-link');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -615,11 +625,11 @@ export class MaintenanceResultView extends ItemView {
       .slice()
       .sort((a, b) => b.fileSize - a.fileSize);
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'orphan', t('issue.orphanNotes', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'orphan', t('issue.orphanNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(
-      container, entries, t('batch.selectedArchive'), false,
+      section, entries, t('batch.selectedArchive'), false,
       t('batch.selectedDelete'),
       (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
       true,
@@ -630,9 +640,10 @@ export class MaintenanceResultView extends ItemView {
       const linkPreview = entry.suggestedLinks && entry.suggestedLinks.length > 0
         ? ` · ${t('desc.suggestedLinks', { links: entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ') })}`
         : '';
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(this.basename(entry.notePath))
         .setDesc(`${entry.notePath as string} · ${sizeStr}${linkPreview}`);
+      this.applyCardClass(settingEl, 'orphan');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -697,16 +708,17 @@ export class MaintenanceResultView extends ItemView {
       .filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`))
       .filter(p => this.matchesSearch(p.noteA as string) || this.matchesSearch(p.noteB as string));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'duplicate', t('issue.duplicates', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'duplicate', t('issue.duplicates', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries);
+    this.renderBatchControls(section, entries);
 
     for (const pair of filtered) {
       const score = Math.round(pair.similarityScore * 100);
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(`${this.basename(pair.noteA)} ↔ ${this.basename(pair.noteB)}`)
         .setDesc(t('duplicate.similarity', { score }));
+      this.applyCardClass(settingEl, 'duplicate');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -745,16 +757,17 @@ export class MaintenanceResultView extends ItemView {
       .filter(g => this.matchesSearch(g.canonicalTag as string)
         || g.variants.some(v => this.matchesSearch(v.tag as string)));
     if (filtered.length === 0) return;
-    this.renderSectionHeading(container, 'duplicate-tags', t('issue.duplicateTags', { count: filtered.length }));
+    const section = this.renderSectionHeading(container, 'duplicate-tags', t('issue.duplicateTags', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, t('batch.selectedMergeTags'));
+    this.renderBatchControls(section, entries, t('batch.selectedMergeTags'));
 
     for (const group of filtered) {
       const variantTags = group.variants.map(v => `${v.tag as string} (${v.count})`).join(', ');
-      const settingEl = new Setting(container)
+      const settingEl = new Setting(section)
         .setName(t('duplicateTag.keep', { tag: group.canonicalTag as string }))
         .setDesc(`${t('duplicateTag.variants', { tags: variantTags })} · ${t('duplicateTag.affected', { count: group.affectedNotes.length })}`);
+      this.applyCardClass(settingEl, 'duplicate-tags');
 
       const replaceTags = group.variants
         .filter(v => (v.tag as string) !== (group.canonicalTag as string))

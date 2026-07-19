@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.2] - 2026-07-20
+
+### Changed
+- **Maintenance result card UI polish**: Section wrappers with severity-colored top border, individual cards with background/border-left indicator and hover elevation, refined filter bar and button sizing for a cleaner dashboard feel.
+
+---
+
 ## [0.8.1] - 2026-07-20
 
 ### Fixed
