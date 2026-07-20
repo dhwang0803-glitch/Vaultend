@@ -48,6 +48,7 @@ export interface ClassificationResponse {
   readonly confidence: number;
   readonly tokenUsage: TokenUsage;
   readonly tagDetails?: ReadonlyArray<TagDetail>;
+  readonly onelineSummary?: string;
 }
 
 export interface EmbeddingRequest {

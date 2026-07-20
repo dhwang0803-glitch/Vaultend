@@ -13,6 +13,7 @@ interface StoredNoteEntry {
   notePath: string;
   vector: string;
   contentHash: string;
+  onelineSummary?: string;
 }
 
 interface StoredData {
@@ -21,7 +22,7 @@ interface StoredData {
 }
 
 export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
-  private cache = new Map<string, { vector: Float32Array; contentHash: string }>();
+  private cache = new Map<string, { vector: Float32Array; contentHash: string; onelineSummary?: string }>();
   private meta: NoteEmbeddingCacheMeta | null = null;
   private dirty = false;
   private writeLock: Promise<void> = Promise.resolve();
@@ -48,6 +49,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
         this.cache.set(entry.notePath, {
           vector: this.base64ToFloat32(entry.vector),
           contentHash: entry.contentHash,
+          onelineSummary: entry.onelineSummary,
         });
       }
     } catch {
@@ -67,6 +69,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
           notePath,
           vector: this.float32ToBase64(data.vector),
           contentHash: data.contentHash,
+          ...(data.onelineSummary ? { onelineSummary: data.onelineSummary } : {}),
         });
       }
 
@@ -79,7 +82,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   get(notePath: NotePath): NoteEmbeddingEntry | undefined {
     const data = this.cache.get(notePath as string);
     if (!data) return undefined;
-    return { notePath, vector: data.vector, contentHash: data.contentHash };
+    return { notePath, vector: data.vector, contentHash: data.contentHash, onelineSummary: data.onelineSummary };
   }
 
   getMany(notePaths: ReadonlyArray<NotePath>): Map<NotePath, NoteEmbeddingEntry> {
@@ -87,7 +90,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
     for (const np of notePaths) {
       const data = this.cache.get(np as string);
       if (data) {
-        result.set(np, { notePath: np, vector: data.vector, contentHash: data.contentHash });
+        result.set(np, { notePath: np, vector: data.vector, contentHash: data.contentHash, onelineSummary: data.onelineSummary });
       }
     }
     return result;
@@ -97,7 +100,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
     const result = new Map<NotePath, NoteEmbeddingEntry>();
     for (const [path, data] of this.cache) {
       const np = path as NotePath;
-      result.set(np, { notePath: np, vector: data.vector, contentHash: data.contentHash });
+      result.set(np, { notePath: np, vector: data.vector, contentHash: data.contentHash, onelineSummary: data.onelineSummary });
     }
     return result;
   }
@@ -106,6 +109,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
     this.cache.set(entry.notePath as string, {
       vector: entry.vector,
       contentHash: entry.contentHash,
+      onelineSummary: entry.onelineSummary,
     });
     this.dirty = true;
   }
@@ -115,6 +119,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
       this.cache.set(entry.notePath as string, {
         vector: entry.vector,
         contentHash: entry.contentHash,
+        onelineSummary: entry.onelineSummary,
       });
     }
     if (entries.length > 0) this.dirty = true;

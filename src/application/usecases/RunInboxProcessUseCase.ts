@@ -7,11 +7,16 @@ import { AIProviderPort } from '../ports/AIProviderPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
+import { createTimestamp } from '../../domain/values/Timestamp';
 import { TagNormalizationService } from '../../domain/services/TagNormalizationService';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { stripFrontmatter } from '../../domain/services/tokenize';
+import { PromptTemplates } from '../PromptTemplates';
+import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
+import { detectContentLanguage } from '../utils/detectContentLanguage';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -33,6 +38,7 @@ export interface OrganizeFolderResult {
   readonly results: ReadonlyArray<OrganizeResult>;
   readonly errors: ReadonlyArray<{ path: NotePath; error: string }>;
   readonly cancelled?: boolean;
+  readonly linkSelectionTokenUsage?: TokenUsage;
 }
 
 export class OrganizeFolderUseCase {
@@ -153,8 +159,20 @@ export class OrganizeFolderUseCase {
       }
     }
 
+    // Collect onelineSummary from cache for LLM link selection (Pass 2)
+    const noteSummaryMap = new Map<NotePath, string>();
+    if (this.noteEmbeddingCache) {
+      const allEntries = this.noteEmbeddingCache.getAll();
+      for (const [path, entry] of allEntries) {
+        if (entry.onelineSummary) {
+          noteSummaryMap.set(path, entry.onelineSummary);
+        }
+      }
+    }
+
     const sessionTags: string[] = [];
 
+    // Pass 1: classify + tag (skip link suggestion — handled in Pass 2)
     for (let i = 0; i < unprocessedNotes.length; i++) {
       if (options?.signal?.aborted) {
         cancelled = true;
@@ -176,6 +194,7 @@ export class OrganizeFolderUseCase {
           cachedVaultTags,
           cachedAllNotes,
           cachedNoteEmbeddings: cachedNoteEmbeddings.size > 0 ? cachedNoteEmbeddings : undefined,
+          skipLinkSuggestion: true,
         };
 
         const result = await this.organizeNote.execute(
@@ -184,6 +203,21 @@ export class OrganizeFolderUseCase {
           context,
         );
         results.push(result);
+
+        if (result.onelineSummary) {
+          noteSummaryMap.set(notePath, result.onelineSummary);
+          if (this.noteEmbeddingCache) {
+            const existing = this.noteEmbeddingCache.get(notePath);
+            if (existing) {
+              this.noteEmbeddingCache.put({ ...existing, onelineSummary: result.onelineSummary });
+            } else {
+              this.noteEmbeddingCache.put({
+                notePath, vector: new Float32Array(0), contentHash: '',
+                onelineSummary: result.onelineSummary,
+              });
+            }
+          }
+        }
 
         // 새 태그를 세션에 누적 + 임베딩 캐시 증분
         const newTagStrings: string[] = [];
@@ -222,6 +256,98 @@ export class OrganizeFolderUseCase {
       }
     }
 
+    // Pass 2: batch LLM link selection (runs regardless of autoApply for preview)
+    let batchLinkTokenUsage: TokenUsage | undefined;
+    if (results.length > 0 && this.aiProvider && noteSummaryMap.size > 1) {
+      try {
+        const noteIndexToPath = new Map<number, NotePath>();
+        const vaultNotes: Array<{ index: number; title: string; summary: string }> = [];
+        let idx = 1;
+
+        const MAX_VAULT_NOTES_FOR_LINK = 200;
+        const notesToInclude = cachedAllNotes.slice(0, MAX_VAULT_NOTES_FOR_LINK);
+        for (const np of notesToInclude) {
+          noteIndexToPath.set(idx, np);
+          const title = (np as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+          const summary = noteSummaryMap.get(np) ?? title;
+          vaultNotes.push({ index: idx, title, summary });
+          idx++;
+        }
+
+        const targetIndexToPath = new Map<number, NotePath>();
+        const targets: Array<{ index: number; title: string; summary: string }> = [];
+        for (const r of results) {
+          const tIdx = [...noteIndexToPath.entries()].find(([, p]) => p === r.notePath)?.[0];
+          if (!tIdx) continue;
+          targetIndexToPath.set(tIdx, r.notePath);
+          const title = (r.notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+          targets.push({ index: tIdx, title, summary: r.onelineSummary ?? r.summary });
+        }
+
+        if (targets.length > 0) {
+          const sampleSummary = targets[0].summary;
+          const lang = detectContentLanguage(sampleSummary);
+          const systemPrompt = PromptTemplates.linkSelectionSystemPrompt(lang);
+          const prompt = PromptTemplates.linkSelectionUserMessage(targets, vaultNotes, lang);
+
+          const maxTokens = Math.min(4000, Math.max(200, targets.length * 40));
+          const response = await this.aiProvider.callCompletion({
+            prompt,
+            systemPrompt,
+            maxTokens,
+            temperature: 0.1,
+            jsonMode: true,
+          });
+
+          batchLinkTokenUsage = response.tokenUsage;
+          const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, targetIndexToPath);
+
+          for (const [targetPath, linkedPaths] of linkMap) {
+            if (linkedPaths.length === 0) continue;
+
+            if (settings.autoApplyOrganize) {
+              const note = await this.vault.readNote(targetPath);
+              if (note) {
+                const previousContent = note.content;
+                const linkLines = linkedPaths.map(lp => {
+                  const linkPath = (lp as string).replace('.md', '');
+                  return `- [[${linkPath}]]`;
+                });
+                const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
+                await this.vault.writeNote(targetPath, note.content + section);
+
+                await this.history.record({
+                  id: crypto.randomUUID(),
+                  action: 'classify',
+                  notePath: targetPath,
+                  timestamp: createTimestamp(Date.now()),
+                  description: `Link suggestion: ${linkedPaths.length} links added`,
+                  previousContent,
+                  metadata: { links: linkedPaths.map(l => l as string) },
+                });
+              }
+            }
+
+            const resultIdx = results.findIndex(r => r.notePath === targetPath);
+            if (resultIdx >= 0) {
+              results[resultIdx] = { ...results[resultIdx], suggestedLinks: linkedPaths };
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Vaultend: batch LLM link selection failed', err);
+      }
+    }
+
+    // Flush note embedding cache (persists onelineSummary)
+    if (this.noteEmbeddingCache) {
+      try {
+        await this.noteEmbeddingCache.flush();
+      } catch {
+        // flush failure is non-fatal
+      }
+    }
+
     if (this.tagEmbeddingCache && cachedCanonicalIndex.length > 0) {
       const validTags = cachedCanonicalIndex.map(g => g.canonical);
       this.tagEmbeddingCache.retainOnly([...validTags, ...sessionTags]);
@@ -234,6 +360,7 @@ export class OrganizeFolderUseCase {
       results,
       errors,
       cancelled,
+      linkSelectionTokenUsage: batchLinkTokenUsage,
     };
   }
 

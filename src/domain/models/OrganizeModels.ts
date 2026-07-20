@@ -20,6 +20,7 @@ export interface OrganizeResult {
   readonly addedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
   readonly summary: string;
+  readonly onelineSummary?: string;
   readonly tokenUsage: TokenUsage;
   readonly lowConfidence?: boolean;
   readonly historyEntryId?: string;

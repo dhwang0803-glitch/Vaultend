@@ -83,6 +83,7 @@ export class OllamaAdapter implements AIProviderPort {
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
       tagDetails: details.length > 0 ? details : undefined,
+      onelineSummary: typeof parsed.onelineSummary === 'string' ? parsed.onelineSummary : undefined,
     };
   }
 
