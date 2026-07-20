@@ -120,11 +120,11 @@ export class OrganizeFolderUseCase {
           toCompute.push({ path: np, title, body });
         }
 
-        const BATCH_SIZE = 100;
+        const BATCH_SIZE = 20;
         for (let offset = 0; offset < toCompute.length; offset += BATCH_SIZE) {
           const batch = toCompute.slice(offset, offset + BATCH_SIZE);
-          const titles = batch.map(e => e.title);
-          const bodies = batch.map(e => e.body);
+          const titles = batch.map(e => e.title || 'untitled');
+          const bodies = batch.map(e => e.body || e.title || 'empty');
 
           const [titleResp, bodyResp] = await Promise.all([
             this.aiProvider.callEmbedding({ texts: titles }),

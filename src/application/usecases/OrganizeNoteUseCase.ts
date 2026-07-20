@@ -390,9 +390,11 @@ export class OrganizeNoteUseCase {
       const topNames = scoreLinkCandidates(title, headings, candidateNames, 50, content, []);
       if (topNames.length === 0) return { links: [], tokenUsage: noUsage };
 
+      const safeTitle = title || 'untitled';
+      const safeBody = content.slice(0, 8000) || title || 'empty';
       const [titleResp, bodyResp, candidateResp] = await Promise.all([
-        this.aiProvider.callEmbedding({ texts: [title] }),
-        this.aiProvider.callEmbedding({ texts: [content.slice(0, 8000)] }),
+        this.aiProvider.callEmbedding({ texts: [safeTitle] }),
+        this.aiProvider.callEmbedding({ texts: [safeBody] }),
         this.aiProvider.callEmbedding({ texts: topNames }),
       ]);
 
