@@ -1,6 +1,6 @@
 # ADR-0005: Quick Ask 원샷 → 멀티턴 채팅 전환
 
-- **Status**: Accepted
+- **Status**: Superseded by ADR-0008 (Quick Ask 모듈 분리 — obsidian-vault-chat로 이전)
 - **Date**: 2026-07-15
 - **Deciders**: @dhwang0803-glitch
 - **Tags**: area/quick-ask, layer/application, layer/ui
