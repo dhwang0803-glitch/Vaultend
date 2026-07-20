@@ -13,6 +13,7 @@ export interface NoteEmbeddingEntry {
   readonly notePath: NotePath;
   readonly vector: Float32Array;
   readonly contentHash: string;
+  readonly onelineSummary?: string;
 }
 
 export interface NoteEmbeddingCachePort {

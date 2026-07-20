@@ -46,6 +46,7 @@ export function createMockAI(overrides?: Partial<AIProviderPort>): AIProviderPor
     confidence: 0.9,
     tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
     tagDetails: [{ tag: '#tag1', score: 90, isNew: false, reason: 'general topic' }],
+    onelineSummary: 'mock summary',
   };
 
   return {

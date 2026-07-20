@@ -390,6 +390,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter, this.vaultAdapter,
       this.historyAdapter, this.configPort,
       this.tagEmbeddingCacheAdapter,
+      this.noteEmbeddingCacheAdapter,
     );
 
     this.organizeFolderUseCase = new OrganizeFolderUseCase(

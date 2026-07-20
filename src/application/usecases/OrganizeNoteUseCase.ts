@@ -12,6 +12,7 @@ import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
+import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import { getLocale } from '../../i18n';
 import {
   TagNormalizationService,
@@ -19,6 +20,9 @@ import {
 } from '../../domain/services/TagNormalizationService';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { stripFrontmatter } from '../../domain/services/tokenize';
+import { PromptTemplates } from '../PromptTemplates';
+import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
+import { detectContentLanguage } from '../utils/detectContentLanguage';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
@@ -29,6 +33,8 @@ export interface OrganizeContext {
   readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
   readonly cachedAllNotes?: ReadonlyArray<NotePath>;
   readonly cachedNoteEmbeddings?: Map<NotePath, Float32Array>;
+  readonly skipLinkSuggestion?: boolean;
+  readonly cachedNoteSummaries?: ReadonlyMap<NotePath, string>;
 }
 
 export class OrganizeNoteUseCase {
@@ -38,6 +44,7 @@ export class OrganizeNoteUseCase {
     private readonly history: HistoryPort,
     private readonly config: ConfigPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
+    private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
   ) {}
 
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
@@ -95,12 +102,28 @@ export class OrganizeNoteUseCase {
       locale: getLocale(),
     });
 
-    // Embedding-based link suggestion (deterministic)
-    const linkResult = await this.computeEmbeddingLinks(
-      notePath, truncatedContent, allNotes, context, settings.linkSimilarityThreshold,
-    );
-    const suggestedLinks = linkResult.links;
-    const linkTokenUsage = linkResult.tokenUsage;
+    const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    let suggestedLinks: NotePath[];
+    let linkTokenUsage: TokenUsage;
+
+    if (context?.skipLinkSuggestion) {
+      suggestedLinks = [];
+      linkTokenUsage = noUsage;
+    } else {
+      const llmResult = await this.computeLLMLinks(
+        notePath, classification.onelineSummary, context?.cachedNoteSummaries,
+      );
+      if (llmResult.links.length > 0) {
+        suggestedLinks = llmResult.links;
+        linkTokenUsage = llmResult.tokenUsage;
+      } else {
+        const linkResult = await this.computeEmbeddingLinks(
+          notePath, truncatedContent, allNotes, context, settings.linkSimilarityThreshold,
+        );
+        suggestedLinks = linkResult.links;
+        linkTokenUsage = linkResult.tokenUsage;
+      }
+    }
 
     // Confidence gating — if below threshold, return minimal result
     const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
@@ -199,6 +222,7 @@ export class OrganizeNoteUseCase {
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
       summary: classification.summary,
+      onelineSummary: classification.onelineSummary,
       tokenUsage: {
         promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens + linkTokenUsage.promptTokens,
         completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens + linkTokenUsage.completionTokens,
@@ -352,6 +376,67 @@ export class OrganizeNoteUseCase {
       // embedding 실패 시 graceful degradation — 문자열 정규화만 사용
     }
     return { resolved, tokenUsage: totalTokenUsage };
+  }
+
+  private async computeLLMLinks(
+    notePath: NotePath,
+    onelineSummary: string | undefined,
+    cachedSummaries?: ReadonlyMap<NotePath, string>,
+  ): Promise<{ links: NotePath[]; tokenUsage: TokenUsage }> {
+    const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    try {
+      let summaries: ReadonlyMap<NotePath, string> = cachedSummaries ?? new Map();
+      if (summaries.size === 0 && this.noteEmbeddingCache) {
+        await this.noteEmbeddingCache.load();
+        const allEntries = this.noteEmbeddingCache.getAll();
+        const loaded = new Map<NotePath, string>();
+        for (const [path, entry] of allEntries) {
+          if (entry.onelineSummary) loaded.set(path, entry.onelineSummary);
+        }
+        summaries = loaded;
+      }
+      if (summaries.size < 2) return { links: [], tokenUsage: noUsage };
+
+      const noteIndexToPath = new Map<number, NotePath>();
+      const vaultNotes: Array<{ index: number; title: string; summary: string }> = [];
+      let idx = 1;
+      for (const [path, summary] of summaries) {
+        noteIndexToPath.set(idx, path);
+        const title = (path as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+        vaultNotes.push({ index: idx, title, summary });
+        idx++;
+      }
+
+      const targetIdx = [...noteIndexToPath.entries()].find(([, p]) => p === notePath)?.[0];
+      if (!targetIdx) return { links: [], tokenUsage: noUsage };
+
+      const targetTitle = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+      const targetSummary = onelineSummary ?? summaries.get(notePath) ?? targetTitle;
+      const targets = [{ index: targetIdx, title: targetTitle, summary: targetSummary }];
+
+      const targetIndexToPath = new Map<number, NotePath>([[targetIdx, notePath]]);
+
+      const lang = detectContentLanguage(targetSummary);
+      const systemPrompt = PromptTemplates.linkSelectionSystemPrompt(lang);
+      const prompt = PromptTemplates.linkSelectionUserMessage(targets, vaultNotes, lang);
+
+      const response = await this.aiProvider.callCompletion({
+        prompt,
+        systemPrompt,
+        maxTokens: 200,
+        temperature: 0.1,
+        jsonMode: true,
+      });
+
+      const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, targetIndexToPath);
+      return {
+        links: linkMap.get(notePath) ?? [],
+        tokenUsage: response.tokenUsage,
+      };
+    } catch (err) {
+      console.error('Vaultend: LLM link selection failed', err);
+      return { links: [], tokenUsage: noUsage };
+    }
   }
 
   private async computeEmbeddingLinks(
