@@ -42,6 +42,7 @@ export interface ClassificationResponse {
   readonly category: string;
   readonly suggestedTags: ReadonlyArray<string>;
   readonly suggestedFolder?: string;
+  readonly folderReason?: string;
   readonly summary: string;
   readonly confidence: number;
   readonly tokenUsage: TokenUsage;

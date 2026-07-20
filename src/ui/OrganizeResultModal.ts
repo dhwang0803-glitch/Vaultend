@@ -197,6 +197,13 @@ export class OrganizeResultModal extends Modal {
     selectEl.addEventListener('change', () => {
       this.selectedFolder = selectEl.value || undefined;
     });
+
+    if (this.result.folderReason) {
+      section.createEl('p', {
+        text: t('organize.folderReason', { reason: this.result.folderReason }),
+        cls: 'organize-folder-reason',
+      });
+    }
   }
 
   private renderTokenUsage(container: HTMLElement): void {

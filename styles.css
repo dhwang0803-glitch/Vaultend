@@ -173,6 +173,14 @@
   font-style: italic;
 }
 
+.organize-folder-reason {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+  margin-top: 2px;
+}
+
 .organize-folder-actions {
   padding: 4px 0;
 }

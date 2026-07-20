@@ -14,6 +14,7 @@ export interface OrganizeResult {
   readonly addedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
   readonly suggestedMoveTarget?: string;
+  readonly folderReason?: string;
   readonly isNewFolder?: boolean;
   readonly summary: string;
   readonly tokenUsage: TokenUsage;

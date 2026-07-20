@@ -89,10 +89,12 @@ export class GeminiAdapter implements AIProviderPort {
 
     const parsed = await this.parseJsonWithRetry(completionResponse.content, prompt);
     const folder = (parsed.folder as string) || undefined;
+    const folderReason = (parsed.folderReason as string) || undefined;
     return {
       category: (parsed.category as string) ?? folder ?? '미분류',
       suggestedTags: this.parseTagsWithConfidence(parsed.tags),
       suggestedFolder: folder,
+      folderReason,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,

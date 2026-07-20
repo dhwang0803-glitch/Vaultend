@@ -62,6 +62,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
     {"tag": "#tag2", "confidence": 0.78}
   ],
   "folder": "target folder path",
+  "folderReason": "brief explanation of why this folder was chosen (e.g., 'note discusses React patterns, matching the FrontendSkills folder theme')",
   "summary": "one sentence summarizing only what is actually written in the note (in English)",
   "confidence": 0.85
 }
@@ -98,6 +99,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
     {"tag": "#태그2", "confidence": 0.78}
   ],
   "folder": "대상 폴더 경로",
+  "folderReason": "이 폴더를 선택한 이유를 간단히 설명 (예: '노트가 React 패턴을 다루고 있어 FrontendSkills 폴더 주제와 일치')",
   "summary": "노트에 실제로 적힌 내용만 한 문장으로 요약 (한국어로)",
   "confidence": 0.85
 }

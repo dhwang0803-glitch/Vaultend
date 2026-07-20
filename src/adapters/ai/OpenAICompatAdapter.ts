@@ -84,10 +84,12 @@ export class OpenAICompatAdapter implements AIProviderPort {
     const parsed = this.parseJson(completionResponse.content);
 
     const folder = (parsed.folder as string) || undefined;
+    const folderReason = (parsed.folderReason as string) || undefined;
     return {
       category: (parsed.category as string) ?? folder ?? '미분류',
       suggestedTags: this.parseTags(parsed.tags),
       suggestedFolder: folder,
+      folderReason,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,

@@ -109,6 +109,7 @@ export class OrganizeNoteUseCase {
         addedTags: [],
         suggestedLinks: [],
         suggestedMoveTarget: undefined,
+        folderReason: classification.folderReason,
         summary: classification.summary,
         tokenUsage: classification.tokenUsage,
         lowConfidence: true,
@@ -165,6 +166,7 @@ export class OrganizeNoteUseCase {
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
       suggestedMoveTarget: suggestedFolder,
+      folderReason: classification.folderReason,
       isNewFolder,
       summary: classification.summary,
       tokenUsage: {

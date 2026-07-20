@@ -477,6 +477,13 @@ export class OrganizeFolderResultView extends ItemView {
         cls: 'organize-folder-move-target',
       });
     }
+
+    if (entry.result.folderReason) {
+      section.createEl('span', {
+        text: t('organizeFolder.folderReason', { reason: entry.result.folderReason }),
+        cls: 'organize-folder-reason',
+      });
+    }
   }
 
   private async applyEntry(entry: OrganizeFolderEntry): Promise<boolean> {
