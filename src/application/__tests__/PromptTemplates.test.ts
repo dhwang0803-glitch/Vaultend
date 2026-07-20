@@ -43,11 +43,21 @@ describe('PromptTemplates', () => {
       expect(result).toContain('existing tags');
     });
 
-    it('JSON 형식 가이드를 포함한다', () => {
+    it('JSON 형식 가이드를 포함한다 (score/isNew/reason)', () => {
       const result = PromptTemplates.classifyAndTag('내용', []);
       expect(result).toContain('JSON');
       expect(result).toContain('tags');
-      expect(result).toContain('confidence');
+      expect(result).toContain('"score"');
+      expect(result).toContain('"isNew"');
+      expect(result).toContain('"reason"');
+    });
+
+    it('영어 프롬프트에도 score/isNew/reason 형식을 포함한다', () => {
+      const result = PromptTemplates.classifyAndTag('Content about programming', [], 'en');
+      expect(result).toContain('"score": 92');
+      expect(result).toContain('"isNew": false');
+      expect(result).toContain('"reason"');
+      expect(result).not.toContain('"confidence": 0.92');
     });
 
     it('locale 파라미터가 content 언어 감지를 오버라이드한다', () => {

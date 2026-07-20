@@ -1,10 +1,12 @@
 import { NotePath } from '../../domain/values/NotePath';
 import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
-import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { OrganizeResult, TagReason } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { truncateNoteContent, extractHeadings } from '../utils/truncateNoteContent';
+import { scoreLinkCandidates } from '../utils/scoreLinkCandidates';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
@@ -47,10 +49,22 @@ export class OrganizeNoteUseCase {
     // Note list — use cache or fetch
     const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
 
-    // Vault-wide tags — use cache or fetch
-    const MAX_TAGS = 200;
-    const vaultTagEntries = context?.cachedVaultTags
-      ?? (await this.vault.listAllTags()).slice(0, MAX_TAGS);
+    // Redact + truncate before any AI call (privacy: no raw content to external APIs)
+    const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
+    const { content: truncatedContent } = truncateNoteContent(redactedContent);
+
+    // Vault-wide tags — freq top 100 + relevance top 50
+    const MAX_FREQ_TAGS = 100;
+    const MAX_RELEVANCE_TAGS = 50;
+    const allVaultTags = context?.cachedVaultTags ?? await this.vault.listAllTags();
+    const freqTags = allVaultTags.slice(0, MAX_FREQ_TAGS);
+    const remainingTags = allVaultTags.slice(MAX_FREQ_TAGS);
+
+    const vaultTagEntries = remainingTags.length > 0 && this.tagEmbeddingCache
+      ? [...freqTags, ...await this.selectRelevantTagsByContent(
+          truncatedContent, remainingTags, context?.cachedTagEmbeddings, MAX_RELEVANCE_TAGS,
+        )]
+      : freqTags;
 
     // Canonical index — use cache or build, then merge session tags
     let canonicalIndex = context?.cachedCanonicalIndex
@@ -58,19 +72,23 @@ export class OrganizeNoteUseCase {
     if (context?.sessionTags && context.sessionTags.length > 0) {
       canonicalIndex = TagNormalizationService.mergeSessionTags(canonicalIndex, context.sessionTags);
     }
-    const deduplicatedTags = canonicalIndex.map(g => g.canonical);
+    // AI prompt tags — only freq + relevance selected subset
+    const selectedTagSet = new Set(vaultTagEntries.map(e => e.tag.toLowerCase()));
+    const deduplicatedTags = canonicalIndex
+      .filter(g => g.variants.some(v => selectedTagSet.has(v.tag.toLowerCase())))
+      .map(g => g.canonical);
 
     // Prepare available notes for combined classification + link suggestion
-    const MAX_NOTES = 200;
+    const MAX_LINK_CANDIDATES = 50;
     const linkCandidates = allNotes.filter(n => n !== notePath);
-    const noteNames = linkCandidates
-      .slice(0, MAX_NOTES)
-      .map(n => (n as string).replace(/\.md$/, ''));
+    const allNoteNames = linkCandidates.map(n => (n as string).replace(/\.md$/, ''));
 
-    // AI classification + link suggestion (single API call, prefix-cacheable)
-    const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
+    const noteTitle = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+    const headings = extractHeadings(truncatedContent);
+    const noteNames = scoreLinkCandidates(noteTitle, headings, allNoteNames, MAX_LINK_CANDIDATES);
+
     const classification = await this.aiProvider.callClassification({
-      text: redactedContent,
+      text: truncatedContent,
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
       locale: getLocale(),
@@ -95,6 +113,14 @@ export class OrganizeNoteUseCase {
         tokenUsage: classification.tokenUsage,
         lowConfidence: true,
       };
+    }
+
+    // Build reason lookup from tagDetails
+    const detailMap = new Map<string, { score: number; isNew: boolean; reason: string }>();
+    if (classification.tagDetails) {
+      for (const d of classification.tagDetails) {
+        detailMap.set(d.tag.toLowerCase(), { score: d.score, isNew: d.isNew, reason: d.reason });
+      }
     }
 
     // Filter out tags already on the note
@@ -129,6 +155,22 @@ export class OrganizeNoteUseCase {
     const uniqueSanitized = [...new Set(resolvedTags)]
       .filter(t => !currentTagsLower.has(t.toLowerCase()));
 
+    // Build tagReasons map (resolved tag name → reason)
+    let tagReasons: ReadonlyMap<string, TagReason> | undefined;
+    if (detailMap.size > 0) {
+      const reasonMap = new Map<string, TagReason>();
+      for (const tag of uniqueSanitized) {
+        const lookup = detailMap.get(tag.toLowerCase())
+          ?? detailMap.get(tag.replace(/^#/, '').toLowerCase());
+        if (lookup) {
+          reasonMap.set(tag, { score: lookup.score, isNew: lookup.isNew, reason: lookup.reason });
+        }
+      }
+      if (reasonMap.size > 0) {
+        tagReasons = reasonMap;
+      }
+    }
+
     let historyEntryId: string | undefined;
 
     const result: OrganizeResult = {
@@ -144,6 +186,7 @@ export class OrganizeNoteUseCase {
         totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens,
         estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd,
       },
+      tagReasons,
     };
 
     if (autoApply) {
@@ -151,6 +194,65 @@ export class OrganizeNoteUseCase {
     }
 
     return historyEntryId ? { ...result, historyEntryId } : result;
+  }
+
+  private async selectRelevantTagsByContent(
+    noteContent: string,
+    candidates: ReadonlyArray<{ tag: string; count: number }>,
+    cachedEmbeddings?: Map<string, Float32Array>,
+    maxRelevance: number = 50,
+  ): Promise<ReadonlyArray<{ tag: string; count: number }>> {
+    try {
+      const contentResp = await this.aiProvider.callEmbedding({
+        texts: [noteContent.slice(0, 2000)],
+      });
+      const contentEmb = contentResp.embeddings[0];
+      if (!contentEmb) return candidates.slice(0, maxRelevance);
+
+      const tagNames = candidates.map(t => t.tag);
+
+      let tagEmbeddings: Map<string, Float32Array>;
+      if (cachedEmbeddings && cachedEmbeddings.size > 0) {
+        const fromCache = new Map<string, Float32Array>();
+        const missing: string[] = [];
+        for (const name of tagNames) {
+          const cached = cachedEmbeddings.get(name);
+          if (cached) {
+            fromCache.set(name, cached);
+          } else {
+            missing.push(name);
+          }
+        }
+        if (missing.length > 0) {
+          const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          for (let i = 0; i < missing.length; i++) {
+            fromCache.set(missing[i], resp.embeddings[i]);
+          }
+        }
+        tagEmbeddings = fromCache;
+      } else {
+        const fromDisk = this.tagEmbeddingCache?.getMany(tagNames)
+          ?? new Map<string, Float32Array>();
+        const missing = tagNames.filter(t => !fromDisk.has(t));
+        if (missing.length > 0) {
+          const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          for (let i = 0; i < missing.length; i++) {
+            fromDisk.set(missing[i], resp.embeddings[i]);
+          }
+        }
+        tagEmbeddings = fromDisk;
+      }
+
+      const scored = candidates.map(c => {
+        const emb = tagEmbeddings.get(c.tag);
+        const sim = emb ? TagNormalizationService.cosineSimilarity(contentEmb, emb) : 0;
+        return { ...c, sim };
+      });
+      scored.sort((a, b) => b.sim - a.sim);
+      return scored.slice(0, maxRelevance);
+    } catch {
+      return candidates.slice(0, maxRelevance);
+    }
   }
 
   private async resolveByEmbedding(

@@ -417,7 +417,21 @@ export class OrganizeFolderResultView extends ItemView {
     const chipList = section.createDiv({ cls: 'organize-tag-list' });
 
     for (const tag of entry.selectedTags) {
-      const chip = chipList.createEl('span', { text: tag, cls: 'organize-chip' });
+      const reason = entry.result.tagReasons?.get(tag) ?? entry.result.tagReasons?.get(`#${tag}`);
+      const chipClasses = ['organize-chip'];
+      if (reason?.isNew) chipClasses.push('organize-chip-new');
+
+      const chip = chipList.createEl('span', { cls: chipClasses.join(' ') });
+      if (reason?.reason) {
+        chip.setAttribute('title', reason.reason);
+      }
+      chip.createEl('span', { text: tag });
+      if (reason) {
+        chip.createEl('span', {
+          text: String(reason.score),
+          cls: 'organize-chip-score',
+        });
+      }
       if (entry.status === 'pending' && !this.autoApplyMode) {
         const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
         removeBtn.addEventListener('click', () => {

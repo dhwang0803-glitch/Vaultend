@@ -61,9 +61,8 @@ export class OrganizeFolderUseCase {
     const errors: Array<{ path: NotePath; error: string }> = [];
     let cancelled = false;
 
-    // Batch cache: 1회 조회로 반복 I/O 제거
-    const MAX_TAGS = 200;
-    const cachedVaultTags = (await this.vault.listAllTags()).slice(0, MAX_TAGS);
+    // Batch cache: 1회 조회로 반복 I/O 제거 (OrganizeNoteUseCase가 자체 분할)
+    const cachedVaultTags = await this.vault.listAllTags();
     const cachedAllNotes = await this.vault.listNotes();
     const cachedCanonicalIndex = TagNormalizationService.buildCanonicalIndex(cachedVaultTags);
 

@@ -165,12 +165,12 @@ describe('OpenAIAdapter', () => {
       expect(result.confidence).toBe(0.95);
     });
 
-    it('per-tag confidence 형식을 파싱하고 0.7 미만을 필터링한다', async () => {
+    it('per-tag score 형식을 파싱하고 70 미만을 필터링한다', async () => {
       const aiJson = {
         tags: [
-          { tag: '#react', confidence: 0.92 },
-          { tag: '#vague-topic', confidence: 0.45 },
-          { tag: '#typescript', confidence: 0.78 },
+          { tag: '#react', score: 92, isNew: false, reason: 'React framework discussion' },
+          { tag: '#vague-topic', score: 45, isNew: true, reason: 'loosely related' },
+          { tag: '#typescript', score: 78, isNew: false, reason: 'TypeScript code examples' },
         ],
         summary: 'About TS and React',
         confidence: 0.9,
@@ -193,6 +193,41 @@ describe('OpenAIAdapter', () => {
 
       expect(result.suggestedTags).toEqual(['#react', '#typescript']);
       expect(result.suggestedTags).not.toContain('#vague-topic');
+      expect(result.tagDetails).toBeDefined();
+      expect(result.tagDetails).toHaveLength(2);
+      expect(result.tagDetails![0]).toEqual({
+        tag: '#react', score: 92, isNew: false, reason: 'React framework discussion',
+      });
+    });
+
+    it('기존 confidence 형식을 폴백으로 처리한다 (0.0-1.0 → 0-100 변환)', async () => {
+      const aiJson = {
+        tags: [
+          { tag: '#react', confidence: 0.92 },
+          { tag: '#weak', confidence: 0.45 },
+        ],
+        summary: 'About React',
+        confidence: 0.9,
+      };
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          choices: [{ message: { content: JSON.stringify(aiJson) }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 50, completion_tokens: 30, total_tokens: 80 },
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      const result = await adapter.callClassification({
+        text: 'React code',
+        task: 'classify-and-tag',
+      });
+
+      expect(result.suggestedTags).toEqual(['#react']);
+      expect(result.tagDetails).toHaveLength(1);
+      expect(result.tagDetails![0].score).toBe(92);
     });
 
     it('AI가 부분 JSON을 반환해도 기본값으로 처리한다', async () => {

@@ -32,8 +32,8 @@ Core rules:
 
     if (lang === 'en') {
       const tagsInfo = existingTags.length > 0
-        ? `\nAvailable existing tags (by frequency): ${existingTags.join(', ')}\n\nTag selection rules:\n- Prefer existing tags that are STRONGLY relevant to the note content.\n- If an existing tag is only weakly or vaguely related, do NOT force it — create a new tag instead.\n- New tags are allowed freely, but MUST NOT overlap semantically with any existing tag.\n- For each tag, provide a confidence score (0.0–1.0) indicating how directly relevant the tag is to this note's actual content.`
-        : `\nThis vault has no tags yet. Extract exactly 3 tags from the note's key concepts. Tags should be general, concise (1-2 words), and reusable. Avoid overly specific tags that only apply to this note. For each tag, provide a confidence score (0.0–1.0).`;
+        ? `\nAvailable existing tags (by frequency): ${existingTags.join(', ')}\n\nTag selection rules:\n- Prefer existing tags that are STRONGLY relevant to the note content. Score existing tags 5-10 points higher when equally relevant.\n- If an existing tag is only weakly or vaguely related, do NOT force it — create a new tag instead.\n- New tags are allowed freely, but MUST NOT overlap semantically with any existing tag.\n- For each tag, provide: score (0-100), isNew (true if not in existing tags), and a brief reason (why this tag fits).`
+        : `\nThis vault has no tags yet. Extract exactly 3 tags from the note's key concepts. Tags should be general, concise (1-2 words), and reusable. Avoid overly specific tags that only apply to this note. For each tag, provide: score (0-100), isNew (always true for new vaults), and a brief reason.`;
 
       const notesInfo = hasNotes
         ? `\n\nAvailable notes for linking (select up to 5 that are directly related):\n${availableNotes!.map(n => `- ${n}`).join('\n')}`
@@ -54,14 +54,14 @@ ${tagsInfo}${notesInfo}
 
 ## Analysis procedure (you MUST follow this)
 1. Read the note content and identify **2-3 unique key topics/concepts** the note covers.
-2. For each topic, check existing tags first. Only use an existing tag if it clearly and directly matches (confidence ≥ 0.7). If no existing tag is a strong match, create a new tag.${linkStep}
+2. For each topic, check existing tags first. Only use an existing tag if it clearly and directly matches (score ≥ 70). If no existing tag is a strong match, create a new tag.${linkStep}
 ${summaryStepNum}. Summarize only what is written in the note. Write the summary in English.
 
 ## Response format (JSON only)
 {
   "tags": [
-    {"tag": "#tag1", "confidence": 0.92},
-    {"tag": "#tag2", "confidence": 0.78}
+    {"tag": "#tag1", "score": 92, "isNew": false, "reason": "brief reason why this tag fits"},
+    {"tag": "#tag2", "score": 78, "isNew": true, "reason": "brief reason"}
   ],${relatedNotesFormat}
   "summary": "one sentence summarizing only what is actually written in the note (in English)",
   "confidence": 0.85
@@ -73,8 +73,8 @@ ${noteContent}`;
     }
 
     const tagsInfo = existingTags.length > 0
-      ? `\n사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n태그 선택 규칙:\n- 노트 내용과 **강하게** 관련된 기존 태그만 선택하세요.\n- 약하거나 모호하게만 관련된 기존 태그는 억지로 선택하지 마세요 — 대신 새 태그를 만드세요.\n- 새 태그는 자유롭게 생성 가능하지만, 기존 태그와 의미가 겹치면 안 됩니다.\n- 각 태그마다 이 노트 내용과의 직접적 관련도를 나타내는 confidence 점수(0.0~1.0)를 부여하세요.`
-      : `\n이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요. 각 태그마다 confidence 점수(0.0~1.0)를 부여하세요.`;
+      ? `\n사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n태그 선택 규칙:\n- 노트 내용과 **강하게** 관련된 기존 태그만 선택하세요. 동등한 관련성이면 기존 태그를 5-10점 높게 점수를 부여하세요.\n- 약하거나 모호하게만 관련된 기존 태그는 억지로 선택하지 마세요 — 대신 새 태그를 만드세요.\n- 새 태그는 자유롭게 생성 가능하지만, 기존 태그와 의미가 겹치면 안 됩니다.\n- 각 태그마다: score(0-100), isNew(기존 태그에 없으면 true), reason(이 태그가 적합한 이유)을 부여하세요.`
+      : `\n이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요. 각 태그마다: score(0-100), isNew(새 vault이므로 항상 true), reason(간단한 이유)을 부여하세요.`;
 
     const notesInfo = hasNotes
       ? `\n\n링크 가능한 노트 목록 (직접 관련된 노트를 최대 5개 선택):\n${availableNotes!.map(n => `- ${n}`).join('\n')}`
@@ -95,14 +95,14 @@ ${tagsInfo}${notesInfo}
 
 ## 분석 절차 (반드시 따르세요)
 1. 노트 내용을 읽고, 이 노트가 다루는 **고유한 핵심 주제/개념 2~3개**를 파악하세요.
-2. 각 주제에 대해 기존 태그를 먼저 확인하세요. 명확하고 직접적으로 일치하는 경우(confidence ≥ 0.7)에만 기존 태그를 사용하세요. 강한 매칭이 없으면 새 태그를 만드세요.${linkStepKo}
+2. 각 주제에 대해 기존 태그를 먼저 확인하세요. 명확하고 직접적으로 일치하는 경우(score ≥ 70)에만 기존 태그를 사용하세요. 강한 매칭이 없으면 새 태그를 만드세요.${linkStepKo}
 ${summaryStepNumKo}. summary는 노트에 적힌 내용만 한국어로 요약하세요.
 
 ## 응답 형식 (JSON만)
 {
   "tags": [
-    {"tag": "#태그1", "confidence": 0.92},
-    {"tag": "#태그2", "confidence": 0.78}
+    {"tag": "#태그1", "score": 92, "isNew": false, "reason": "이 태그가 적합한 간단한 이유"},
+    {"tag": "#태그2", "score": 78, "isNew": true, "reason": "간단한 이유"}
   ],${relatedNotesFormatKo}
   "summary": "노트에 실제로 적힌 내용만 한 문장으로 요약 (한국어로)",
   "confidence": 0.85

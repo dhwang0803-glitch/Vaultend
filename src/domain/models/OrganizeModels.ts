@@ -4,6 +4,12 @@ import { NoteId } from '../values/NoteId';
 import { Timestamp } from '../values/Timestamp';
 import { TokenUsage } from './TokenUsage';
 
+export interface TagReason {
+  readonly score: number;
+  readonly isNew: boolean;
+  readonly reason: string;
+}
+
 /**
  * OrganizeResult — 단일 노트 정리 결과.
  */
@@ -17,6 +23,7 @@ export interface OrganizeResult {
   readonly tokenUsage: TokenUsage;
   readonly lowConfidence?: boolean;
   readonly historyEntryId?: string;
+  readonly tagReasons?: ReadonlyMap<string, TagReason>;
 }
 
 /**

@@ -184,6 +184,9 @@ const en = {
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
   'organize.costUnavailable': 'Cost: N/A (unregistered model)',
+  'organize.tagScore': 'Score: {{score}}',
+  'organize.tagNew': 'New',
+  'organize.tagExisting': 'Existing',
 
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',
@@ -226,6 +229,7 @@ const en = {
 
   'settings.maxTokens': 'Max Response Tokens',
   'settings.maxTokensDesc': 'Maximum tokens for AI response (1024–16384). Higher values allow longer answers but cost more.',
+  'settings.truncationNotice': 'Notes exceeding 15,000 characters are automatically truncated before AI analysis. Results may be less accurate for very long notes.',
   'settings.dailyNoteLimit': 'Daily Note Size Limit (KB)',
   'settings.dailyNoteLimitDesc': 'Create a new file when Daily Note exceeds this size.',
 

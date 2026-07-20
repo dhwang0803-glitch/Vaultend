@@ -186,6 +186,9 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
   'organize.costUnavailable': '비용: 추정 불가 (미등록 모델)',
+  'organize.tagScore': '점수: {{score}}',
+  'organize.tagNew': '신규',
+  'organize.tagExisting': '기존',
 
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
   'organizeFolder.cancel': '취소',
@@ -226,6 +229,7 @@ const ko: { [K in keyof typeof en]: string } = {
 
   'settings.maxTokens': '최대 응답 토큰',
   'settings.maxTokensDesc': 'AI 응답의 최대 토큰 수 (1024–16384). 높을수록 긴 답변이 가능하지만 비용이 증가합니다.',
+  'settings.truncationNotice': '15,000자를 초과하는 노트는 AI 분석 전에 자동으로 축약됩니다. 매우 긴 노트에서는 결과 정확도가 다소 떨어질 수 있습니다.',
   'settings.dailyNoteLimit': 'Daily Note 용량 제한 (KB)',
   'settings.dailyNoteLimitDesc': 'Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.',
 

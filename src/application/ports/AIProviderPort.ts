@@ -35,6 +35,13 @@ export interface ClassificationRequest {
   readonly availableNotes?: ReadonlyArray<string>;
 }
 
+export interface TagDetail {
+  readonly tag: string;
+  readonly score: number;
+  readonly isNew: boolean;
+  readonly reason: string;
+}
+
 export interface ClassificationResponse {
   readonly category: string;
   readonly suggestedTags: ReadonlyArray<string>;
@@ -42,6 +49,7 @@ export interface ClassificationResponse {
   readonly summary: string;
   readonly confidence: number;
   readonly tokenUsage: TokenUsage;
+  readonly tagDetails?: ReadonlyArray<TagDetail>;
 }
 
 export interface EmbeddingRequest {

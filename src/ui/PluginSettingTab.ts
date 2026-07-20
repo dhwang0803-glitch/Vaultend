@@ -164,6 +164,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
       });
 
     new Setting(containerEl)
+      .setDesc(t('settings.truncationNotice'));
+
+    new Setting(containerEl)
       .setName(t('settings.dailyNoteLimit'))
       .setDesc(t('settings.dailyNoteLimitDesc'))
       .addText(text => {

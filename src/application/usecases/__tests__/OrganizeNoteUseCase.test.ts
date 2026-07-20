@@ -20,6 +20,7 @@ describe('OrganizeNoteUseCase', () => {
       summary: 'A note about TypeScript',
       confidence: 0.9,
       tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+      tagDetails: [{ tag: '#typescript', score: 92, isNew: false, reason: 'TypeScript code' }],
       ...overrides,
     };
   }
@@ -47,6 +48,51 @@ describe('OrganizeNoteUseCase', () => {
       expect(result.classifiedCategory).toBe('technology');
       expect(result.addedTags.map(t => t as string)).toContain('#typescript');
       expect(result.summary).toBe('A note about TypeScript');
+    });
+
+    it('tagDetails가 있으면 tagReasons를 OrganizeResult에 포함한다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote()),
+        listNotes: vi.fn().mockResolvedValue([]),
+      });
+      const ai = createMockAI({
+        callClassification: vi.fn().mockResolvedValue(makeClassification({
+          suggestedTags: ['#typescript', '#react'],
+          tagDetails: [
+            { tag: '#typescript', score: 92, isNew: false, reason: 'TypeScript code' },
+            { tag: '#react', score: 85, isNew: true, reason: 'React patterns' },
+          ],
+        })),
+      });
+
+      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
+      const result = await uc.execute(np('test.md'), false);
+
+      expect(result.tagReasons).toBeDefined();
+      expect(result.tagReasons!.size).toBe(2);
+      expect(result.tagReasons!.get('#typescript')).toEqual({
+        score: 92, isNew: false, reason: 'TypeScript code',
+      });
+      expect(result.tagReasons!.get('#react')).toEqual({
+        score: 85, isNew: true, reason: 'React patterns',
+      });
+    });
+
+    it('tagDetails가 없으면 tagReasons는 undefined이다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote()),
+        listNotes: vi.fn().mockResolvedValue([]),
+      });
+      const ai = createMockAI({
+        callClassification: vi.fn().mockResolvedValue(makeClassification({
+          tagDetails: undefined,
+        })),
+      });
+
+      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
+      const result = await uc.execute(np('test.md'), false);
+
+      expect(result.tagReasons).toBeUndefined();
     });
 
     it('autoApply=false면 vault에 변경을 수행하지 않는다', async () => {
