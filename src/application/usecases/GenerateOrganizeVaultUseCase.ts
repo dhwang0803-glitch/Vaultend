@@ -44,7 +44,7 @@ export class GenerateOrganizeVaultUseCase {
 
   async execute(plan: MaintenancePlan): Promise<OrganizeVaultPlan> {
     const proposals: OrganizeVaultProposal[] = [];
-    const folders = await this.collectFolders();
+    const folders = await this.vault.listFolders();
 
     proposals.push(...await this.generateOrphanProposals(plan.orphanNotes, folders));
     proposals.push(...await this.generateBrokenLinkProposals(plan.brokenLinks));
@@ -689,16 +689,6 @@ Return a JSON array where each element has:
       && typeof d.rationale === 'string';
   }
 
-  private async collectFolders(): Promise<ReadonlyArray<string>> {
-    const allNotes = await this.vault.listNotes();
-    const folderSet = new Set<string>();
-    for (const np of allNotes) {
-      const pathStr = np as string;
-      const slash = pathStr.lastIndexOf('/');
-      if (slash > 0) folderSet.add(pathStr.substring(0, slash));
-    }
-    return [...folderSet].sort();
-  }
 
   private async filterSuppressed(
     proposals: OrganizeVaultProposal[],

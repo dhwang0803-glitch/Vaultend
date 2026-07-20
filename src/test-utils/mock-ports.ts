@@ -18,6 +18,7 @@ export function createMockVault(overrides?: Partial<VaultAccessPort>): VaultAcce
     deleteNote: vi.fn().mockResolvedValue(undefined),
     listNotes: vi.fn().mockResolvedValue([]),
     listFiles: vi.fn().mockResolvedValue([]),
+    listFolders: vi.fn().mockResolvedValue([]),
     listAllTags: vi.fn().mockResolvedValue([]),
     updateFrontmatter: vi.fn().mockResolvedValue(undefined),
     exists: vi.fn().mockResolvedValue(false),
