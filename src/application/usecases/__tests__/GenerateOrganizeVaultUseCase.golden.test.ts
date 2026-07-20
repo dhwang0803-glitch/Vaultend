@@ -120,6 +120,7 @@ function buildPorts(notes: Map<string, Note>, tagOverrides?: ReadonlyArray<{ tag
     listNotes: vi.fn(async () => [...notes.keys()].map(createNotePath)),
     writeNote: vi.fn(), moveNote: vi.fn(), deleteNote: vi.fn(), createNote: vi.fn(),
     updateFrontmatter: vi.fn(), readFileRaw: vi.fn(async () => null), writeFileRaw: vi.fn(),
+    listFolders: vi.fn(async () => [...new Set([...notes.keys()].map(p => { const i = p.lastIndexOf('/'); return i > 0 ? p.substring(0, i) : ''; }).filter(Boolean))].sort()),
     listFiles: vi.fn(async () => []), watchEvents: vi.fn(() => () => {}),
     exists: vi.fn(async (p: NotePath) => notes.has(p as string)),
     listAllTags: vi.fn(async () => {

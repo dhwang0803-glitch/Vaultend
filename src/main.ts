@@ -523,15 +523,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           .execute(notePath, false)
           .then(async result => {
             const actions = this.buildOrganizeApplyActions();
-            const allNotes = await this.vaultAdapter.listNotes();
-            const folderSet = new Set<string>();
-            for (const np of allNotes) {
-              const pathStr = np as string;
-              const slash = pathStr.lastIndexOf('/');
-              if (slash > 0) folderSet.add(pathStr.substring(0, slash));
-            }
+            const folders = await this.vaultAdapter.listFolders();
             const ctx: OrganizeModalContext = {
-              existingFolders: [...folderSet].sort(),
+              existingFolders: [...folders],
             };
             new OrganizeResultModal(this.app, notePath, result, actions, ctx).open();
           })

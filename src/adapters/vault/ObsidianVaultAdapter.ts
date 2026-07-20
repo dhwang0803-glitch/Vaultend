@@ -1,4 +1,4 @@
-import { App, TFile, CachedMetadata } from 'obsidian';
+import { App, TFile, TFolder, CachedMetadata } from 'obsidian';
 import { VaultAccessPort, VaultEventHandler } from '../../application/ports/VaultAccessPort';
 import { Note, createNote } from '../../domain/models/Note';
 import { NoteMetadata } from '../../domain/models/NoteMetadata';
@@ -116,6 +116,22 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       await this.ensureFolderExists(folderPath);
     }
     await this.app.fileManager.renameFile(file, toStr);
+  }
+
+  async listFolders(): Promise<ReadonlyArray<string>> {
+    const folders: string[] = [];
+    const recurse = (folder: TFolder): void => {
+      if (folder.path) {
+        folders.push(folder.path);
+      }
+      for (const child of folder.children) {
+        if (child instanceof TFolder) {
+          recurse(child);
+        }
+      }
+    };
+    recurse(this.app.vault.getRoot());
+    return folders.sort();
   }
 
   async listAllTags(): Promise<ReadonlyArray<{ tag: string; count: number }>> {

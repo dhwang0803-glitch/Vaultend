@@ -57,7 +57,7 @@ export class OrganizeNoteUseCase {
 
     // Note list — use cache or fetch
     const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
-    const existingFolders = context?.cachedFolders ?? this.collectFolders(allNotes);
+    const existingFolders = context?.cachedFolders ?? await this.vault.listFolders();
 
     // Vault-wide tags — use cache or fetch
     const MAX_TAGS = 200;
@@ -84,7 +84,7 @@ export class OrganizeNoteUseCase {
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
       currentNoteTags: currentTags,
-      existingFolders: existingFolders as string[],
+      existingFolders: (existingFolders as string[]).slice(0, 50),
       currentFolder: currentFolder || undefined,
       locale: getLocale(),
     });
@@ -170,19 +170,6 @@ export class OrganizeNoteUseCase {
     }
 
     return historyEntryId ? { ...result, historyEntryId } : result;
-  }
-
-  private collectFolders(allNotes: ReadonlyArray<NotePath>): string[] {
-    const folderSet = new Set<string>();
-    for (const np of allNotes) {
-      const pathStr = np as string;
-      const lastSlash = pathStr.lastIndexOf('/');
-      if (lastSlash > 0) {
-        folderSet.add(pathStr.substring(0, lastSlash));
-      }
-    }
-    const MAX_FOLDERS = 50;
-    return [...folderSet].sort().slice(0, MAX_FOLDERS);
   }
 
   private async resolveByEmbedding(

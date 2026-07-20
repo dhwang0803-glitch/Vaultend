@@ -65,7 +65,7 @@ export class OrganizeFolderUseCase {
     const MAX_TAGS = 200;
     const cachedVaultTags = (await this.vault.listAllTags()).slice(0, MAX_TAGS);
     const cachedAllNotes = await this.vault.listNotes();
-    const cachedFolders = this.collectFolders(cachedAllNotes);
+    const cachedFolders = await this.vault.listFolders();
     const cachedCanonicalIndex = TagNormalizationService.buildCanonicalIndex(cachedVaultTags);
 
     // canonical 태그 임베딩: 영속 캐시 우선 조회 → miss만 API 호출
@@ -176,15 +176,4 @@ export class OrganizeFolderUseCase {
     };
   }
 
-  private collectFolders(notes: ReadonlyArray<NotePath>): string[] {
-    const folderSet = new Set<string>();
-    for (const np of notes) {
-      const pathStr = np as string;
-      const lastSlash = pathStr.lastIndexOf('/');
-      if (lastSlash > 0) {
-        folderSet.add(pathStr.substring(0, lastSlash));
-      }
-    }
-    return [...folderSet].sort().slice(0, 50);
-  }
 }
