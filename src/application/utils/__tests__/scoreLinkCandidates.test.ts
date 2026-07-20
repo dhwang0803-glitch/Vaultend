@@ -73,4 +73,50 @@ describe('scoreLinkCandidates', () => {
     expect(result).toContain('react-patterns');
     expect(result).toContain('react_hooks');
   });
+
+  it('uses content keywords to match candidates with different titles', () => {
+    const candidates = Array.from({ length: 100 }, (_, i) => `Unrelated ${i}`);
+    candidates[10] = '임베딩 모델 비교';
+    candidates[20] = '시맨틱 검색 기법';
+    candidates[30] = 'RAG 파이프라인';
+
+    const content = `이 노트는 벡터 임베딩을 활용한 시맨틱 검색에 대해 설명합니다.
+임베딩 모델은 텍스트를 벡터로 변환합니다. 시맨틱 검색은 의미 기반 검색입니다.
+RAG 파이프라인은 임베딩과 검색을 결합합니다.`;
+
+    const result = scoreLinkCandidates('프롬프트 엔지니어링', [], candidates, 5, content);
+
+    expect(result).toContain('임베딩 모델 비교');
+    expect(result).toContain('시맨틱 검색 기법');
+    expect(result).toContain('RAG 파이프라인');
+  });
+
+  it('uses existing tags to boost matching candidates', () => {
+    const candidates = Array.from({ length: 100 }, (_, i) => `Note ${i}`);
+    candidates[5] = 'JavaScript Async Patterns';
+    candidates[15] = 'Event Loop Deep Dive';
+
+    const result = scoreLinkCandidates(
+      'Node.js 이벤트 루프 이해하기',
+      [],
+      candidates,
+      5,
+      undefined,
+      ['#javascript', '#async', '#event-loop'],
+    );
+
+    expect(result).toContain('JavaScript Async Patterns');
+    expect(result).toContain('Event Loop Deep Dive');
+  });
+
+  it('strips Korean particles when extracting content keywords', () => {
+    const candidates = Array.from({ length: 100 }, (_, i) => `Item ${i}`);
+    candidates[7] = '검색 엔진 구현';
+
+    const content = '검색은 중요한 기능입니다. 검색을 위해 인덱스를 만들어야 합니다. 검색이 빨라야 합니다.';
+
+    const result = scoreLinkCandidates('데이터베이스', [], candidates, 5, content);
+
+    expect(result).toContain('검색 엔진 구현');
+  });
 });

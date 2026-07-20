@@ -92,7 +92,7 @@ export class OrganizeNoteUseCase {
 
     const noteTitle = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
     const headings = extractHeadings(truncatedContent);
-    const noteNames = scoreLinkCandidates(noteTitle, headings, allNoteNames, MAX_LINK_CANDIDATES);
+    const noteNames = scoreLinkCandidates(noteTitle, headings, allNoteNames, MAX_LINK_CANDIDATES, truncatedContent, currentTags);
 
     const classification = await this.aiProvider.callClassification({
       text: truncatedContent,
@@ -113,7 +113,7 @@ export class OrganizeNoteUseCase {
       return {
         noteId: note.id,
         notePath,
-        classifiedCategory: classification.category,
+        classifiedCategory: classification.category ?? '',
         addedTags: [],
         suggestedLinks: [],
         summary: classification.summary,
@@ -200,7 +200,7 @@ export class OrganizeNoteUseCase {
     const result: OrganizeResult = {
       noteId: note.id,
       notePath,
-      classifiedCategory: classification.category,
+      classifiedCategory: classification.category ?? '',
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
       summary: classification.summary,

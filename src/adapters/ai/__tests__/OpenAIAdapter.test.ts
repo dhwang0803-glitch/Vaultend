@@ -247,7 +247,7 @@ describe('OpenAIAdapter', () => {
         task: 'classify-and-tag',
       });
 
-      expect(result.category).toBe('미분류');
+      expect(result.category).toBe('');
       expect(result.suggestedTags).toEqual([]);
       expect(result.summary).toBe('');
     });

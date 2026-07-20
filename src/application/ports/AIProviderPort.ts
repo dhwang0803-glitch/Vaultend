@@ -43,7 +43,7 @@ export interface TagDetail {
 }
 
 export interface ClassificationResponse {
-  readonly category: string;
+  readonly category?: string;
   readonly suggestedTags: ReadonlyArray<string>;
   readonly suggestedLinks?: ReadonlyArray<string>;
   readonly summary: string;

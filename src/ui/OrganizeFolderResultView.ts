@@ -348,12 +348,7 @@ export class OrganizeFolderResultView extends ItemView {
     };
     this.entries.push(entry);
 
-    // Category badge
     const detailsEl = entryContainer.createDiv({ cls: 'organize-folder-note-details' });
-    detailsEl.createEl('span', {
-      text: result.classifiedCategory,
-      cls: 'organize-folder-category-badge',
-    });
     if (result.lowConfidence) {
       detailsEl.createEl('span', {
         text: t('organizeFolder.lowConfidence'),

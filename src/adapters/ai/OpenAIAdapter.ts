@@ -59,7 +59,7 @@ export class OpenAIAdapter implements AIProviderPort {
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const lang = request.locale ?? detectContentLanguage(request.text);
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.locale, request.availableNotes);
+    const prompt = PromptTemplates.classificationUserMessage(request.text, request.existingTags, request.locale, request.availableNotes);
 
     const completionResponse = await this.callCompletion({
       prompt,
@@ -76,7 +76,7 @@ export class OpenAIAdapter implements AIProviderPort {
       : [];
     const { tags, details } = this.parseTagsWithDetails(parsed.tags, request.existingTags);
     return {
-      category: (parsed.category as string) ?? '미분류',
+      category: (parsed.category as string) ?? '',
       suggestedTags: tags,
       suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',

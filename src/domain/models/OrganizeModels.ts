@@ -16,7 +16,7 @@ export interface TagReason {
 export interface OrganizeResult {
   readonly noteId: NoteId;
   readonly notePath: NotePath;
-  readonly classifiedCategory: string;
+  readonly classifiedCategory?: string;
   readonly addedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
   readonly summary: string;
