@@ -10,7 +10,6 @@ import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
-import { PromptTemplates } from '../PromptTemplates';
 import { getLocale } from '../../i18n';
 import {
   TagNormalizationService,
@@ -87,17 +86,29 @@ export class OrganizeNoteUseCase {
     const folderProfiles = context?.cachedFolderProfiles
       ?? await this.buildFolderProfiles(existingFolders as string[]);
 
-    // AI classification (content-redact applied)
+    // Prepare available notes for combined classification + link suggestion
+    const MAX_NOTES = 200;
+    const linkCandidates = allNotes.filter(n => n !== notePath);
+    const noteNames = linkCandidates
+      .slice(0, MAX_NOTES)
+      .map(n => (n as string).replace(/\.md$/, ''));
+
+    // AI classification + link suggestion (single API call, prefix-cacheable)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
       text: redactedContent,
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
-      currentNoteTags: currentTags,
       folderProfiles: folderProfiles.slice(0, 50),
       currentFolder: currentFolder || undefined,
       locale: getLocale(),
+      availableNotes: noteNames.length > 0 ? noteNames : undefined,
     });
+
+    // Validate suggested links against actual vault notes
+    const suggestedLinks = this.validateSuggestedLinks(
+      classification.suggestedLinks ?? [], linkCandidates,
+    );
 
     // Confidence gating — if below threshold, return minimal result
     const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
@@ -121,10 +132,6 @@ export class OrganizeNoteUseCase {
     const newSuggestedTags = classification.suggestedTags
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
 
-    // Link suggestions — AI-based with vault existence validation
-    const linkResult = await this.suggestLinksWithAI(redactedContent, allNotes, notePath);
-    const suggestedLinks = linkResult.links;
-
     // Folder suggestion — prefer existing folders, allow new folder creation
     const rawFolder = classification.suggestedFolder;
     const suggestedFolder = rawFolder && rawFolder !== currentFolder
@@ -142,10 +149,14 @@ export class OrganizeNoteUseCase {
     const canonicalSet = new Set(canonicalIndex.map(g => g.canonical.toLowerCase()));
     const trulyNewTags = sanitizedTags.filter(t => !canonicalSet.has(t.toLowerCase()));
     let embeddingResolved = new Map<string, string>();
+    const emptyUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    let embeddingTokenUsage: TokenUsage = emptyUsage;
     if (trulyNewTags.length > 0) {
-      embeddingResolved = await this.resolveByEmbedding(
+      const embeddingResult = await this.resolveByEmbedding(
         trulyNewTags, canonicalIndex, context?.cachedTagEmbeddings,
       );
+      embeddingResolved = embeddingResult.resolved;
+      embeddingTokenUsage = embeddingResult.tokenUsage;
     }
 
     const resolvedTags = sanitizedTags.map(t =>
@@ -170,10 +181,10 @@ export class OrganizeNoteUseCase {
       isNewFolder,
       summary: classification.summary,
       tokenUsage: {
-        promptTokens: classification.tokenUsage.promptTokens + linkResult.tokenUsage.promptTokens,
-        completionTokens: classification.tokenUsage.completionTokens + linkResult.tokenUsage.completionTokens,
-        totalTokens: classification.tokenUsage.totalTokens + linkResult.tokenUsage.totalTokens,
-        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + linkResult.tokenUsage.estimatedCostUsd,
+        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd,
       },
     };
 
@@ -207,10 +218,21 @@ export class OrganizeNoteUseCase {
     newTags: string[],
     canonicalIndex: ReadonlyArray<CanonicalTagGroup>,
     cachedEmbeddings?: Map<string, Float32Array>,
-  ): Promise<Map<string, string>> {
-    const result = new Map<string, string>();
+  ): Promise<{ resolved: Map<string, string>; tokenUsage: TokenUsage }> {
+    const resolved = new Map<string, string>();
+    const zeroUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
     const canonicals = canonicalIndex.map(g => g.canonical);
-    if (canonicals.length === 0) return result;
+    if (canonicals.length === 0) return { resolved, tokenUsage: zeroUsage };
+
+    let totalTokenUsage = { ...zeroUsage };
+    const addUsage = (usage: TokenUsage) => {
+      totalTokenUsage = {
+        promptTokens: totalTokenUsage.promptTokens + usage.promptTokens,
+        completionTokens: totalTokenUsage.completionTokens + usage.completionTokens,
+        totalTokens: totalTokenUsage.totalTokens + usage.totalTokens,
+        estimatedCostUsd: totalTokenUsage.estimatedCostUsd + usage.estimatedCostUsd,
+      };
+    };
 
     try {
       let existingEmbeddings: Map<string, Float32Array>;
@@ -223,6 +245,7 @@ export class OrganizeNoteUseCase {
 
         if (missingTags.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
+          addUsage(resp.tokenUsage);
           const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
           for (let i = 0; i < missingTags.length; i++) {
             fromCache.set(missingTags[i], resp.embeddings[i]);
@@ -234,6 +257,7 @@ export class OrganizeNoteUseCase {
       }
 
       const newResp = await this.aiProvider.callEmbedding({ texts: newTags });
+      addUsage(newResp.tokenUsage);
 
       for (let i = 0; i < newTags.length; i++) {
         let bestTag = '';
@@ -249,28 +273,20 @@ export class OrganizeNoteUseCase {
           ? TagNormalizationService.embeddingMergeThreshold(newTags[i], bestTag)
           : EMBEDDING_SIMILARITY_THRESHOLD;
         if (bestSim >= pairThreshold && bestTag) {
-          result.set(newTags[i], bestTag);
+          resolved.set(newTags[i], bestTag);
         }
       }
     } catch {
       // embedding 실패 시 graceful degradation — 문자열 정규화만 사용
     }
-    return result;
+    return { resolved, tokenUsage: totalTokenUsage };
   }
 
-  private async suggestLinksWithAI(
-    content: string,
-    allNotes: ReadonlyArray<NotePath>,
-    excludePath: NotePath,
-  ): Promise<{ links: NotePath[]; tokenUsage: TokenUsage }> {
-    const emptyUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
-    const candidates = allNotes.filter(n => n !== excludePath);
-    if (candidates.length === 0) return { links: [], tokenUsage: emptyUsage };
-
-    const MAX_NOTES = 200;
-    const noteNames = candidates
-      .map(n => (n as string).replace(/\.md$/, ''))
-      .slice(0, MAX_NOTES);
+  private validateSuggestedLinks(
+    rawLinks: ReadonlyArray<string>,
+    candidates: ReadonlyArray<NotePath>,
+  ): NotePath[] {
+    if (rawLinks.length === 0 || candidates.length === 0) return [];
 
     const basenameToPath = new Map<string, NotePath>();
     for (const n of candidates) {
@@ -284,51 +300,28 @@ export class OrganizeNoteUseCase {
       fullPathToNote.set((n as string).replace(/\.md$/, '').toLowerCase(), n);
     }
 
-    try {
-      const prompt = PromptTemplates.suggestLinks(content, noteNames);
-      const response = await this.aiProvider.callCompletion({
-        prompt,
-        maxTokens: 300,
-        temperature: 0.3,
-        jsonMode: true,
-      });
+    const validated: NotePath[] = [];
+    const seen = new Set<string>();
 
-      let suggested: unknown;
-      try {
-        suggested = JSON.parse(response.content);
-      } catch {
-        return { links: [], tokenUsage: response.tokenUsage };
+    for (const name of rawLinks) {
+      const normalized = name.replace(/\.md$/, '').toLowerCase();
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+
+      const byFullPath = fullPathToNote.get(normalized);
+      if (byFullPath) {
+        validated.push(byFullPath);
+        continue;
       }
 
-      if (!Array.isArray(suggested)) return { links: [], tokenUsage: response.tokenUsage };
-
-      const validated: NotePath[] = [];
-      const seen = new Set<string>();
-
-      for (const name of suggested) {
-        if (typeof name !== 'string') continue;
-        const normalized = name.replace(/\.md$/, '').toLowerCase();
-
-        if (seen.has(normalized)) continue;
-        seen.add(normalized);
-
-        const byFullPath = fullPathToNote.get(normalized);
-        if (byFullPath) {
-          validated.push(byFullPath);
-          continue;
-        }
-
-        const basenameOnly = normalized.split('/').pop() ?? '';
-        const byBasename = basenameToPath.get(basenameOnly);
-        if (byBasename) {
-          validated.push(byBasename);
-        }
+      const basenameOnly = normalized.split('/').pop() ?? '';
+      const byBasename = basenameToPath.get(basenameOnly);
+      if (byBasename) {
+        validated.push(byBasename);
       }
-
-      return { links: validated, tokenUsage: response.tokenUsage };
-    } catch {
-      return { links: [], tokenUsage: emptyUsage };
     }
+
+    return validated;
   }
 
   private async applyOrganization(

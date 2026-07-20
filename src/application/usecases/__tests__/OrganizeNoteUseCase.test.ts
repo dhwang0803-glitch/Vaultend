@@ -17,18 +17,11 @@ describe('OrganizeNoteUseCase', () => {
       category: 'technology',
       suggestedTags: ['#typescript'],
       suggestedFolder: undefined,
+      suggestedLinks: [],
       summary: 'A note about TypeScript',
       confidence: 0.9,
       tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
       ...overrides,
-    };
-  }
-
-  function makeLinksResponse(links: string[]) {
-    return {
-      content: JSON.stringify(links),
-      tokenUsage: { promptTokens: 5, completionTokens: 10, totalTokens: 15, estimatedCostUsd: 0.0005 },
-      finishReason: 'stop' as const,
     };
   }
 
@@ -47,7 +40,6 @@ describe('OrganizeNoteUseCase', () => {
       });
       const ai = createMockAI({
         callClassification: vi.fn().mockResolvedValue(makeClassification()),
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -65,7 +57,6 @@ describe('OrganizeNoteUseCase', () => {
       });
       const ai = createMockAI({
         callClassification: vi.fn().mockResolvedValue(makeClassification({ suggestedTags: ['#newtag'] })),
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
       });
       const history = createMockHistory();
 
@@ -79,7 +70,7 @@ describe('OrganizeNoteUseCase', () => {
     });
   });
 
-  describe('suggestLinksWithAI (via execute)', () => {
+  describe('link validation (via execute)', () => {
     it('AI가 제안한 링크 중 vault에 존재하는 것만 반환한다', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(
@@ -88,7 +79,9 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('docs/TypeScript.md'), np('React.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse(['docs/TypeScript', 'React'])),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['docs/TypeScript', 'React'] }),
+        ),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -104,8 +97,8 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(
-          makeLinksResponse(['React', 'NonExistentNote', 'FakeNote']),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['React', 'NonExistentNote', 'FakeNote'] }),
         ),
       });
 
@@ -121,45 +114,13 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('folder/test-note.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse(['folder/test-note'])),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['folder/test-note'] }),
+        ),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
       const result = await uc.execute(np('folder/test-note.md'), false);
-
-      expect(result.suggestedLinks).toHaveLength(0);
-    });
-
-    it('AI 호출 실패 시 빈 배열을 반환한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('other.md')]),
-      });
-      const ai = createMockAI({
-        callCompletion: vi.fn().mockRejectedValue(new Error('API error')),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks).toHaveLength(0);
-    });
-
-    it('AI가 잘못된 JSON을 반환하면 빈 배열을 반환한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('other.md')]),
-      });
-      const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue({
-          content: 'not valid json',
-          tokenUsage: { promptTokens: 5, completionTokens: 10, totalTokens: 15, estimatedCostUsd: 0.0005 },
-          finishReason: 'stop' as const,
-        }),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
 
       expect(result.suggestedLinks).toHaveLength(0);
     });
@@ -170,7 +131,9 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('frameworks/react.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse(['react'])),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['react'] }),
+        ),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -185,13 +148,32 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse(['React', 'react', 'React.md'])),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['React', 'react', 'React.md'] }),
+        ),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
       const result = await uc.execute(np('test.md'), false);
 
       expect(result.suggestedLinks).toHaveLength(1);
+    });
+
+    it('suggestedLinks가 없으면 빈 배열을 반환한다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content' })),
+        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('other.md')]),
+      });
+      const ai = createMockAI({
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: undefined }),
+        ),
+      });
+
+      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
+      const result = await uc.execute(np('test.md'), false);
+
+      expect(result.suggestedLinks).toHaveLength(0);
     });
   });
 
@@ -204,15 +186,9 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([]),
       });
       const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue({
-          category: 'tech',
+        callClassification: vi.fn().mockResolvedValue(makeClassification({
           suggestedTags: [],
-          suggestedFolder: undefined,
-          summary: '',
-          confidence: 0.9,
-          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
-        }),
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
+        })),
       });
       const config = createMockConfig({
         privacyRules: [{
@@ -248,7 +224,6 @@ describe('OrganizeNoteUseCase', () => {
         callClassification: vi.fn().mockResolvedValue(
           makeClassification({ suggestedTags: ['#existing', '#newtag'] }),
         ),
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -270,7 +245,9 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse(['React'])),
+        callClassification: vi.fn().mockResolvedValue(
+          makeClassification({ suggestedLinks: ['React'] }),
+        ),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -297,7 +274,6 @@ describe('OrganizeNoteUseCase', () => {
         callClassification: vi.fn().mockResolvedValue(
           makeClassification({ suggestedFolder: 'Projects', suggestedTags: [] }),
         ),
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
@@ -313,7 +289,7 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([]),
       });
       const ai = createMockAI({
-        callCompletion: vi.fn().mockResolvedValue(makeLinksResponse([])),
+        callClassification: vi.fn().mockResolvedValue(makeClassification()),
       });
       const history = createMockHistory();
 

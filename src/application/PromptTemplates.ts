@@ -25,7 +25,7 @@ Core rules:
 5. 반드시 유효한 JSON 형식으로만 응답하세요.`;
   },
 
-  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, folderProfiles?: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>, currentFolder?: string, locale?: 'en' | 'ko'): string {
+  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, folderProfiles?: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>, currentFolder?: string, locale?: 'en' | 'ko', availableNotes?: ReadonlyArray<string>): string {
     const lang = locale ?? detectContentLanguage(noteContent);
 
     const formatFolderList = (profiles: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>): string => {
@@ -34,26 +34,47 @@ Core rules:
       ).join(', ');
     };
 
+    const isInbox = currentFolder
+      ? /^(inbox|받은편지함|수신함)$/i.test(currentFolder.split('/').pop() ?? '')
+      : false;
+
+    const hasNotes = availableNotes && availableNotes.length > 0;
+
     if (lang === 'en') {
       const tagsInfo = existingTags.length > 0
         ? `\nAvailable existing tags (by frequency): ${existingTags.join(', ')}\n\nTag selection rules:\n- Prefer existing tags that are STRONGLY relevant to the note content.\n- If an existing tag is only weakly or vaguely related, do NOT force it — create a new tag instead.\n- New tags are allowed freely, but MUST NOT overlap semantically with any existing tag.\n- For each tag, provide a confidence score (0.0–1.0) indicating how directly relevant the tag is to this note's actual content.`
         : `\nThis vault has no tags yet. Extract exactly 3 tags from the note's key concepts. Tags should be general, concise (1-2 words), and reusable. Avoid overly specific tags that only apply to this note. For each tag, provide a confidence score (0.0–1.0).`;
-      const currentInfo = currentNoteTags && currentNoteTags.length > 0
-        ? `\nTags already applied to this note: ${currentNoteTags.join(', ')}\nDo not suggest tags that are already applied. Only suggest new ones.`
-        : '';
       const currentFolderInfo = currentFolder ? `\nThis note is currently in folder: "${currentFolder}"` : '';
       const folderInfo = folderProfiles && folderProfiles.length > 0
         ? `\nExisting folders (with their typical content tags):\n${formatFolderList(folderProfiles)}${currentFolderInfo}\nChoose the folder whose content theme best matches this note's topics — do NOT match by surface keywords in the folder name alone. If the current folder is already appropriate, return it. Only suggest a different folder if it is clearly more appropriate.`
         : '\nNo folders exist yet. Suggest a short, general folder name that could hold similar notes (e.g., "Projects", "Learning", "Work").';
 
+      const notesInfo = hasNotes
+        ? `\n\nAvailable notes for linking (select up to 5 that are directly related):\n${availableNotes!.map(n => `- ${n}`).join('\n')}`
+        : '';
+
+      const step3 = isInbox
+        ? `3. This note is in the Inbox (temporary). Find the folder whose themes best match the note's content and suggest moving it there. Only keep it in Inbox if no folder is even loosely related.`
+        : `3. Determine the best folder by comparing the note's topics against each folder's content tags — not its name. If a folder's themes match the note's content, suggest that folder.`;
+
+      const linkStep = hasNotes
+        ? `\n4. From the available notes list, select up to 5 notes whose topics directly relate to this note's content. Only select notes with strong topical relevance. If none are related, return an empty array.`
+        : '';
+
+      const summaryStepNum = hasNotes ? '5' : '4';
+
+      const relatedNotesFormat = hasNotes
+        ? `\n  "relatedNotes": ["NoteName1", "NoteName2"],`
+        : '';
+
       return `Read the "Note content" section below and suggest tags that match the topics this note actually covers.
-${tagsInfo}${currentInfo}${folderInfo}
+${tagsInfo}${folderInfo}${notesInfo}
 
 ## Analysis procedure (you MUST follow this)
 1. Read the note content and identify **2-3 unique key topics/concepts** the note covers.
 2. For each topic, check existing tags first. Only use an existing tag if it clearly and directly matches (confidence ≥ 0.7). If no existing tag is a strong match, create a new tag.
-3. Determine the best folder to store this note by comparing the note's topics against each folder's content tags — not its name. If the current folder is already a good fit, keep it there. Only suggest a different folder if it is clearly more appropriate.
-4. Summarize only what is written in the note. Write the summary in English.
+${step3}${linkStep}
+${summaryStepNum}. Summarize only what is written in the note. Write the summary in English.
 
 ## Response format (JSON only)
 {
@@ -62,7 +83,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
     {"tag": "#tag2", "confidence": 0.78}
   ],
   "folder": "target folder path",
-  "folderReason": "brief explanation of why this folder was chosen (e.g., 'note discusses React patterns, matching the FrontendSkills folder theme')",
+  "folderReason": "brief explanation of why this folder was chosen (e.g., 'note discusses React patterns, matching the FrontendSkills folder theme')",${relatedNotesFormat}
   "summary": "one sentence summarizing only what is actually written in the note (in English)",
   "confidence": 0.85
 }
@@ -75,22 +96,37 @@ ${noteContent}`;
     const tagsInfo = existingTags.length > 0
       ? `\n사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n태그 선택 규칙:\n- 노트 내용과 **강하게** 관련된 기존 태그만 선택하세요.\n- 약하거나 모호하게만 관련된 기존 태그는 억지로 선택하지 마세요 — 대신 새 태그를 만드세요.\n- 새 태그는 자유롭게 생성 가능하지만, 기존 태그와 의미가 겹치면 안 됩니다.\n- 각 태그마다 이 노트 내용과의 직접적 관련도를 나타내는 confidence 점수(0.0~1.0)를 부여하세요.`
       : `\n이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요. 각 태그마다 confidence 점수(0.0~1.0)를 부여하세요.`;
-    const currentInfo = currentNoteTags && currentNoteTags.length > 0
-      ? `\n이 노트에 이미 적용된 태그: ${currentNoteTags.join(', ')}\n이미 적용된 태그는 제안하지 마세요. 새로운 태그만 제안하세요.`
-      : '';
     const currentFolderInfo = currentFolder ? `\n이 노트의 현재 위치: "${currentFolder}"` : '';
     const folderInfo = folderProfiles && folderProfiles.length > 0
       ? `\n기존 폴더 목록 (각 폴더의 주요 태그):\n${formatFolderList(folderProfiles)}${currentFolderInfo}\n폴더 이름의 표면적 키워드가 아니라, 각 폴더에 속한 노트들의 주제와 이 노트의 핵심 주제가 일치하는 폴더를 선택하세요. 현재 폴더가 이미 적합하면 그대로 반환하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.`
       : '\n아직 폴더가 없습니다. 유사한 노트를 묶을 수 있는 짧고 일반적인 폴더명을 제안하세요 (예: "Projects", "Learning", "Work").';
 
+    const notesInfo = hasNotes
+      ? `\n\n링크 가능한 노트 목록 (직접 관련된 노트를 최대 5개 선택):\n${availableNotes!.map(n => `- ${n}`).join('\n')}`
+      : '';
+
+    const step3Ko = isInbox
+      ? `3. 이 노트는 Inbox(임시)에 있습니다. 노트의 주제와 가장 잘 맞는 폴더를 찾아 이동을 제안하세요. 어떤 폴더와도 느슨하게라도 관련이 없을 때만 Inbox에 유지하세요.`
+      : `3. 이 노트를 저장할 최적의 폴더를 결정하세요. 각 폴더의 주요 태그를 보고 노트의 주제와 비교하세요 — 폴더 이름으로 판단하지 마세요. 폴더의 주제가 노트 내용과 관련되면 해당 폴더를 제안하세요.`;
+
+    const linkStepKo = hasNotes
+      ? `\n4. 위의 노트 목록에서 이 노트의 주제와 직접 관련된 노트를 최대 5개 선택하세요. 주제적 관련성이 강한 노트만 선택하세요. 관련 노트가 없으면 빈 배열을 반환하세요.`
+      : '';
+
+    const summaryStepNumKo = hasNotes ? '5' : '4';
+
+    const relatedNotesFormatKo = hasNotes
+      ? `\n  "relatedNotes": ["노트이름1", "노트이름2"],`
+      : '';
+
     return `아래 "노트 내용" 섹션을 읽고, 이 노트가 실제로 다루는 주제에 맞는 태그를 제안하세요.
-${tagsInfo}${currentInfo}${folderInfo}
+${tagsInfo}${folderInfo}${notesInfo}
 
 ## 분석 절차 (반드시 따르세요)
 1. 노트 내용을 읽고, 이 노트가 다루는 **고유한 핵심 주제/개념 2~3개**를 파악하세요.
 2. 각 주제에 대해 기존 태그를 먼저 확인하세요. 명확하고 직접적으로 일치하는 경우(confidence ≥ 0.7)에만 기존 태그를 사용하세요. 강한 매칭이 없으면 새 태그를 만드세요.
-3. 이 노트를 저장할 최적의 폴더를 결정하세요. 각 폴더의 주요 태그를 보고 노트의 주제와 비교하세요 — 폴더 이름으로 판단하지 마세요. 현재 폴더가 이미 적절하면 그대로 유지하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.
-4. summary는 노트에 적힌 내용만 한국어로 요약하세요.
+${step3Ko}${linkStepKo}
+${summaryStepNumKo}. summary는 노트에 적힌 내용만 한국어로 요약하세요.
 
 ## 응답 형식 (JSON만)
 {
@@ -99,7 +135,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
     {"tag": "#태그2", "confidence": 0.78}
   ],
   "folder": "대상 폴더 경로",
-  "folderReason": "이 폴더를 선택한 이유를 간단히 설명 (예: '노트가 React 패턴을 다루고 있어 FrontendSkills 폴더 주제와 일치')",
+  "folderReason": "이 폴더를 선택한 이유를 간단히 설명 (예: '노트가 React 패턴을 다루고 있어 FrontendSkills 폴더 주제와 일치')",${relatedNotesFormatKo}
   "summary": "노트에 실제로 적힌 내용만 한 문장으로 요약 (한국어로)",
   "confidence": 0.85
 }

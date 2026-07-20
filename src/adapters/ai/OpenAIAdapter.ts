@@ -58,12 +58,12 @@ export class OpenAIAdapter implements AIProviderPort {
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const lang = request.locale ?? detectContentLanguage(request.text);
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.folderProfiles, request.currentFolder, request.locale);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.folderProfiles, request.currentFolder, request.locale, request.availableNotes);
 
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
-      maxTokens: 500,
+      maxTokens: 700,
       temperature: 0.1,
       jsonMode: true,
     });
@@ -72,11 +72,15 @@ export class OpenAIAdapter implements AIProviderPort {
 
     const folder = (parsed.folder as string) || undefined;
     const folderReason = (parsed.folderReason as string) || undefined;
+    const relatedNotes = Array.isArray(parsed.relatedNotes)
+      ? (parsed.relatedNotes as unknown[]).filter((n): n is string => typeof n === 'string')
+      : [];
     return {
       category: (parsed.category as string) ?? folder ?? '미분류',
       suggestedTags: this.parseTagsWithConfidence(parsed.tags),
       suggestedFolder: folder,
       folderReason,
+      suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
