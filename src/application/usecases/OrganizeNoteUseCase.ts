@@ -369,13 +369,6 @@ export class OrganizeNoteUseCase {
             if (path !== notePath) candidates.set(path, emb);
           }
           const similar = NoteEmbeddingService.findSimilarNotes(currentEmb, candidates);
-          // DEBUG: log top similarities to diagnose threshold
-          const allSims: Array<{ path: string; sim: number }> = [];
-          for (const [path, emb] of candidates) {
-            allSims.push({ path: path as string, sim: TagNormalizationService.cosineSimilarity(currentEmb, emb) });
-          }
-          allSims.sort((a, b) => b.sim - a.sim);
-          console.debug(`Vaultend: [${notePath}] top-5 similarities:`, allSims.slice(0, 5).map(s => `${s.path}=${s.sim.toFixed(4)}`));
           return {
             links: similar.map(c => c.notePath),
             tokenUsage: noUsage,

@@ -17,7 +17,7 @@ export class NoteEmbeddingService {
     bodyWeight: 0.8,
   };
 
-  static readonly SIMILARITY_THRESHOLD = 0.85;
+  static readonly SIMILARITY_THRESHOLD = 0.70;
   static readonly MAX_LINK_SUGGESTIONS = 5;
 
   static combineEmbeddings(

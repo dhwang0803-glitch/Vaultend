@@ -392,6 +392,12 @@ export class OrganizeFolderResultView extends ItemView {
     // Links section
     if (result.suggestedLinks.length > 0) {
       this.renderLinkSection(detailsEl, entry);
+    } else if (result.addedTags.length > 0) {
+      const noLinkEl = detailsEl.createDiv({ cls: 'organize-folder-section' });
+      noLinkEl.createEl('span', {
+        text: t('organizeFolder.noLinks' as Parameters<typeof t>[0]),
+        cls: 'organize-folder-no-links',
+      });
     }
 
     // Action buttons
