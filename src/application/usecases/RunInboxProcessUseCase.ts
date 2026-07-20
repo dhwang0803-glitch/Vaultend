@@ -5,9 +5,12 @@ import { HistoryPort } from '../ports/HistoryPort';
 import { ClockPort } from '../ports/ClockPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
+import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NotePath } from '../../domain/values/NotePath';
 import { TagNormalizationService } from '../../domain/services/TagNormalizationService';
+import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
+import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -40,6 +43,7 @@ export class OrganizeFolderUseCase {
     private readonly clock: ClockPort,
     private readonly aiProvider?: AIProviderPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
+    private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
   ) {}
 
   async execute(options?: OrganizeFolderOptions): Promise<OrganizeFolderResult> {
@@ -90,6 +94,64 @@ export class OrganizeFolderUseCase {
       }
     }
 
+    // Note embedding cache: 전체 vault 노트의 가중 임베딩을 사전 계산
+    const cachedNoteEmbeddings = new Map<NotePath, Float32Array>();
+    if (this.aiProvider && this.noteEmbeddingCache) {
+      try {
+        await this.noteEmbeddingCache.load();
+        const privacyRules = [...settings.privacyRules];
+
+        const toCompute: Array<{ path: NotePath; title: string; body: string }> = [];
+        for (const np of cachedAllNotes) {
+          const note = await this.vault.readNote(np);
+          if (!note) continue;
+          const title = (np as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+          const redacted = applyContentRedaction(note.content, privacyRules);
+          const body = redacted.slice(0, 8000);
+          const hash = await NoteEmbeddingService.computeContentHash(title, body);
+
+          if (!this.noteEmbeddingCache.needsUpdate(np, hash)) {
+            const cached = this.noteEmbeddingCache.get(np);
+            if (cached) {
+              cachedNoteEmbeddings.set(np, cached.vector);
+              continue;
+            }
+          }
+          toCompute.push({ path: np, title, body });
+        }
+
+        const BATCH_SIZE = 100;
+        for (let offset = 0; offset < toCompute.length; offset += BATCH_SIZE) {
+          const batch = toCompute.slice(offset, offset + BATCH_SIZE);
+          const titles = batch.map(e => e.title);
+          const bodies = batch.map(e => e.body);
+
+          const [titleResp, bodyResp] = await Promise.all([
+            this.aiProvider.callEmbedding({ texts: titles }),
+            this.aiProvider.callEmbedding({ texts: bodies }),
+          ]);
+
+          for (let i = 0; i < batch.length; i++) {
+            const combined = NoteEmbeddingService.combineEmbeddings(
+              titleResp.embeddings[i], bodyResp.embeddings[i],
+            );
+            cachedNoteEmbeddings.set(batch[i].path, combined);
+            const hash = await NoteEmbeddingService.computeContentHash(
+              batch[i].title, batch[i].body,
+            );
+            this.noteEmbeddingCache.put({
+              notePath: batch[i].path, vector: combined, contentHash: hash,
+            });
+          }
+        }
+
+        this.noteEmbeddingCache.retainOnly(cachedAllNotes);
+        await this.noteEmbeddingCache.flush();
+      } catch {
+        // embedding 실패 시 링크 제안 없이 진행
+      }
+    }
+
     const sessionTags: string[] = [];
 
     for (let i = 0; i < unprocessedNotes.length; i++) {
@@ -112,6 +174,7 @@ export class OrganizeFolderUseCase {
           cachedTagEmbeddings,
           cachedVaultTags,
           cachedAllNotes,
+          cachedNoteEmbeddings: cachedNoteEmbeddings.size > 0 ? cachedNoteEmbeddings : undefined,
         };
 
         const result = await this.organizeNote.execute(

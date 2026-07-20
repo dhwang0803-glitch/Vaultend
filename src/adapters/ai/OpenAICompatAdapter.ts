@@ -65,7 +65,7 @@ export class OpenAICompatAdapter implements AIProviderPort {
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const lang = request.locale ?? detectContentLanguage(request.text);
-    const prompt = PromptTemplates.classificationUserMessage(request.text, request.existingTags, request.locale, request.availableNotes);
+    const prompt = PromptTemplates.classificationUserMessage(request.text, request.existingTags, request.locale);
 
     const completionResponse = await this.callCompletion({
       prompt,
@@ -77,14 +77,10 @@ export class OpenAICompatAdapter implements AIProviderPort {
 
     const parsed = this.parseJson(completionResponse.content);
 
-    const relatedNotes = Array.isArray(parsed.relatedNotes)
-      ? (parsed.relatedNotes as unknown[]).filter((n): n is string => typeof n === 'string')
-      : [];
     const { tags, details } = this.parseTagsWithDetails(parsed.tags, request.existingTags);
     return {
       category: (parsed.category as string) ?? '',
       suggestedTags: tags,
-      suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,

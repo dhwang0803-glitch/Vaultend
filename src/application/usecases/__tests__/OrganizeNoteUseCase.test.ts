@@ -16,7 +16,6 @@ describe('OrganizeNoteUseCase', () => {
     return {
       category: 'technology',
       suggestedTags: ['#typescript'],
-      suggestedLinks: [],
       summary: 'A note about TypeScript',
       confidence: 0.9,
       tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
@@ -115,113 +114,6 @@ describe('OrganizeNoteUseCase', () => {
     });
   });
 
-  describe('link validation (via execute)', () => {
-    it('AI가 제안한 링크 중 vault에 존재하는 것만 반환한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: 'This is about TypeScript and React patterns.' }),
-        ),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('docs/TypeScript.md'), np('React.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['docs/TypeScript', 'React'] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks.map(l => l as string)).toContain('docs/TypeScript.md');
-      expect(result.suggestedLinks.map(l => l as string)).toContain('React.md');
-    });
-
-    it('AI가 hallucinate한 노트는 필터링된다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'some content' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['React', 'NonExistentNote', 'FakeNote'] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks.map(l => l as string)).toEqual(['React.md']);
-    });
-
-    it('자기 자신은 제외된다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'self reference' })),
-        listNotes: vi.fn().mockResolvedValue([np('folder/test-note.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['folder/test-note'] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('folder/test-note.md'), false);
-
-      expect(result.suggestedLinks).toHaveLength(0);
-    });
-
-    it('basename 매칭으로 full path를 복원한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content about react' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('frameworks/react.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['react'] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks.map(l => l as string)).toContain('frameworks/react.md');
-    });
-
-    it('중복된 제안은 하나만 반환한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['React', 'react', 'React.md'] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks).toHaveLength(1);
-    });
-
-    it('suggestedLinks가 없으면 빈 배열을 반환한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(createTestNote({ content: 'content' })),
-        listNotes: vi.fn().mockResolvedValue([np('test.md'), np('other.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: undefined }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      const result = await uc.execute(np('test.md'), false);
-
-      expect(result.suggestedLinks).toHaveLength(0);
-    });
-  });
-
   describe('content-redact (via execute)', () => {
     it('content-redact 규칙이 있으면 AI에 보내는 텍스트에서 패턴이 마스킹된다', async () => {
       const vault = createMockVault({
@@ -282,7 +174,7 @@ describe('OrganizeNoteUseCase', () => {
       );
     });
 
-    it('Related Notes 섹션을 추가한다', async () => {
+    it('Related Notes 섹션을 추가한다 (임베딩 기반)', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(
           createTestNote({ content: 'Content about React' }),
@@ -290,13 +182,17 @@ describe('OrganizeNoteUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([np('test.md'), np('React.md')]),
       });
       const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedLinks: ['React'] }),
-        ),
+        callClassification: vi.fn().mockResolvedValue(makeClassification()),
       });
 
+      const identicalVec = new Float32Array([1, 0, 0]);
+      const cachedNoteEmbeddings = new Map<NotePath, Float32Array>([
+        [np('test.md'), identicalVec],
+        [np('React.md'), identicalVec],
+      ]);
+
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      await uc.execute(np('test.md'), true);
+      await uc.execute(np('test.md'), true, { cachedNoteEmbeddings });
 
       expect(vault.writeNote).toHaveBeenCalledWith(
         np('test.md'),

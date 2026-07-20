@@ -42,6 +42,8 @@ import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultV
 import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
 import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
 import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
+import { FileNoteEmbeddingCacheAdapter } from './adapters/note-embedding-cache/FileNoteEmbeddingCacheAdapter';
+import { NoteEmbeddingService } from './domain/services/NoteEmbeddingService';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -132,6 +134,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private organizeVaultAdapter!: FileOrganizeVaultAdapter;
   private preferenceAdapter!: FilePreferenceAdapter;
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
+  private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -221,6 +224,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
       await this.vectorStoreAdapter.load();
       await this.tagEmbeddingCacheAdapter.load();
+      await this.noteEmbeddingCacheAdapter.load();
 
       if (this.hasAIProviderConfig()) {
         await this.reinitializeEmbeddings();
@@ -243,8 +247,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.unsubscribeVaultEvents = null;
     }
 
-    // Flush tag embedding cache
+    // Flush embedding caches
     this.tagEmbeddingCacheAdapter.flush().catch(() => {});
+    this.noteEmbeddingCacheAdapter.flush().catch(() => {});
 
     // Clear maintenance timer
     if (this.maintenanceInterval !== null) {
@@ -307,6 +312,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       await this.tagEmbeddingCacheAdapter.clear();
     }
     this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim, model });
+
+    const { titleWeight, bodyWeight } = NoteEmbeddingService.DEFAULT_CONFIG;
+    if (this.noteEmbeddingCacheAdapter.size() > 0
+      && !this.noteEmbeddingCacheAdapter.isCompatible(provider, dim, titleWeight, bodyWeight, model)) {
+      await this.noteEmbeddingCacheAdapter.clear();
+    }
+    this.noteEmbeddingCacheAdapter.setMeta({ provider, dimension: dim, titleWeight, bodyWeight, model });
   }
 
   private async loadSettings(): Promise<void> {
@@ -361,6 +373,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
     }
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
+    this.noteEmbeddingCacheAdapter = new FileNoteEmbeddingCacheAdapter(this.vaultAdapter);
   }
 
   private wireProFeatures(): void {
@@ -383,6 +396,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.configPort, this.historyAdapter, this.clockAdapter,
       this.aiAdapter,
       this.tagEmbeddingCacheAdapter,
+      this.noteEmbeddingCacheAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(

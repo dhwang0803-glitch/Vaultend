@@ -32,7 +32,6 @@ export interface ClassificationRequest {
   readonly existingTags?: ReadonlyArray<string>;
   readonly existingCategories?: ReadonlyArray<string>;
   readonly locale?: 'en' | 'ko';
-  readonly availableNotes?: ReadonlyArray<string>;
 }
 
 export interface TagDetail {
@@ -45,7 +44,6 @@ export interface TagDetail {
 export interface ClassificationResponse {
   readonly category?: string;
   readonly suggestedTags: ReadonlyArray<string>;
-  readonly suggestedLinks?: ReadonlyArray<string>;
   readonly summary: string;
   readonly confidence: number;
   readonly tokenUsage: TokenUsage;

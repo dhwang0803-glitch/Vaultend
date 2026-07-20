@@ -17,6 +17,7 @@ import {
   TagNormalizationService,
   CanonicalTagGroup,
 } from '../../domain/services/TagNormalizationService';
+import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
@@ -26,6 +27,7 @@ export interface OrganizeContext {
   readonly cachedTagEmbeddings?: Map<string, Float32Array>;
   readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
   readonly cachedAllNotes?: ReadonlyArray<NotePath>;
+  readonly cachedNoteEmbeddings?: Map<NotePath, Float32Array>;
 }
 
 export class OrganizeNoteUseCase {
@@ -85,27 +87,19 @@ export class OrganizeNoteUseCase {
       .filter(g => g.variants.some(v => selectedTagSet.has(v.tag.toLowerCase())))
       .map(g => g.canonical);
 
-    // Prepare available notes for combined classification + link suggestion
-    const MAX_LINK_CANDIDATES = 50;
-    const linkCandidates = allNotes.filter(n => n !== notePath);
-    const allNoteNames = linkCandidates.map(n => (n as string).replace(/\.md$/, ''));
-
-    const noteTitle = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
-    const headings = extractHeadings(truncatedContent);
-    const noteNames = scoreLinkCandidates(noteTitle, headings, allNoteNames, MAX_LINK_CANDIDATES, truncatedContent, currentTags);
-
     const classification = await this.aiProvider.callClassification({
       text: truncatedContent,
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
       locale: getLocale(),
-      availableNotes: noteNames.length > 0 ? noteNames : undefined,
     });
 
-    // Validate suggested links against actual vault notes
-    const suggestedLinks = this.validateSuggestedLinks(
-      classification.suggestedLinks ?? [], linkCandidates,
+    // Embedding-based link suggestion (deterministic)
+    const linkResult = await this.computeEmbeddingLinks(
+      notePath, truncatedContent, allNotes, context,
     );
+    const suggestedLinks = linkResult.links;
+    const linkTokenUsage = linkResult.tokenUsage;
 
     // Confidence gating — if below threshold, return minimal result
     const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
@@ -205,10 +199,10 @@ export class OrganizeNoteUseCase {
       suggestedLinks,
       summary: classification.summary,
       tokenUsage: {
-        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens,
-        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens,
-        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens + relevanceTokenUsage.totalTokens,
-        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd + relevanceTokenUsage.estimatedCostUsd,
+        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens + linkTokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens + linkTokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens + relevanceTokenUsage.totalTokens + linkTokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd + relevanceTokenUsage.estimatedCostUsd + linkTokenUsage.estimatedCostUsd,
       },
       tagReasons,
     };
@@ -359,46 +353,69 @@ export class OrganizeNoteUseCase {
     return { resolved, tokenUsage: totalTokenUsage };
   }
 
-  private validateSuggestedLinks(
-    rawLinks: ReadonlyArray<string>,
-    candidates: ReadonlyArray<NotePath>,
-  ): NotePath[] {
-    if (rawLinks.length === 0 || candidates.length === 0) return [];
-
-    const basenameToPath = new Map<string, NotePath>();
-    for (const n of candidates) {
-      const basename = ((n as string).split('/').pop()?.replace(/\.md$/, '') ?? '').toLowerCase();
-      if (basename.length >= 3 && !basenameToPath.has(basename)) {
-        basenameToPath.set(basename, n);
-      }
-    }
-    const fullPathToNote = new Map<string, NotePath>();
-    for (const n of candidates) {
-      fullPathToNote.set((n as string).replace(/\.md$/, '').toLowerCase(), n);
-    }
-
-    const validated: NotePath[] = [];
-    const seen = new Set<string>();
-
-    for (const name of rawLinks) {
-      const normalized = name.replace(/\.md$/, '').toLowerCase();
-      if (seen.has(normalized)) continue;
-      seen.add(normalized);
-
-      const byFullPath = fullPathToNote.get(normalized);
-      if (byFullPath) {
-        validated.push(byFullPath);
-        continue;
+  private async computeEmbeddingLinks(
+    notePath: NotePath,
+    content: string,
+    allNotes: ReadonlyArray<NotePath>,
+    context?: OrganizeContext,
+  ): Promise<{ links: NotePath[]; tokenUsage: TokenUsage }> {
+    const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    try {
+      if (context?.cachedNoteEmbeddings) {
+        const currentEmb = context.cachedNoteEmbeddings.get(notePath);
+        if (currentEmb) {
+          const candidates = new Map<NotePath, Float32Array>();
+          for (const [path, emb] of context.cachedNoteEmbeddings) {
+            if (path !== notePath) candidates.set(path, emb);
+          }
+          return {
+            links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidates).map(c => c.notePath),
+            tokenUsage: noUsage,
+          };
+        }
       }
 
-      const basenameOnly = normalized.split('/').pop() ?? '';
-      const byBasename = basenameToPath.get(basenameOnly);
-      if (byBasename) {
-        validated.push(byBasename);
-      }
-    }
+      const title = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+      const headings = extractHeadings(content);
+      const candidateNotes = allNotes.filter(n => n !== notePath);
+      const candidateNames = candidateNotes.map(n => (n as string).replace(/\.md$/, ''));
+      const topNames = scoreLinkCandidates(title, headings, candidateNames, 50, content, []);
+      if (topNames.length === 0) return { links: [], tokenUsage: noUsage };
 
-    return validated;
+      const [titleResp, bodyResp, candidateResp] = await Promise.all([
+        this.aiProvider.callEmbedding({ texts: [title] }),
+        this.aiProvider.callEmbedding({ texts: [content.slice(0, 8000)] }),
+        this.aiProvider.callEmbedding({ texts: topNames }),
+      ]);
+
+      const linkTokenUsage: TokenUsage = {
+        promptTokens: titleResp.tokenUsage.promptTokens + bodyResp.tokenUsage.promptTokens + candidateResp.tokenUsage.promptTokens,
+        completionTokens: titleResp.tokenUsage.completionTokens + bodyResp.tokenUsage.completionTokens + candidateResp.tokenUsage.completionTokens,
+        totalTokens: titleResp.tokenUsage.totalTokens + bodyResp.tokenUsage.totalTokens + candidateResp.tokenUsage.totalTokens,
+        estimatedCostUsd: titleResp.tokenUsage.estimatedCostUsd + bodyResp.tokenUsage.estimatedCostUsd + candidateResp.tokenUsage.estimatedCostUsd,
+      };
+
+      const currentEmb = NoteEmbeddingService.combineEmbeddings(
+        titleResp.embeddings[0], bodyResp.embeddings[0],
+      );
+
+      const nameToPath = new Map<string, NotePath>();
+      for (const n of candidateNotes) {
+        nameToPath.set((n as string).replace(/\.md$/, ''), n);
+      }
+      const candidateEmbMap = new Map<NotePath, Float32Array>();
+      for (let i = 0; i < topNames.length; i++) {
+        const matched = nameToPath.get(topNames[i]);
+        if (matched) candidateEmbMap.set(matched, candidateResp.embeddings[i]);
+      }
+
+      return {
+        links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidateEmbMap).map(c => c.notePath),
+        tokenUsage: linkTokenUsage,
+      };
+    } catch {
+      return { links: [], tokenUsage: noUsage };
+    }
   }
 
   private async applyOrganization(

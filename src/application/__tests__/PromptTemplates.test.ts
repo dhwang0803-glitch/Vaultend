@@ -37,15 +37,9 @@ describe('PromptTemplates', () => {
       expect(resultKo).toContain('분석 절차');
     });
 
-    it('relatedNotes 형식을 항상 포함한다', () => {
-      const result = PromptTemplates.classificationSystemPrompt('en');
-      expect(result).toContain('relatedNotes');
-    });
-
-    it('시스템 프롬프트에 태그/노트 목록을 포함하지 않는다 (순수 정적)', () => {
+    it('시스템 프롬프트에 태그 목록을 포함하지 않는다 (순수 정적)', () => {
       const result = PromptTemplates.classificationSystemPrompt('en');
       expect(result).not.toContain('Available existing tags');
-      expect(result).not.toContain('Available notes for linking');
     });
 
     it('프롬프트 인젝션 방어 지시를 포함한다', () => {
@@ -96,28 +90,6 @@ describe('PromptTemplates', () => {
       expect(result).toContain('#dev');
       expect(result).toContain('#react');
       expect(result).toContain('기존 태그');
-    });
-
-    it('availableNotes가 있으면 링크 섹션을 포함한다 (EN)', () => {
-      const result = PromptTemplates.classificationUserMessage(
-        'React note', [], 'en', ['React Patterns', 'TypeScript Guide'],
-      );
-      expect(result).toContain('Available notes for linking');
-      expect(result).toContain('- React Patterns');
-      expect(result).toContain('- TypeScript Guide');
-    });
-
-    it('availableNotes가 있으면 링크 섹션을 포함한다 (KO)', () => {
-      const result = PromptTemplates.classificationUserMessage(
-        '리액트 노트', [], 'ko', ['리액트 패턴', '타입스크립트'],
-      );
-      expect(result).toContain('링크 가능한 노트 목록');
-      expect(result).toContain('- 리액트 패턴');
-    });
-
-    it('availableNotes가 없으면 링크 섹션을 생략한다', () => {
-      const result = PromptTemplates.classificationUserMessage('Note content', undefined, 'en');
-      expect(result).not.toContain('Available notes for linking');
     });
 
     it('태그 없으면 새 vault 안내를 포함한다', () => {
