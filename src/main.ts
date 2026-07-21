@@ -32,9 +32,11 @@ import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefa
 import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
 import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 import { BuildSummaryIndexUseCase } from './application/usecases/BuildSummaryIndexUseCase';
+import { replaceRelatedNotesSection } from './application/utils/relatedNotesSection';
 
 // UI
-import { OrganizeResultModal, OrganizeApplyActions } from './ui/OrganizeResultModal';
+import { OrganizeResultModal, type OrganizeApplyActions } from './ui/OrganizeResultModal';
+import type { BatchOrganizeCallbacks } from './ui/OrganizeBatchPreviewModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
@@ -56,7 +58,7 @@ import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
-import type { MaintenancePlan, DuplicatePair } from './domain/models/OrganizeModels';
+import type { MaintenancePlan, DuplicatePair, OrganizeResult } from './domain/models/OrganizeModels';
 import { timestampNow } from './domain/values/Timestamp';
 import {
   DEFAULT_SAVE_FOLDER,
@@ -491,7 +493,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         },
         (pair) => this.triggerMergeForPair(pair),
         (notePath) => this.findLinksForOrphan(notePath),
-        (notePaths) => this.organizeSelectedNotes(notePaths),
+        (notePaths) => this.previewOrganizeNotes(notePaths),
+        this.buildBatchOrganizeCallbacks(),
       ),
     );
 
@@ -631,12 +634,32 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       addLinks: async (path, links) => {
         const note = await this.vaultAdapter.readNote(path);
         if (!note) return;
-        const linkLines = links.map(link => {
-          const linkPath = (link as string).replace('.md', '');
-          return `- [[${linkPath}]]`;
+        const linkStrs = links.map(l => l as string);
+        await this.vaultAdapter.writeNote(path, replaceRelatedNotesSection(note.content, linkStrs));
+      },
+    };
+  }
+
+  private buildBatchOrganizeCallbacks(): BatchOrganizeCallbacks {
+    return {
+      actions: this.buildOrganizeApplyActions(),
+      readContent: async (path) => {
+        const note = await this.vaultAdapter.readNote(path);
+        return note?.content ?? '';
+      },
+      writeContent: async (path, content) => {
+        await this.vaultAdapter.writeNote(path, content);
+      },
+      recordHistory: async (id, notePath, previousContent, description, tags, links) => {
+        await this.historyAdapter.record({
+          id,
+          action: 'classify',
+          notePath,
+          timestamp: timestampNow(),
+          description,
+          previousContent,
+          metadata: { tags, links },
         });
-        const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
-        await this.vaultAdapter.writeNote(path, note.content + section);
       },
     };
   }
@@ -818,18 +841,21 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     return suggestions.map(s => createNotePath(s.path));
   }
 
-  private async organizeSelectedNotes(notePaths: NotePath[]): Promise<{ success: number; failed: number }> {
-    let success = 0;
+  private async previewOrganizeNotes(notePaths: NotePath[]): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
+    const results: Array<{ notePath: NotePath; result: OrganizeResult }> = [];
     let failed = 0;
     for (const notePath of notePaths) {
       try {
-        await this.organizeNoteUseCase.execute(notePath, true);
-        success++;
+        const result = await this.organizeNoteUseCase.execute(notePath, false);
+        results.push({ notePath, result });
       } catch {
         failed++;
       }
     }
-    return { success, failed };
+    if (failed > 0) {
+      new Notice(t('notice.organizePreviewFailed', { failed }));
+    }
+    return results;
   }
 
   private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {

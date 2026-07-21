@@ -5,6 +5,7 @@ import { HistoryPort } from '../ports/HistoryPort';
 import { ClockPort } from '../ports/ClockPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { TagName } from '../../domain/values/TagName';
+import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
 
 export interface ApplyResult {
   readonly entryId: string;
@@ -159,15 +160,13 @@ export class ApplyMaintenanceActionUseCase {
       basenameCounts.set(bn, (basenameCounts.get(bn) ?? 0) + 1);
     }
 
-    const linkLines = suggestedLinks.map(link => {
+    const linkStrs = suggestedLinks.map(link => {
       const pathStr = (link as string).replace(/\.md$/i, '');
       const basename = pathStr.split('/').pop() ?? pathStr;
       const isAmbiguous = (basenameCounts.get(basename.toLowerCase()) ?? 0) > 1;
-      return isAmbiguous ? `- [[${pathStr}]]` : `- [[${basename}]]`;
+      return isAmbiguous ? pathStr : basename;
     });
-    const section = `\n\n## Related Notes\n${linkLines.join('\n')}\n`;
-    const newContent = note.content.trimEnd() + section;
-    await this.vault.writeNote(notePath, newContent);
+    await this.vault.writeNote(notePath, replaceRelatedNotesSection(note.content, linkStrs));
 
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
