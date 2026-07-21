@@ -12,9 +12,6 @@ import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { TagNormalizationService } from '../../domain/services/TagNormalizationService';
-import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
-import { applyContentRedaction } from '../../domain/models/PrivacyRule';
-import { stripFrontmatter } from '../../domain/services/tokenize';
 import { PromptTemplates } from '../PromptTemplates';
 import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
 import { detectContentLanguage } from '../utils/detectContentLanguage';
@@ -106,63 +103,12 @@ export class OrganizeFolderUseCase {
       }
     }
 
-    // Note embedding cache: 전체 vault 노트의 가중 임베딩을 사전 계산
-    const cachedNoteEmbeddings = new Map<NotePath, Float32Array>();
-    if (this.aiProvider && this.noteEmbeddingCache) {
+    // Load note embedding cache for onelineSummary (Pass 2 link selection)
+    if (this.noteEmbeddingCache) {
       try {
         await this.noteEmbeddingCache.load();
-        const privacyRules = [...settings.privacyRules];
-
-        const toCompute: Array<{ path: NotePath; title: string; body: string }> = [];
-        for (const np of cachedAllNotes) {
-          const note = await this.vault.readNote(np);
-          if (!note) continue;
-          const title = (np as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
-          const redacted = applyContentRedaction(note.content, privacyRules);
-          const body = stripFrontmatter(redacted).slice(0, 8000);
-          const hash = await NoteEmbeddingService.computeContentHash(title, body);
-
-          if (!this.noteEmbeddingCache.needsUpdate(np, hash)) {
-            const cached = this.noteEmbeddingCache.get(np);
-            if (cached && cached.vector.length > 0) {
-              cachedNoteEmbeddings.set(np, cached.vector);
-              continue;
-            }
-          }
-          toCompute.push({ path: np, title, body });
-        }
-
-        const BATCH_SIZE = 20;
-        for (let offset = 0; offset < toCompute.length; offset += BATCH_SIZE) {
-          const batch = toCompute.slice(offset, offset + BATCH_SIZE);
-          const titles = batch.map(e => e.title || 'untitled');
-          const bodies = batch.map(e => e.body || e.title || 'empty');
-
-          const [titleResp, bodyResp] = await Promise.all([
-            this.aiProvider.callEmbedding({ texts: titles }),
-            this.aiProvider.callEmbedding({ texts: bodies }),
-          ]);
-
-          for (let i = 0; i < batch.length; i++) {
-            const combined = NoteEmbeddingService.combineEmbeddings(
-              titleResp.embeddings[i], bodyResp.embeddings[i],
-            );
-            cachedNoteEmbeddings.set(batch[i].path, combined);
-            const hash = await NoteEmbeddingService.computeContentHash(
-              batch[i].title, batch[i].body,
-            );
-            const existingSummary = this.noteEmbeddingCache.get(batch[i].path)?.onelineSummary;
-            this.noteEmbeddingCache.put({
-              notePath: batch[i].path, vector: combined, contentHash: hash,
-              onelineSummary: existingSummary,
-            });
-          }
-        }
-
-        this.noteEmbeddingCache.retainOnly(cachedAllNotes);
-        await this.noteEmbeddingCache.flush();
-      } catch (err) {
-        console.error('Vaultend: note embedding batch failed', err);
+      } catch {
+        // load failure is non-fatal
       }
     }
 
@@ -200,7 +146,6 @@ export class OrganizeFolderUseCase {
           cachedTagEmbeddings,
           cachedVaultTags,
           cachedAllNotes,
-          cachedNoteEmbeddings: cachedNoteEmbeddings.size > 0 ? cachedNoteEmbeddings : undefined,
           skipLinkSuggestion: true,
         };
 
