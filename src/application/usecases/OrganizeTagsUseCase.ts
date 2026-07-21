@@ -97,15 +97,16 @@ export class OrganizeTagsUseCase {
       }
     }
 
-    // 6. Phase 2: LLM semantic grouping (singletons only, new tags only)
+    // 6. Phase 2: LLM semantic grouping (singletons only)
     let llmGroups: CachedTagGroup[] = [];
     let tokenUsage: TokenUsage | undefined;
 
     if (this.aiProvider && singletonTags.length > 1) {
-      const newSingletons = singletonTags.filter(t => newTags.has(t.tag));
+      const hasNewSingletons = singletonTags.some(t => newTags.has(t.tag));
 
-      if (newSingletons.length > 1) {
-        const result = await this.llmGrouping(newSingletons, normGroups, existingGroups, onProgress);
+      if (hasNewSingletons) {
+        // Send ALL singletons so new tags can be compared against existing ungrouped tags
+        const result = await this.llmGrouping(singletonTags, normGroups, existingGroups, onProgress);
         llmGroups = result.groups;
         tokenUsage = result.tokenUsage;
       }
