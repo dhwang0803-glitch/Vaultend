@@ -54,6 +54,10 @@ export const PREFERENCE_FEWSHOT_MAX = 10;
 export const PREFERENCE_RULE_THRESHOLD = 3;
 export const PREFERENCE_REJECT_DECAY_DAYS = 7;
 
+/** Organize Folder 스마트 필터링 상수 */
+export const ORGANIZE_MIN_WORD_COUNT = 50;
+export const ORGANIZE_SUFFICIENT_LINKS = 3;
+
 /** Refactor 파이프라인 상수 */
 export const REFACTOR_BATCH_SIZE = 50;
 export const REFACTOR_CONTENT_PREVIEW = 300;

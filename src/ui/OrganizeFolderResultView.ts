@@ -237,6 +237,22 @@ export class OrganizeFolderResultView extends ItemView {
       }),
     });
 
+    // Skip breakdown (only if there are smart-filtered notes)
+    if (result.skipBreakdown) {
+      const { tooShort, alreadyLinked, alreadyOrganized } = result.skipBreakdown;
+      const smartSkipped = tooShort + alreadyLinked + alreadyOrganized;
+      if (smartSkipped > 0) {
+        summaryEl.createEl('span', {
+          text: t('organizeFolder.skipDetail' as any, {
+            tooShort: String(tooShort),
+            alreadyLinked: String(alreadyLinked),
+            alreadyOrganized: String(alreadyOrganized),
+          }),
+          cls: 'organize-folder-skip-detail',
+        });
+      }
+    }
+
     // Token total (LLM tokens only — excludes embedding API tokens)
     if (result.results.length > 0) {
       let totalTokens = result.results.reduce((sum, r) => sum + r.tokenUsage.totalTokens, 0);

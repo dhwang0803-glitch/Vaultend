@@ -155,6 +155,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.selectFolder': '정리할 폴더를 선택하세요',
   'organizeFolder.rescan': '다시 정리',
   'organizeFolder.summary': '{{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
+  'organizeFolder.skipDetail': '건너뜀: {{tooShort}}개 내용 부족 · {{alreadyLinked}}개 이미 연결됨 · {{alreadyOrganized}}개 이미 정리됨',
   'organizeFolder.noResults': '이 폴더에 정리할 노트가 없습니다.',
   'organizeFolder.lowConfidence': '낮은 신뢰도',
   'organizeFolder.category': '분류: {{category}}',

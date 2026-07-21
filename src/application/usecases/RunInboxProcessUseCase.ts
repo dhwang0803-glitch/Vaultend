@@ -12,13 +12,13 @@ import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { TagNormalizationService } from '../../domain/services/TagNormalizationService';
-import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
-import { applyContentRedaction } from '../../domain/models/PrivacyRule';
-import { stripFrontmatter } from '../../domain/services/tokenize';
 import { PromptTemplates } from '../PromptTemplates';
 import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
 import { detectContentLanguage } from '../utils/detectContentLanguage';
 import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
+import { stripRelatedNotesSection } from '../utils/relatedNotesSection';
+import { stripFrontmatter } from '../../domain/services/tokenize';
+import { ORGANIZE_MIN_WORD_COUNT, ORGANIZE_SUFFICIENT_LINKS } from '../../constants';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -34,9 +34,17 @@ export interface OrganizeFolderOptions {
   readonly folder?: string;
 }
 
+export interface SkipBreakdown {
+  readonly alreadyProcessed: number;
+  readonly tooShort: number;
+  readonly alreadyLinked: number;
+  readonly alreadyOrganized: number;
+}
+
 export interface OrganizeFolderResult {
   readonly processedCount: number;
   readonly skippedCount: number;
+  readonly skipBreakdown?: SkipBreakdown;
   readonly results: ReadonlyArray<OrganizeResult>;
   readonly errors: ReadonlyArray<{ path: NotePath; error: string }>;
   readonly cancelled?: boolean;
@@ -64,13 +72,38 @@ export class OrganizeFolderUseCase {
     const targetFolder = rawFolder === '/' ? undefined : rawFolder;
 
     const allNotes = await this.vault.listNotes(targetFolder);
-    const unprocessedNotes = [];
+    const unprocessedNotes: NotePath[] = [];
+    const skipBreakdown: SkipBreakdown = { alreadyProcessed: 0, tooShort: 0, alreadyLinked: 0, alreadyOrganized: 0 };
+    const mutableSkip = skipBreakdown as { -readonly [K in keyof SkipBreakdown]: SkipBreakdown[K] };
 
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
-      if (note && !note.metadata.isProcessed) {
-        unprocessedNotes.push(notePath);
+      if (!note) continue;
+
+      if (note.metadata.isProcessed) {
+        mutableSkip.alreadyProcessed++;
+        continue;
       }
+
+      const bodyText = stripFrontmatter(stripRelatedNotesSection(note.content));
+      const wordCount = bodyText.trim().split(/\s+/).filter(w => w.length > 0).length;
+      if (wordCount < ORGANIZE_MIN_WORD_COUNT) {
+        mutableSkip.tooShort++;
+        continue;
+      }
+
+      if (note.metadata.links.length >= ORGANIZE_SUFFICIENT_LINKS) {
+        mutableSkip.alreadyLinked++;
+        continue;
+      }
+
+      const hasRelatedSection = /\n## Related Notes\n/.test(note.content);
+      if (hasRelatedSection) {
+        mutableSkip.alreadyOrganized++;
+        continue;
+      }
+
+      unprocessedNotes.push(notePath);
     }
 
     const results: OrganizeResult[] = [];
@@ -106,63 +139,12 @@ export class OrganizeFolderUseCase {
       }
     }
 
-    // Note embedding cache: 전체 vault 노트의 가중 임베딩을 사전 계산
-    const cachedNoteEmbeddings = new Map<NotePath, Float32Array>();
-    if (this.aiProvider && this.noteEmbeddingCache) {
+    // Load note embedding cache for onelineSummary (Pass 2 link selection)
+    if (this.noteEmbeddingCache) {
       try {
         await this.noteEmbeddingCache.load();
-        const privacyRules = [...settings.privacyRules];
-
-        const toCompute: Array<{ path: NotePath; title: string; body: string }> = [];
-        for (const np of cachedAllNotes) {
-          const note = await this.vault.readNote(np);
-          if (!note) continue;
-          const title = (np as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
-          const redacted = applyContentRedaction(note.content, privacyRules);
-          const body = stripFrontmatter(redacted).slice(0, 8000);
-          const hash = await NoteEmbeddingService.computeContentHash(title, body);
-
-          if (!this.noteEmbeddingCache.needsUpdate(np, hash)) {
-            const cached = this.noteEmbeddingCache.get(np);
-            if (cached && cached.vector.length > 0) {
-              cachedNoteEmbeddings.set(np, cached.vector);
-              continue;
-            }
-          }
-          toCompute.push({ path: np, title, body });
-        }
-
-        const BATCH_SIZE = 20;
-        for (let offset = 0; offset < toCompute.length; offset += BATCH_SIZE) {
-          const batch = toCompute.slice(offset, offset + BATCH_SIZE);
-          const titles = batch.map(e => e.title || 'untitled');
-          const bodies = batch.map(e => e.body || e.title || 'empty');
-
-          const [titleResp, bodyResp] = await Promise.all([
-            this.aiProvider.callEmbedding({ texts: titles }),
-            this.aiProvider.callEmbedding({ texts: bodies }),
-          ]);
-
-          for (let i = 0; i < batch.length; i++) {
-            const combined = NoteEmbeddingService.combineEmbeddings(
-              titleResp.embeddings[i], bodyResp.embeddings[i],
-            );
-            cachedNoteEmbeddings.set(batch[i].path, combined);
-            const hash = await NoteEmbeddingService.computeContentHash(
-              batch[i].title, batch[i].body,
-            );
-            const existingSummary = this.noteEmbeddingCache.get(batch[i].path)?.onelineSummary;
-            this.noteEmbeddingCache.put({
-              notePath: batch[i].path, vector: combined, contentHash: hash,
-              onelineSummary: existingSummary,
-            });
-          }
-        }
-
-        this.noteEmbeddingCache.retainOnly(cachedAllNotes);
-        await this.noteEmbeddingCache.flush();
-      } catch (err) {
-        console.error('Vaultend: note embedding batch failed', err);
+      } catch {
+        // load failure is non-fatal
       }
     }
 
@@ -170,9 +152,14 @@ export class OrganizeFolderUseCase {
     const noteSummaryMap = new Map<NotePath, string>();
     if (this.noteEmbeddingCache) {
       const allEntries = this.noteEmbeddingCache.getAll();
+      let withSummary = 0;
+      let withoutSummary = 0;
       for (const [path, entry] of allEntries) {
         if (entry.onelineSummary) {
           noteSummaryMap.set(path, entry.onelineSummary);
+          withSummary++;
+        } else {
+          withoutSummary++;
         }
       }
     }
@@ -200,7 +187,6 @@ export class OrganizeFolderUseCase {
           cachedTagEmbeddings,
           cachedVaultTags,
           cachedAllNotes,
-          cachedNoteEmbeddings: cachedNoteEmbeddings.size > 0 ? cachedNoteEmbeddings : undefined,
           skipLinkSuggestion: true,
         };
 
@@ -295,21 +281,48 @@ export class OrganizeFolderUseCase {
           const sampleSummary = targets[0].summary;
           const lang = detectContentLanguage(sampleSummary);
           const systemPrompt = PromptTemplates.linkSelectionSystemPrompt(lang);
-          const prompt = PromptTemplates.linkSelectionUserMessage(targets, vaultNotes, lang);
 
-          const maxTokens = Math.min(4000, Math.max(200, targets.length * 40));
-          const response = await this.aiProvider.callCompletion({
-            prompt,
-            systemPrompt,
-            maxTokens,
-            temperature: 0.1,
-            jsonMode: true,
-          });
+          const combinedLinkMap = new Map<NotePath, NotePath[]>();
+          let totalPromptTokens = 0;
+          let totalCompletionTokens = 0;
+          let totalEstimatedCost = 0;
 
-          batchLinkTokenUsage = response.tokenUsage;
-          const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, targetIndexToPath);
+          const BATCH_SIZE = 3;
+          for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+            try {
+              const chunk = targets.slice(i, i + BATCH_SIZE);
+              const chunkIndexToPath = new Map<number, NotePath>();
+              for (const t of chunk) {
+                chunkIndexToPath.set(t.index, targetIndexToPath.get(t.index)!);
+              }
 
-          for (const [targetPath, linkedPaths] of linkMap) {
+              const prompt = PromptTemplates.linkSelectionUserMessage(chunk, vaultNotes, lang);
+              const maxTokens = Math.min(4000, Math.max(800, chunk.length * 300));
+
+              const response = await this.aiProvider.callCompletion({
+                prompt,
+                systemPrompt,
+                maxTokens,
+                temperature: 0.1,
+                jsonMode: true,
+              });
+
+              totalPromptTokens += response.tokenUsage.promptTokens;
+              totalCompletionTokens += response.tokenUsage.completionTokens;
+              totalEstimatedCost += response.tokenUsage.estimatedCostUsd;
+
+              const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, chunkIndexToPath);
+              for (const [tp, lps] of linkMap) {
+                combinedLinkMap.set(tp, lps);
+              }
+            } catch (batchErr) {
+              console.error(`Vaultend: link selection batch ${Math.floor(i / BATCH_SIZE) + 1} failed`, batchErr);
+            }
+          }
+
+          batchLinkTokenUsage = { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens: totalPromptTokens + totalCompletionTokens, estimatedCostUsd: totalEstimatedCost };
+
+          for (const [targetPath, linkedPaths] of combinedLinkMap) {
             if (linkedPaths.length === 0) continue;
 
             if (settings.autoApplyOrganize) {
@@ -357,9 +370,11 @@ export class OrganizeFolderUseCase {
       await this.tagEmbeddingCache.flush();
     }
 
+    const totalSkipped = mutableSkip.alreadyProcessed + mutableSkip.tooShort + mutableSkip.alreadyLinked + mutableSkip.alreadyOrganized;
     return {
       processedCount: results.length,
-      skippedCount: allNotes.length - unprocessedNotes.length,
+      skippedCount: totalSkipped,
+      skipBreakdown,
       results,
       errors,
       cancelled,

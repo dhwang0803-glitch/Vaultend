@@ -153,6 +153,7 @@ const en = {
   'organizeFolder.selectFolder': 'Select a folder to organize',
   'organizeFolder.rescan': 'Re-organize',
   'organizeFolder.summary': '{{processed}} processed, {{skipped}} skipped, {{errors}} errors',
+  'organizeFolder.skipDetail': 'Skipped: {{tooShort}} too short · {{alreadyLinked}} already linked · {{alreadyOrganized}} already organized',
   'organizeFolder.noResults': 'No notes to organize in this folder.',
   'organizeFolder.lowConfidence': 'Low Confidence',
   'organizeFolder.category': 'Category: {{category}}',

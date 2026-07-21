@@ -64,7 +64,7 @@ export class OpenAIAdapter implements AIProviderPort {
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
-      maxTokens: 1000,
+      maxTokens: 400,
       temperature: 0.1,
       jsonMode: true,
     });
@@ -76,7 +76,7 @@ export class OpenAIAdapter implements AIProviderPort {
       category: (parsed.category as string) ?? '',
       suggestedTags: tags,
       summary: (parsed.summary as string) ?? '',
-      confidence: (parsed.confidence as number) ?? 0.5,
+      confidence: (parsed.confidence as number) ?? 1.0,
       tokenUsage: completionResponse.tokenUsage,
       tagDetails: details.length > 0 ? details : undefined,
       onelineSummary: typeof parsed.onelineSummary === 'string' ? parsed.onelineSummary : undefined,
