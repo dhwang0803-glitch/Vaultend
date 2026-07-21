@@ -160,6 +160,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.applied': '적용됨',
   'organizeFolder.skipped': '건너뜀',
   'organizeFolder.noChanges': '제안된 변경이 없습니다',
+  'organizeFolder.noChangesHint': '이미 충분한 태그가 있거나 vault 내 관련 노트가 없는 경우 변경이 제안되지 않습니다.',
   'organizeFolder.noLinks': '관련 링크를 찾지 못했습니다',
   'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
   'organizeFolder.tokenTotalUnavailable': '총 토큰: {{count}} · 비용: 추정 불가 (미등록 모델)',

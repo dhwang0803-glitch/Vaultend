@@ -158,6 +158,7 @@ const en = {
   'organizeFolder.applied': 'Applied',
   'organizeFolder.skipped': 'Skipped',
   'organizeFolder.noChanges': 'No changes suggested',
+  'organizeFolder.noChangesHint': 'Notes with sufficient tags and no related notes in the vault will show no changes.',
   'organizeFolder.noLinks': 'No related links found',
   'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
   'organizeFolder.tokenTotalUnavailable': 'Total tokens: {{count}} · Cost: N/A (unregistered model)',

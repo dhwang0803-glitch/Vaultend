@@ -217,8 +217,9 @@ export class OrganizeFolderResultView extends ItemView {
     const displayFolder = this.targetFolder || '/';
     this.contentEl.createEl('h4', { text: `${t('organizeFolder.viewTitle')}: ${displayFolder}/` });
 
-    // Rescan button
+    // Rescan button + guidance
     new Setting(this.contentEl)
+      .setDesc(t('organizeFolder.noChangesHint'))
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.rescan'))
           .onClick(() => {
@@ -236,10 +237,14 @@ export class OrganizeFolderResultView extends ItemView {
       }),
     });
 
-    // Token total
+    // Token total (LLM tokens only — excludes embedding API tokens)
     if (result.results.length > 0) {
-      const totalTokens = result.results.reduce((sum, r) => sum + r.tokenUsage.totalTokens, 0);
-      const totalCost = result.results.reduce((sum, r) => sum + r.tokenUsage.estimatedCostUsd, 0);
+      let totalTokens = result.results.reduce((sum, r) => sum + r.tokenUsage.totalTokens, 0);
+      let totalCost = result.results.reduce((sum, r) => sum + r.tokenUsage.estimatedCostUsd, 0);
+      if (result.linkSelectionTokenUsage) {
+        totalTokens += result.linkSelectionTokenUsage.totalTokens;
+        totalCost += result.linkSelectionTokenUsage.estimatedCostUsd;
+      }
       const hasCostData = totalCost >= 0;
       summaryEl.createEl('span', {
         text: hasCostData
