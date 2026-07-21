@@ -31,6 +31,7 @@ import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrg
 import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefactorCostUseCase';
 import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
 import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
+import { BuildSummaryIndexUseCase } from './application/usecases/BuildSummaryIndexUseCase';
 
 // UI
 import { OrganizeResultModal, OrganizeApplyActions } from './ui/OrganizeResultModal';
@@ -386,11 +387,19 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.vaultAdapter, this.configPort, this.clockAdapter,
     );
 
+    const buildSummaryIndex = this.hasAIProviderConfig()
+      ? new BuildSummaryIndexUseCase(
+        this.vaultAdapter, this.aiAdapter,
+        this.noteEmbeddingCacheAdapter, this.configPort,
+      )
+      : undefined;
+
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
       this.aiAdapter, this.vaultAdapter,
       this.historyAdapter, this.configPort,
       this.tagEmbeddingCacheAdapter,
       this.noteEmbeddingCacheAdapter,
+      buildSummaryIndex,
     );
 
     this.organizeFolderUseCase = new OrganizeFolderUseCase(
@@ -399,6 +408,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter,
       this.tagEmbeddingCacheAdapter,
       this.noteEmbeddingCacheAdapter,
+      buildSummaryIndex,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
@@ -407,6 +417,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.changeTracker, this.corpusStatsAdapter,
       this.aiAdapter,
       this.tagEmbeddingCacheAdapter,
+      this.noteEmbeddingCacheAdapter,
+      buildSummaryIndex,
     );
 
 
@@ -479,6 +491,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         },
         (pair) => this.triggerMergeForPair(pair),
         (notePath) => this.findLinksForOrphan(notePath),
+        (notePaths) => this.organizeSelectedNotes(notePaths),
       ),
     );
 
@@ -803,6 +816,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     });
 
     return suggestions.map(s => createNotePath(s.path));
+  }
+
+  private async organizeSelectedNotes(notePaths: NotePath[]): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+    for (const notePath of notePaths) {
+      try {
+        await this.organizeNoteUseCase.execute(notePath, true);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    return { success, failed };
   }
 
   private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {

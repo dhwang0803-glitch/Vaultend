@@ -39,6 +39,7 @@ export interface MaintenancePlan {
   readonly untaggedNotes: ReadonlyArray<NotePath>;
   readonly duplicateTags: ReadonlyArray<DuplicateTagGroup>;
   readonly timestamp: Timestamp;
+  readonly tokenUsage?: TokenUsage;
 }
 
 export interface OrphanNoteEntry {

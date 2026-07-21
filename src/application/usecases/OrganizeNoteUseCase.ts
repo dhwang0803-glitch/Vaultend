@@ -13,6 +13,7 @@ import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
+import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
 import { getLocale } from '../../i18n';
 import {
   TagNormalizationService,
@@ -45,9 +46,14 @@ export class OrganizeNoteUseCase {
     private readonly config: ConfigPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
     private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
+    private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
   ) {}
 
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
+    if (!context) {
+      await this.ensureSummaryIndex();
+    }
+
     const note = await this.vault.readNote(notePath);
     if (!note) {
       throw new NoteNotFoundError(notePath as string);
@@ -70,15 +76,12 @@ export class OrganizeNoteUseCase {
     const freqTags = allVaultTags.slice(0, MAX_FREQ_TAGS);
     const remainingTags = allVaultTags.slice(MAX_FREQ_TAGS);
 
-    const zeroUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
-    let relevanceTokenUsage: TokenUsage = zeroUsage;
     let vaultTagEntries: ReadonlyArray<{ tag: string; count: number }>;
     if (remainingTags.length > 0 && this.tagEmbeddingCache) {
       const relevanceResult = await this.selectRelevantTagsByContent(
         truncatedContent, remainingTags, context?.cachedTagEmbeddings, MAX_RELEVANCE_TAGS,
       );
       vaultTagEntries = [...freqTags, ...relevanceResult.tags];
-      relevanceTokenUsage = relevanceResult.tokenUsage;
     } else {
       vaultTagEntries = freqTags;
     }
@@ -168,13 +171,11 @@ export class OrganizeNoteUseCase {
     const canonicalSet = new Set(canonicalIndex.map(g => g.canonical.toLowerCase()));
     const trulyNewTags = sanitizedTags.filter(t => !canonicalSet.has(t.toLowerCase()));
     let embeddingResolved = new Map<string, string>();
-    let embeddingTokenUsage: TokenUsage = zeroUsage;
     if (trulyNewTags.length > 0) {
       const embeddingResult = await this.resolveByEmbedding(
         trulyNewTags, canonicalIndex, context?.cachedTagEmbeddings,
       );
       embeddingResolved = embeddingResult.resolved;
-      embeddingTokenUsage = embeddingResult.tokenUsage;
     }
 
     // Apply embedding resolution and update transforms
@@ -224,10 +225,10 @@ export class OrganizeNoteUseCase {
       summary: classification.summary,
       onelineSummary: classification.onelineSummary,
       tokenUsage: {
-        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens + linkTokenUsage.promptTokens,
-        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens + linkTokenUsage.completionTokens,
-        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens + relevanceTokenUsage.totalTokens + linkTokenUsage.totalTokens,
-        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd + relevanceTokenUsage.estimatedCostUsd + linkTokenUsage.estimatedCostUsd,
+        promptTokens: classification.tokenUsage.promptTokens + linkTokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + linkTokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + linkTokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + linkTokenUsage.estimatedCostUsd,
       },
       tagReasons,
     };
@@ -555,5 +556,10 @@ export class OrganizeNoteUseCase {
       },
     });
     return entryId;
+  }
+
+  private async ensureSummaryIndex(): Promise<void> {
+    if (!this.buildSummaryIndex) return;
+    await this.buildSummaryIndex.execute();
   }
 }

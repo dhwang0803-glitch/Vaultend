@@ -30,6 +30,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.batchDismissed': '{{count}}건 무시 처리',
   'notice.batchRestored': '{{count}}건 복원 완료',
   'notice.batchRestoreResult': '{{success}}건 복원, {{failed}}건 실패',
+  'notice.organizeSelectedComplete': '{{count}}건 노트 정리 완료',
+  'notice.organizeSelectedResult': '{{success}}건 정리, {{failed}}건 실패',
   'notice.autoMaintenanceFound': '자동 유지보수: {{count}}건 발견',
 
   // ─── Maintenance Result View ───
@@ -46,6 +48,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'maintenance.vaultClean': 'Vault 상태가 양호합니다.',
   'maintenance.applied': '적용됨',
   'maintenance.restored': '복원됨',
+  'maintenance.tokenTotal': 'AI 토큰: {{count}} · 비용: ${{cost}}',
+  'maintenance.tokenTotalUnavailable': 'AI 토큰: {{count}} · 비용: 추정 불가 (미등록 모델)',
 
   // Issue type labels
   'issue.emptyNotes': '빈 노트 ({{count}})',
@@ -106,6 +110,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedLink': '선택 링크 생성',
   'batch.selectedApplyTags': '선택 태그 적용',
   'batch.selectedMergeTags': '선택 병합',
+  'batch.selectedOrganize': '선택 정리',
 
   // Dismiss
   'dismiss.tooltip': '무시',
@@ -160,6 +165,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'organizeFolder.applied': '적용됨',
   'organizeFolder.skipped': '건너뜀',
   'organizeFolder.noChanges': '제안된 변경이 없습니다',
+  'organizeFolder.noChangesHint': '이미 충분한 태그가 있거나 vault 내 관련 노트가 없는 경우 변경이 제안되지 않습니다.',
   'organizeFolder.noLinks': '관련 링크를 찾지 못했습니다',
   'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
   'organizeFolder.tokenTotalUnavailable': '총 토큰: {{count}} · 비용: 추정 불가 (미등록 모델)',
