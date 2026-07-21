@@ -6,6 +6,7 @@ import { ClockPort } from '../ports/ClockPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
+import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
@@ -51,9 +52,12 @@ export class OrganizeFolderUseCase {
     private readonly aiProvider?: AIProviderPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
     private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
+    private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
   ) {}
 
   async execute(options?: OrganizeFolderOptions): Promise<OrganizeFolderResult> {
+    await this.ensureSummaryIndex();
+
     const settings = await this.config.getSettings();
     const rawFolder = options?.folder ?? settings.captureFolder;
     const targetFolder = rawFolder === '/' ? undefined : rawFolder;
@@ -364,4 +368,8 @@ export class OrganizeFolderUseCase {
     };
   }
 
+  private async ensureSummaryIndex(): Promise<void> {
+    if (!this.buildSummaryIndex) return;
+    await this.buildSummaryIndex.execute();
+  }
 }

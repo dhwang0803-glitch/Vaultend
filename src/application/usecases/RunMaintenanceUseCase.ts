@@ -1,4 +1,5 @@
 import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../../domain/models/OrganizeModels';
+import { TokenUsage } from '../../domain/models/TokenUsage';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
@@ -12,6 +13,8 @@ import { TagNormalizationService, CanonicalTagGroup } from '../../domain/service
 import { FuzzyLinkMatcher } from '../../domain/services/FuzzyLinkMatcher';
 import { LinkSuggestionService } from '../../domain/services/LinkSuggestionService';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
+import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
+import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
@@ -32,9 +35,13 @@ export class RunMaintenanceUseCase {
     private readonly corpusStats?: CorpusStatsPort,
     private readonly aiProvider?: AIProviderPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
+    private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
+    private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
   ) {}
 
   async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
+    const indexTokenUsage = await this.ensureSummaryIndex();
+
     const allNotes = options?.folder
       ? await this.vault.listNotes(options.folder)
       : await this.vault.listNotes();
@@ -46,9 +53,12 @@ export class RunMaintenanceUseCase {
     const canvasRefs = await this.collectCanvasReferences();
 
     const orphanNotes = await this.findOrphanNotes(filteredNotes, canvasRefs);
+
     const duplicateCandidates = await this.findDuplicates(filteredNotes);
     const brokenLinks = await this.findBrokenLinks(filteredNotes, allNotes);
+
     const missingTags = await this.suggestMissingTags(filteredNotes);
+
     const emptyNotes = await this.findEmptyNotes(filteredNotes);
     const untaggedNotes = await this.findUntaggedNotes(filteredNotes);
     const duplicateTags = await this.findDuplicateTags(filteredNotes);
@@ -67,6 +77,7 @@ export class RunMaintenanceUseCase {
       untaggedNotes,
       duplicateTags,
       timestamp: now,
+      tokenUsage: indexTokenUsage,
     };
   }
 
@@ -154,6 +165,8 @@ export class RunMaintenanceUseCase {
         orphanData.push({ notePath, fileSize: note.metadata.fileSize, tags, tokens });
       }
     }
+
+    if (orphanData.length === 0) return [];
 
     return orphanData.map(orphan => {
       const suggestions = LinkSuggestionService.findRelatedNotes({
@@ -487,7 +500,9 @@ export class RunMaintenanceUseCase {
     return resolved.join('/');
   }
 
-  private async suggestMissingTags(allNotes: ReadonlyArray<NotePath>): Promise<MissingTagSuggestion[]> {
+  private async suggestMissingTags(
+    allNotes: ReadonlyArray<NotePath>,
+  ): Promise<MissingTagSuggestion[]> {
     const settings = await this.config.getSettings();
     let tagSource: ReadonlyArray<string> = settings.knownTags ?? [];
     if (tagSource.length === 0) {
@@ -496,6 +511,27 @@ export class RunMaintenanceUseCase {
     }
     if (tagSource.length === 0) return [];
 
+    const candidateNotes: Array<{ notePath: NotePath; content: string; existingTags: Set<string> }> = [];
+    for (const notePath of allNotes) {
+      const note = await this.vault.readNote(notePath);
+      if (!note) continue;
+      if (note.metadata.tags.length > 1) continue;
+      candidateNotes.push({
+        notePath,
+        content: note.content,
+        existingTags: new Set(note.metadata.tags.map(t => t as string)),
+      });
+    }
+
+    if (candidateNotes.length === 0) return [];
+
+    return this.keywordTagFallback(candidateNotes, tagSource);
+  }
+
+  private keywordTagFallback(
+    candidateNotes: ReadonlyArray<{ notePath: NotePath; content: string; existingTags: Set<string> }>,
+    tagSource: ReadonlyArray<string>,
+  ): MissingTagSuggestion[] {
     const keywordToTag = new Map<string, string>();
     for (const tag of tagSource) {
       const stripped = (tag as string).startsWith('#') ? (tag as string).substring(1) : tag as string;
@@ -508,18 +544,12 @@ export class RunMaintenanceUseCase {
     }
 
     const suggestions: MissingTagSuggestion[] = [];
-
-    for (const notePath of allNotes) {
-      const note = await this.vault.readNote(notePath);
-      if (!note) continue;
-      if (note.metadata.tags.length > 1) continue;
-
-      const contentLower = note.content.toLowerCase();
-      const existingTagStrs = new Set(note.metadata.tags.map(t => t as string));
+    for (const { notePath, content, existingTags } of candidateNotes) {
+      const contentLower = content.toLowerCase();
       const matched: string[] = [];
 
       for (const [keyword, tag] of keywordToTag) {
-        if (contentLower.includes(keyword) && !existingTagStrs.has(tag)) {
+        if (contentLower.includes(keyword) && !existingTags.has(tag)) {
           matched.push(tag);
         }
       }
@@ -533,7 +563,6 @@ export class RunMaintenanceUseCase {
         });
       }
     }
-
     return suggestions;
   }
 
@@ -660,5 +689,12 @@ export class RunMaintenanceUseCase {
     } catch {
       return [];
     }
+  }
+
+  private async ensureSummaryIndex(): Promise<TokenUsage | undefined> {
+    if (!this.buildSummaryIndex) return undefined;
+    const result = await this.buildSummaryIndex.execute();
+    if (result.processedNotes === 0) return undefined;
+    return result.tokenUsage;
   }
 }

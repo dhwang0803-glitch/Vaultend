@@ -13,6 +13,7 @@ import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
+import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
 import { getLocale } from '../../i18n';
 import {
   TagNormalizationService,
@@ -45,9 +46,14 @@ export class OrganizeNoteUseCase {
     private readonly config: ConfigPort,
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
     private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
+    private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
   ) {}
 
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
+    if (!context) {
+      await this.ensureSummaryIndex();
+    }
+
     const note = await this.vault.readNote(notePath);
     if (!note) {
       throw new NoteNotFoundError(notePath as string);
@@ -550,5 +556,10 @@ export class OrganizeNoteUseCase {
       },
     });
     return entryId;
+  }
+
+  private async ensureSummaryIndex(): Promise<void> {
+    if (!this.buildSummaryIndex) return;
+    await this.buildSummaryIndex.execute();
   }
 }

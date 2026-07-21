@@ -28,6 +28,8 @@ const en = {
   'notice.batchDismissed': '{{count}} dismissed',
   'notice.batchRestored': '{{count}} restored',
   'notice.batchRestoreResult': '{{success}} restored, {{failed}} failed',
+  'notice.organizeSelectedComplete': '{{count}} notes organized',
+  'notice.organizeSelectedResult': '{{success}} organized, {{failed}} failed',
   'notice.autoMaintenanceFound': 'Auto Maintenance: {{count}} issues found',
 
   // ─── Maintenance Result View ───
@@ -44,6 +46,8 @@ const en = {
   'maintenance.vaultClean': 'Vault is in good shape.',
   'maintenance.applied': 'Applied',
   'maintenance.restored': 'Restored',
+  'maintenance.tokenTotal': 'AI tokens: {{count}} · Cost: ${{cost}}',
+  'maintenance.tokenTotalUnavailable': 'AI tokens: {{count}} · Cost: N/A (unregistered model)',
 
   // Issue type labels
   'issue.emptyNotes': 'Empty Notes ({{count}})',
@@ -104,6 +108,7 @@ const en = {
   'batch.selectedLink': 'Link Selected',
   'batch.selectedApplyTags': 'Apply Tags to Selected',
   'batch.selectedMergeTags': 'Merge Selected',
+  'batch.selectedOrganize': 'Organize Selected',
 
   // Dismiss
   'dismiss.tooltip': 'Dismiss',

@@ -57,6 +57,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
     private readonly onLinkOrphan?: (notePath: NotePath) => Promise<ReadonlyArray<NotePath>>,
+    private readonly onOrganizeSelected?: (notePaths: NotePath[]) => Promise<{ success: number; failed: number }>,
   ) {
     super(leaf);
   }
@@ -218,6 +219,16 @@ export class MaintenanceResultView extends ItemView {
     if (counts.duplicate > 0) parts.push(t('summary.duplicates', { count: counts.duplicate }));
     if (counts['duplicate-tags'] > 0) parts.push(t('summary.duplicateTags', { count: counts['duplicate-tags'] }));
     summaryEl.createEl('p', { text: parts.join(' · ') });
+
+    if (plan.tokenUsage && plan.tokenUsage.totalTokens > 0) {
+      const hasCostData = plan.tokenUsage.estimatedCostUsd >= 0;
+      summaryEl.createEl('span', {
+        text: hasCostData
+          ? t('maintenance.tokenTotal', { count: plan.tokenUsage.totalTokens.toLocaleString(), cost: plan.tokenUsage.estimatedCostUsd.toFixed(4) })
+          : t('maintenance.tokenTotalUnavailable', { count: plan.tokenUsage.totalTokens.toLocaleString() }),
+        cls: 'maintenance-token-info',
+      });
+    }
 
     // Filter bar
     this.renderFilterBar(contentEl, counts);
@@ -459,6 +470,9 @@ export class MaintenanceResultView extends ItemView {
       false, undefined, undefined, false,
       hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
     );
+    if (this.onOrganizeSelected) {
+      this.addOrganizeButton(section, entries);
+    }
 
     for (const notePath of filtered) {
       const suggestions = tagSuggestionMap.get(notePath as string);
@@ -635,6 +649,9 @@ export class MaintenanceResultView extends ItemView {
       (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
       true,
     );
+    if (this.onOrganizeSelected) {
+      this.addOrganizeButton(section, entries);
+    }
 
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
@@ -1152,6 +1169,45 @@ export class MaintenanceResultView extends ItemView {
       }
     } finally {
       this.restoreInProgress = false;
+    }
+  }
+
+  private addOrganizeButton(section: HTMLElement, entries: BatchEntry[]): void {
+    const batchControls = section.querySelector('.maintenance-batch-controls .setting-item-control');
+    if (!batchControls) return;
+    const btn = batchControls.createEl('button', {
+      cls: 'mod-cta',
+      text: t('batch.selectedOrganize'),
+    });
+    batchControls.prepend(btn);
+    btn.addEventListener('click', () => this.executeOrganizeBatch(entries));
+  }
+
+  private async executeOrganizeBatch(entries: BatchEntry[]): Promise<void> {
+    if (!this.onOrganizeSelected) return;
+    const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
+    if (selected.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    const notePaths = selected
+      .map(e => 'notePath' in e.action ? (e.action as { notePath: NotePath }).notePath : createNotePath(e.identifier))
+      .filter((p): p is NotePath => !!p);
+
+    if (notePaths.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+
+    const result = await this.onOrganizeSelected(notePaths);
+    if (result.failed > 0) {
+      new Notice(t('notice.organizeSelectedResult', { success: result.success, failed: result.failed }));
+    } else {
+      new Notice(t('notice.organizeSelectedComplete', { count: result.success }));
+    }
+
+    if (result.success > 0) {
+      this.triggerScan();
     }
   }
 
