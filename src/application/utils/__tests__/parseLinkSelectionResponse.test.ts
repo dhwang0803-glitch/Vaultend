@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLinkSelectionResponse } from '../parseLinkSelectionResponse';
+import { parseLinkSelectionResponse, DEFAULT_LINK_RELEVANCE_THRESHOLD } from '../parseLinkSelectionResponse';
 import { NotePath } from '../../../domain/values/NotePath';
 
 function np(s: string): NotePath { return s as NotePath; }
@@ -20,7 +20,9 @@ describe('parseLinkSelectionResponse', () => {
     [3, np('note-c.md')],
   ]);
 
-  it('parses valid JSON with correct mappings', () => {
+  // --- Legacy format (plain number arrays) ---
+
+  it('parses legacy format with correct mappings', () => {
     const json = '{"links": {"1": [2, 4], "3": [5, 7]}}';
     const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
 
@@ -91,5 +93,139 @@ describe('parseLinkSelectionResponse', () => {
     expect(result.size).toBe(1);
     expect(result.has(np('note-a.md'))).toBe(false);
     expect(result.get(np('note-c.md'))).toEqual([np('note-e.md')]);
+  });
+
+  // --- Scored format (objects with note/score/reason) ---
+
+  it('parses scored format and keeps entries above threshold', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 9, reason: 'same domain' },
+          { note: 4, score: 8, reason: 'complementary' },
+        ],
+        '3': [
+          { note: 5, score: 7, reason: 'reference value' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.size).toBe(2);
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md'), np('note-d.md')]);
+    expect(result.get(np('note-c.md'))).toEqual([np('note-e.md')]);
+  });
+
+  it('filters out scored entries below default threshold', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 9, reason: 'strong match' },
+          { note: 4, score: 5, reason: 'weak match' },
+          { note: 5, score: 3, reason: 'noise' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md')]);
+  });
+
+  it('drops target entirely when all entries are below threshold', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 4, reason: 'meta-category only' },
+          { note: 3, score: 3, reason: 'keyword overlap' },
+        ],
+        '3': [
+          { note: 5, score: 8, reason: 'strong match' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.size).toBe(1);
+    expect(result.has(np('note-a.md'))).toBe(false);
+    expect(result.get(np('note-c.md'))).toEqual([np('note-e.md')]);
+  });
+
+  it('respects custom minScore parameter', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 9, reason: 'strong' },
+          { note: 4, score: 8, reason: 'good' },
+          { note: 5, score: 7, reason: 'ok' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex, 8);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md'), np('note-d.md')]);
+  });
+
+  it('handles mixed legacy and scored entries in same array', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 9, reason: 'strong' },
+          4,
+          { note: 5, score: 3, reason: 'noise' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md'), np('note-d.md')]);
+  });
+
+  it('exports default threshold constant', () => {
+    expect(DEFAULT_LINK_RELEVANCE_THRESHOLD).toBe(7);
+  });
+
+  it('handles scored entries with missing reason gracefully', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 8 },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md')]);
+  });
+
+  it('removes self-references in scored format', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 1, score: 10, reason: 'self' },
+          { note: 2, score: 8, reason: 'real link' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md')]);
+  });
+
+  it('limits scored entries to 5 per target', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 2, score: 10, reason: 'a' },
+          { note: 3, score: 10, reason: 'b' },
+          { note: 4, score: 10, reason: 'c' },
+          { note: 5, score: 10, reason: 'd' },
+          { note: 6, score: 10, reason: 'e' },
+          { note: 7, score: 10, reason: 'f' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))!.length).toBe(5);
   });
 });
