@@ -24,6 +24,7 @@ import { stripFrontmatter } from '../../domain/services/tokenize';
 import { PromptTemplates } from '../PromptTemplates';
 import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
 import { detectContentLanguage } from '../utils/detectContentLanguage';
+import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
@@ -533,12 +534,8 @@ export class OrganizeNoteUseCase {
     if (result.suggestedLinks.length > 0) {
       const currentNote = await this.vault.readNote(notePath);
       if (currentNote) {
-        const linkLines = result.suggestedLinks.map(link => {
-          const linkPath = (link as string).replace('.md', '');
-          return `- [[${linkPath}]]`;
-        });
-        const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
-        await this.vault.writeNote(notePath, currentNote.content + section);
+        const linkStrs = result.suggestedLinks.map(l => l as string);
+        await this.vault.writeNote(notePath, replaceRelatedNotesSection(currentNote.content, linkStrs));
       }
     }
 

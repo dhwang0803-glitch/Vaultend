@@ -30,6 +30,7 @@ const en = {
   'notice.batchRestoreResult': '{{success}} restored, {{failed}} failed',
   'notice.organizeSelectedComplete': '{{count}} notes organized',
   'notice.organizeSelectedResult': '{{success}} organized, {{failed}} failed',
+  'notice.organizePreviewFailed': '{{failed}} notes failed to process',
   'notice.autoMaintenanceFound': 'Auto Maintenance: {{count}} issues found',
 
   // ─── Maintenance Result View ───
@@ -95,6 +96,7 @@ const en = {
   'btn.mergeWithAI': 'Merge with AI',
   'btn.ask': 'Ask',
   'btn.close': 'Close',
+  'btn.cancel': 'Cancel',
 
   // Batch
   'batch.selectAll': 'Select All',
@@ -194,6 +196,12 @@ const en = {
   'organize.tagScore': 'Score: {{score}}',
   'organize.tagNew': 'New',
   'organize.tagExisting': 'Existing',
+  'organize.processing': 'Processing {{current}}/{{total}}...',
+  'organize.batchPreviewTitle': 'Organize Selected — Preview',
+  'organize.batchPreviewDesc': '{{count}} notes will be organized. Review changes before applying.',
+  'organize.tagsLabel': 'Tags: ',
+  'organize.linksLabel': 'Links: ',
+  'organize.noChanges': 'No changes to apply.',
 
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',

@@ -32,6 +32,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.batchRestoreResult': '{{success}}건 복원, {{failed}}건 실패',
   'notice.organizeSelectedComplete': '{{count}}건 노트 정리 완료',
   'notice.organizeSelectedResult': '{{success}}건 정리, {{failed}}건 실패',
+  'notice.organizePreviewFailed': '{{failed}}건 노트 처리 실패',
   'notice.autoMaintenanceFound': '자동 유지보수: {{count}}건 발견',
 
   // ─── Maintenance Result View ───
@@ -97,6 +98,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'btn.mergeWithAI': 'AI 병합',
   'btn.ask': '질문하기',
   'btn.close': '닫기',
+  'btn.cancel': '취소',
 
   // Batch
   'batch.selectAll': '전체 선택',
@@ -196,6 +198,12 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tagScore': '점수: {{score}}',
   'organize.tagNew': '신규',
   'organize.tagExisting': '기존',
+  'organize.processing': '처리 중 {{current}}/{{total}}...',
+  'organize.batchPreviewTitle': '선택 정리 — 미리보기',
+  'organize.batchPreviewDesc': '{{count}}건 노트가 정리됩니다. 적용 전에 변경 사항을 확인하세요.',
+  'organize.tagsLabel': '태그: ',
+  'organize.linksLabel': '링크: ',
+  'organize.noChanges': '적용할 변경 사항 없음.',
 
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
   'organizeFolder.cancel': '취소',

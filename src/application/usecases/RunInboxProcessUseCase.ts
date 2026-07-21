@@ -18,6 +18,7 @@ import { stripFrontmatter } from '../../domain/services/tokenize';
 import { PromptTemplates } from '../PromptTemplates';
 import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
 import { detectContentLanguage } from '../utils/detectContentLanguage';
+import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -313,12 +314,8 @@ export class OrganizeFolderUseCase {
               const note = await this.vault.readNote(targetPath);
               if (note) {
                 const previousContent = note.content;
-                const linkLines = linkedPaths.map(lp => {
-                  const linkPath = (lp as string).replace('.md', '');
-                  return `- [[${linkPath}]]`;
-                });
-                const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
-                await this.vault.writeNote(targetPath, note.content + section);
+                const linkStrs = linkedPaths.map(lp => lp as string);
+                await this.vault.writeNote(targetPath, replaceRelatedNotesSection(note.content, linkStrs));
 
                 await this.history.record({
                   id: crypto.randomUUID(),
