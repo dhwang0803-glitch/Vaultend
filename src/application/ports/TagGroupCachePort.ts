@@ -4,11 +4,14 @@ export interface TagGroupCacheMeta {
   readonly version: number;
 }
 
+export type CachedTagGroupType = 'merge' | 'nest' | 'relate';
+
 export interface CachedTagGroup {
   readonly canonical: string;
   readonly variants: ReadonlyArray<string>;
   readonly source: 'normalization' | 'llm';
   readonly reason?: string;
+  readonly type?: CachedTagGroupType;
 }
 
 export interface TagGroupCachePort {

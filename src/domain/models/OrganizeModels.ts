@@ -76,8 +76,11 @@ export interface BrokenLink {
   readonly fixConfidence?: number;
 }
 
+export type TagGroupType = 'merge' | 'nest' | 'relate';
+
 export interface DuplicateTagGroup {
   readonly canonicalTag: TagName;
   readonly variants: ReadonlyArray<{ tag: TagName; count: number }>;
   readonly affectedNotes: ReadonlyArray<NotePath>;
+  readonly groupType: TagGroupType;
 }

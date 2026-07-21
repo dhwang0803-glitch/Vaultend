@@ -620,6 +620,7 @@ export class RunMaintenanceUseCase {
         canonicalTag: createTagName(group.canonical),
         variants: group.variants.map(v => ({ tag: createTagName(v.tag), count: v.count })),
         affectedNotes: affected,
+        groupType: 'merge',
       });
     }
 

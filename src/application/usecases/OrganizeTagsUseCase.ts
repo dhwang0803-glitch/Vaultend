@@ -2,7 +2,7 @@ import type { VaultAccessPort } from '../ports/VaultAccessPort';
 import type { AIProviderPort } from '../ports/AIProviderPort';
 import type { TagGroupCachePort, CachedTagGroup } from '../ports/TagGroupCachePort';
 import type { ConfigPort } from '../ports/ConfigPort';
-import { DuplicateTagGroup } from '../../domain/models/OrganizeModels';
+import { DuplicateTagGroup, TagGroupType } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { TagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
@@ -215,8 +215,11 @@ export class OrganizeTagsUseCase {
             variants: [...pg.variants],
             source: 'llm',
             reason: pg.reason,
+            type: pg.type,
           });
-          accumulatedCanonicals.push(pg.canonical);
+          if (pg.type !== 'relate') {
+            accumulatedCanonicals.push(pg.canonical);
+          }
         }
       } catch (err) {
         console.error(`Vaultend: tag grouping batch ${batchIdx + 1} failed`, err);
@@ -280,13 +283,11 @@ export class OrganizeTagsUseCase {
     cachedGroups: ReadonlyArray<CachedTagGroup>,
     currentTagEntries: ReadonlyArray<{ tag: string; count: number }>,
   ): Promise<DuplicateTagGroup[]> {
-    // Build tag → count map
     const tagCountMap = new Map<string, number>();
     for (const e of currentTagEntries) {
       tagCountMap.set(e.tag.toLowerCase(), e.count);
     }
 
-    // Build reverse index: tag → notePaths (using metadata cache, 0 file I/O)
     const allNotes = await this.vault.listNotesWithMetadata();
     const tagToNotes = new Map<string, NotePath[]>();
     for (const note of allNotes) {
@@ -304,9 +305,37 @@ export class OrganizeTagsUseCase {
     const result: DuplicateTagGroup[] = [];
 
     for (const group of cachedGroups) {
-      const variants: Array<{ tag: TagName; count: number }> = [];
+      const groupType: TagGroupType = group.type ?? 'merge';
 
-      // Include canonical in variant list for display
+      if (groupType === 'nest') {
+        // Expand nest group into individual nesting suggestions
+        for (const childTag of group.variants) {
+          const nestedPath = OrganizeTagsUseCase.computeNestedPath(group.canonical, childTag);
+          const childCount = tagCountMap.get(childTag.toLowerCase()) ?? 0;
+          const nestedCount = tagCountMap.get(nestedPath.toLowerCase()) ?? 0;
+
+          const affectedNoteSet = new Set<string>();
+          const childNotes = tagToNotes.get(childTag.toLowerCase()) ?? [];
+          for (const n of childNotes) {
+            affectedNoteSet.add(n as unknown as string);
+          }
+          const affectedNotes = [...affectedNoteSet].map(p => p as unknown as NotePath);
+
+          result.push({
+            canonicalTag: nestedPath as TagName,
+            variants: [
+              { tag: nestedPath as TagName, count: nestedCount },
+              { tag: childTag as TagName, count: childCount },
+            ],
+            affectedNotes,
+            groupType: 'nest',
+          });
+        }
+        continue;
+      }
+
+      // merge and relate: standard handling
+      const variants: Array<{ tag: TagName; count: number }> = [];
       const canonicalCount = tagCountMap.get(group.canonical.toLowerCase()) ?? 0;
       variants.push({ tag: group.canonical as TagName, count: canonicalCount });
 
@@ -315,10 +344,8 @@ export class OrganizeTagsUseCase {
         variants.push({ tag: v as TagName, count });
       }
 
-      // Sort variants: highest count first
       variants.sort((a, b) => b.count - a.count);
 
-      // Affected notes = all notes that have any variant tag
       const affectedNoteSet = new Set<string>();
       for (const v of group.variants) {
         const notes = tagToNotes.get(v.toLowerCase()) ?? [];
@@ -333,12 +360,32 @@ export class OrganizeTagsUseCase {
         canonicalTag: group.canonical as TagName,
         variants,
         affectedNotes,
+        groupType,
       });
     }
 
-    // Sort: largest affected notes first
-    result.sort((a, b) => b.affectedNotes.length - a.affectedNotes.length);
+    // Sort: merge first, then nest, then relate; within each type by affected notes
+    const typeOrder: Record<TagGroupType, number> = { merge: 0, nest: 1, relate: 2 };
+    result.sort((a, b) => {
+      const typeDiff = typeOrder[a.groupType] - typeOrder[b.groupType];
+      if (typeDiff !== 0) return typeDiff;
+      return b.affectedNotes.length - a.affectedNotes.length;
+    });
 
     return result;
+  }
+
+  static computeNestedPath(parent: string, child: string): string {
+    const parentLower = parent.toLowerCase();
+    const childLower = child.toLowerCase();
+
+    for (const sep of ['-', '_']) {
+      if (childLower.startsWith(parentLower + sep)) {
+        const suffix = child.substring(parent.length + 1);
+        return `${parent}/${suffix}`;
+      }
+    }
+
+    return `${parent}/${child}`;
   }
 }

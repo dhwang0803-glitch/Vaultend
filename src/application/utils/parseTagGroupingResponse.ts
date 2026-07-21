@@ -1,7 +1,10 @@
+export type TagGroupType = 'merge' | 'nest' | 'relate';
+
 export interface ParsedTagGroup {
   readonly canonical: string;
   readonly variants: ReadonlyArray<string>;
   readonly reason?: string;
+  readonly type: TagGroupType;
 }
 
 export function parseTagGroupingResponse(
@@ -49,7 +52,9 @@ export function parseTagGroupingResponse(
     if (variants.length === 0) continue;
 
     const reason = typeof group.reason === 'string' ? group.reason : undefined;
-    result.push({ canonical: canonicalTag, variants, reason });
+    const rawType = typeof group.type === 'string' ? group.type : 'merge';
+    const type: TagGroupType = rawType === 'nest' || rawType === 'relate' ? rawType : 'merge';
+    result.push({ canonical: canonicalTag, variants, reason, type });
   }
 
   return result;

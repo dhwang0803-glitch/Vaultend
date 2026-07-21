@@ -2,7 +2,7 @@ import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { OrganizeTagsUseCase, OrganizeTagsResult, OrganizeTagsProgress } from '../application/usecases/OrganizeTagsUseCase';
 import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
-import { DuplicateTagGroup } from '../domain/models/OrganizeModels';
+import { DuplicateTagGroup, TagGroupType } from '../domain/models/OrganizeModels';
 import { TagName } from '../domain/values/TagName';
 import { ORGANIZE_TAGS_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { OrganizeTagEditModal } from './OrganizeTagEditModal';
@@ -242,20 +242,41 @@ export class OrganizeTagsView extends ItemView {
   }
 
   private renderGroupCard(container: HTMLElement, group: DuplicateTagGroup): void {
-    const entryContainer = container.createDiv({ cls: 'organize-tags-entry' });
+    const groupType = group.groupType ?? 'merge';
+    const entryContainer = container.createDiv({ cls: `organize-tags-entry organize-tags-type-${groupType}` });
 
     const setting = new Setting(entryContainer);
-    setting.setName(group.canonicalTag as string);
-    setting.setDesc(t('organizeTags.affectedNotes', { count: String(group.affectedNotes.length) }));
 
-    // Checkbox
+    // Type badge + name
+    const nameEl = setting.nameEl;
+    if (groupType === 'nest') {
+      const badge = nameEl.createEl('span', { text: t('organizeTags.badgeNest'), cls: 'organize-tags-badge organize-tags-badge-nest' });
+      nameEl.insertBefore(badge, nameEl.firstChild);
+      nameEl.appendText(' ');
+    } else if (groupType === 'relate') {
+      const badge = nameEl.createEl('span', { text: t('organizeTags.badgeRelate'), cls: 'organize-tags-badge organize-tags-badge-relate' });
+      nameEl.insertBefore(badge, nameEl.firstChild);
+      nameEl.appendText(' ');
+    }
+    nameEl.appendText(group.canonicalTag as string);
+
+    if (groupType === 'relate') {
+      setting.setDesc(t('organizeTags.relateDesc'));
+    } else {
+      setting.setDesc(t('organizeTags.affectedNotes', { count: String(group.affectedNotes.length) }));
+    }
+
+    // Checkbox (not for relate groups)
     const checkboxEl = createEl('input', { type: 'checkbox' });
     checkboxEl.addClass('maintenance-batch-checkbox');
+    if (groupType === 'relate') {
+      checkboxEl.addClass('vaultend-hidden');
+    }
     setting.settingEl.prepend(checkboxEl);
 
     const entry: TagGroupEntry = {
       group,
-      status: 'pending',
+      status: groupType === 'relate' ? 'skipped' : 'pending',
       checkbox: checkboxEl,
       container: entryContainer,
       setting,
@@ -266,19 +287,32 @@ export class OrganizeTagsView extends ItemView {
     const detailsEl = entryContainer.createDiv({ cls: 'organize-tags-details' });
     const chipList = detailsEl.createDiv({ cls: 'organize-tag-list' });
 
-    for (const v of group.variants) {
-      const tagStr = v.tag as string;
-      const isCanonical = tagStr === (group.canonicalTag as string);
-      const chipClasses = ['organize-chip'];
-      if (isCanonical) chipClasses.push('organize-chip-canonical');
+    if (groupType === 'nest') {
+      // Show transformation: child → nested path
+      const childTag = group.variants.find(v => (v.tag as string) !== (group.canonicalTag as string));
+      if (childTag) {
+        const chip = chipList.createEl('span', { cls: 'organize-chip' });
+        chip.createEl('span', { text: childTag.tag as string });
+        chip.createEl('span', { text: String(childTag.count), cls: 'organize-chip-score' });
+        chipList.createEl('span', { text: ' → ', cls: 'organize-tags-arrow' });
+        const targetChip = chipList.createEl('span', { cls: 'organize-chip organize-chip-canonical' });
+        targetChip.createEl('span', { text: group.canonicalTag as string });
+      }
+    } else {
+      for (const v of group.variants) {
+        const tagStr = v.tag as string;
+        const isCanonical = tagStr === (group.canonicalTag as string);
+        const chipClasses = ['organize-chip'];
+        if (isCanonical) chipClasses.push('organize-chip-canonical');
 
-      const chip = chipList.createEl('span', { cls: chipClasses.join(' ') });
-      chip.createEl('span', { text: tagStr });
-      chip.createEl('span', { text: String(v.count), cls: 'organize-chip-score' });
+        const chip = chipList.createEl('span', { cls: chipClasses.join(' ') });
+        chip.createEl('span', { text: tagStr });
+        chip.createEl('span', { text: String(v.count), cls: 'organize-chip-score' });
+      }
     }
 
-    // Affected notes (clickable)
-    if (group.affectedNotes.length > 0) {
+    // Affected notes (clickable) — not for relate
+    if (groupType !== 'relate' && group.affectedNotes.length > 0) {
       const notesEl = detailsEl.createDiv({ cls: 'organize-tags-affected' });
       const maxShow = Math.min(group.affectedNotes.length, 3);
       for (let i = 0; i < maxShow; i++) {
@@ -298,20 +332,34 @@ export class OrganizeTagsView extends ItemView {
       }
     }
 
-    // Action buttons
-    setting.addButton(btn =>
-      btn.setButtonText(t('organizeTags.apply'))
-        .setCta()
-        .onClick(() => this.applyEntry(entry)),
-    );
-    setting.addButton(btn =>
-      btn.setButtonText(t('organizeTags.edit'))
-        .onClick(() => this.editEntry(entry)),
-    );
-    setting.addButton(btn =>
-      btn.setButtonText(t('organizeTags.skip'))
-        .onClick(() => this.skipEntry(entry)),
-    );
+    // Action buttons — vary by type
+    if (groupType === 'relate') {
+      // Info only — no action buttons
+    } else if (groupType === 'nest') {
+      setting.addButton(btn =>
+        btn.setButtonText(t('organizeTags.applyNest'))
+          .setCta()
+          .onClick(() => this.applyEntry(entry)),
+      );
+      setting.addButton(btn =>
+        btn.setButtonText(t('organizeTags.skip'))
+          .onClick(() => this.skipEntry(entry)),
+      );
+    } else {
+      setting.addButton(btn =>
+        btn.setButtonText(t('organizeTags.apply'))
+          .setCta()
+          .onClick(() => this.applyEntry(entry)),
+      );
+      setting.addButton(btn =>
+        btn.setButtonText(t('organizeTags.edit'))
+          .onClick(() => this.editEntry(entry)),
+      );
+      setting.addButton(btn =>
+        btn.setButtonText(t('organizeTags.skip'))
+          .onClick(() => this.skipEntry(entry)),
+      );
+    }
   }
 
   private async applyEntry(entry: TagGroupEntry): Promise<boolean> {
@@ -371,6 +419,7 @@ export class OrganizeTagsView extends ItemView {
       canonicalTag: result.canonical as TagName,
       variants: updatedVariants,
       affectedNotes: oldGroup.affectedNotes,
+      groupType: oldGroup.groupType,
     };
     entry.group = updatedGroup;
 
