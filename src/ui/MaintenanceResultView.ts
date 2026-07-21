@@ -11,6 +11,8 @@ import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import { localizeError } from './localizeError';
 import { MAINTENANCE_RESULT_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
+import type { OrganizeResult } from '../domain/models/OrganizeModels';
+import { OrganizeBatchPreviewModal, type BatchPreviewItem, type BatchAppliedEntry, type BatchOrganizeCallbacks } from './OrganizeBatchPreviewModal';
 import { t, formatDate } from '../i18n';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
@@ -57,7 +59,8 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
     private readonly onLinkOrphan?: (notePath: NotePath) => Promise<ReadonlyArray<NotePath>>,
-    private readonly onOrganizeSelected?: (notePaths: NotePath[]) => Promise<{ success: number; failed: number }>,
+    private readonly onOrganizePreview?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
   ) {
     super(leaf);
   }
@@ -470,7 +473,7 @@ export class MaintenanceResultView extends ItemView {
       false, undefined, undefined, false,
       hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
     );
-    if (this.onOrganizeSelected) {
+    if (this.onOrganizePreview) {
       this.addOrganizeButton(section, entries);
     }
 
@@ -479,11 +482,6 @@ export class MaintenanceResultView extends ItemView {
       const settingEl = new Setting(section)
         .setName(this.basename(notePath));
       settingEl.descEl.createDiv({ text: notePath as string, cls: 'maintenance-card-path' });
-      if (suggestions && suggestions.length > 0) {
-        settingEl.descEl.createDiv({ text: t('desc.suggestedTags', { tags: suggestions.join(', ') }), cls: 'maintenance-card-suggestion' });
-      } else {
-        settingEl.descEl.createDiv({ text: t('untagged.noMatchingTags'), cls: 'maintenance-card-suggestion' });
-      }
       this.applyCardClass(settingEl, 'untagged');
 
       entries.push({
@@ -535,7 +533,6 @@ export class MaintenanceResultView extends ItemView {
       const settingEl = new Setting(section)
         .setName(this.basename(item.notePath));
       settingEl.descEl.createDiv({ text: item.notePath as string, cls: 'maintenance-card-path' });
-      settingEl.descEl.createDiv({ text: t('desc.suggestedTags', { tags: item.suggestedTags.join(', ') }), cls: 'maintenance-card-suggestion' });
       this.applyCardClass(settingEl, 'missing-tags');
 
       entries.push({
@@ -649,7 +646,7 @@ export class MaintenanceResultView extends ItemView {
       (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
       true,
     );
-    if (this.onOrganizeSelected) {
+    if (this.onOrganizePreview) {
       this.addOrganizeButton(section, entries);
     }
 
@@ -658,10 +655,6 @@ export class MaintenanceResultView extends ItemView {
       const settingEl = new Setting(section)
         .setName(this.basename(entry.notePath));
       settingEl.descEl.createDiv({ text: `${entry.notePath as string} · ${sizeStr}`, cls: 'maintenance-card-path' });
-      if (entry.suggestedLinks && entry.suggestedLinks.length > 0) {
-        const links = entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ');
-        settingEl.descEl.createDiv({ text: t('desc.suggestedLinks', { links }), cls: 'maintenance-card-suggestion' });
-      }
       this.applyCardClass(settingEl, 'orphan');
 
       entries.push({
@@ -1180,11 +1173,11 @@ export class MaintenanceResultView extends ItemView {
       text: t('batch.selectedOrganize'),
     });
     batchControls.prepend(btn);
-    btn.addEventListener('click', () => this.executeOrganizeBatch(entries));
+    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries));
   }
 
-  private async executeOrganizeBatch(entries: BatchEntry[]): Promise<void> {
-    if (!this.onOrganizeSelected) return;
+  private async executeOrganizeBatch(btn: HTMLButtonElement, entries: BatchEntry[]): Promise<void> {
+    if (!this.onOrganizePreview || !this.batchOrganizeCallbacks) return;
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
@@ -1199,16 +1192,53 @@ export class MaintenanceResultView extends ItemView {
       return;
     }
 
-    const result = await this.onOrganizeSelected(notePaths);
-    if (result.failed > 0) {
-      new Notice(t('notice.organizeSelectedResult', { success: result.success, failed: result.failed }));
-    } else {
-      new Notice(t('notice.organizeSelectedComplete', { count: result.success }));
-    }
+    const originalText = btn.textContent ?? '';
+    btn.disabled = true;
+    btn.textContent = t('organize.processing', { current: 0, total: notePaths.length });
 
-    if (result.success > 0) {
-      this.triggerScan();
+    try {
+      const previews = await this.onOrganizePreview(notePaths);
+      btn.textContent = originalText;
+      btn.disabled = false;
+
+      const items: BatchPreviewItem[] = previews.map(p => ({
+        notePath: p.notePath,
+        result: p.result,
+      }));
+
+      if (items.length === 0) {
+        new Notice(t('organize.noChanges'));
+        return;
+      }
+
+      new OrganizeBatchPreviewModal(this.app, items, this.batchOrganizeCallbacks)
+        .setOnApplied((appliedEntries) => this.onBatchOrganizeApplied(appliedEntries, entries))
+        .open();
+    } catch (err) {
+      btn.textContent = originalText;
+      btn.disabled = false;
+      new Notice(t('notice.actionFailed', { error: String(err) }));
     }
+  }
+
+  private onBatchOrganizeApplied(appliedEntries: ReadonlyArray<BatchAppliedEntry>, batchEntries: BatchEntry[]): void {
+    for (const applied of appliedEntries) {
+      const pathStr = applied.notePath as string;
+      const entry = batchEntries.find(e => e.identifier === pathStr && e.status === 'pending');
+      if (!entry) continue;
+
+      entry.status = 'applied';
+      entry.historyEntryId = applied.historyEntryId;
+      entry.checkbox.checked = false;
+      entry.setting.settingEl.addClass('maintenance-result-applied');
+      entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+      entry.setting.setDesc(t('maintenance.applied'));
+
+      const appliedKey = `${entry.issueType}:${entry.identifier}`;
+      this.appliedEntries.set(appliedKey, applied.historyEntryId);
+      this.addRestoreButton(entry.setting, applied.historyEntryId, appliedKey);
+    }
+    this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
   }
 
   private async getArchiveFolder(): Promise<string> {
