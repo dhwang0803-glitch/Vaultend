@@ -1,6 +1,6 @@
 {
   "name": "obsidian-vaultend",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Vaultend — AI-powered vault maintenance for Obsidian. Auto-classify, tag, link, and organize your notes",
   "main": "main.js",
   "scripts": {

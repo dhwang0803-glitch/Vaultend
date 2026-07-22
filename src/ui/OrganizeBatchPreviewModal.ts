@@ -21,10 +21,20 @@ export interface BatchOrganizeCallbacks {
   readonly recordHistory: (id: string, notePath: NotePath, previousContent: string, description: string, tags: string[], links: string[]) => Promise<void>;
 }
 
+interface TagEntry {
+  name: string;
+  enabled: boolean;
+}
+
+interface LinkEntry {
+  path: string;
+  enabled: boolean;
+}
+
 interface EditableItem {
   readonly notePath: NotePath;
-  readonly tags: ReadonlyArray<string>;
-  links: string[];
+  tags: TagEntry[];
+  links: LinkEntry[];
 }
 
 export class OrganizeBatchPreviewModal extends Modal {
@@ -40,8 +50,8 @@ export class OrganizeBatchPreviewModal extends Modal {
     super(app);
     this.editableItems = items.map(item => ({
       notePath: item.notePath,
-      tags: item.result.addedTags.map(tag => tag as string),
-      links: item.result.suggestedLinks.map(link => link as string),
+      tags: item.result.addedTags.map(tag => ({ name: tag as string, enabled: true })),
+      links: item.result.suggestedLinks.map(link => ({ path: link as string, enabled: true })),
     }));
   }
 
@@ -79,9 +89,8 @@ export class OrganizeBatchPreviewModal extends Modal {
     if (editable.tags.length > 0) {
       const tagLine = details.createDiv('organize-batch-tags');
       tagLine.createEl('span', { text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
-      for (const tag of editable.tags) {
-        tagLine.createEl('span', { text: `#${tag}`, cls: 'organize-chip organize-chip-small' });
-      }
+      const chipContainer = tagLine.createDiv('organize-batch-tag-chips');
+      this.renderTagChips(chipContainer, editable);
     }
 
     if (!this.tagsOnly) {
@@ -90,6 +99,27 @@ export class OrganizeBatchPreviewModal extends Modal {
 
     if (editable.tags.length === 0 && (this.tagsOnly || editable.links.length === 0)) {
       details.createEl('span', { text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
+    }
+  }
+
+  private renderTagChips(container: HTMLElement, editable: EditableItem): void {
+    container.empty();
+    for (const tag of editable.tags) {
+      const chip = container.createDiv('organize-chip organize-chip-small');
+      if (!tag.enabled) chip.addClass('organize-chip-disabled');
+
+      chip.createEl('span', { text: `#${tag.name}`, cls: 'organize-chip-text' });
+      const action = chip.createEl('span', {
+        cls: tag.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
+        attr: { 'aria-label': tag.enabled ? 'Remove' : 'Restore' },
+      });
+      action.textContent = tag.enabled ? '×' : '↺';
+
+      action.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tag.enabled = !tag.enabled;
+        this.renderTagChips(container, editable);
+      });
     }
   }
 
@@ -114,8 +144,8 @@ export class OrganizeBatchPreviewModal extends Modal {
         const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
         if (!cleaned) return;
         const linkPath = /\.md$/i.test(cleaned) ? cleaned.replace(/\.md$/i, '.md') : `${cleaned}.md`;
-        if (editable.links.includes(linkPath)) return;
-        editable.links.push(linkPath);
+        if (editable.links.some(l => l.path === linkPath)) return;
+        editable.links.push({ path: linkPath, enabled: true });
         inputEl.setValue('');
         this.renderLinkChips(chipContainer, editable);
         const emptyState = container.closest('.organize-batch-card')?.querySelector('.organize-empty-state');
@@ -127,13 +157,15 @@ export class OrganizeBatchPreviewModal extends Modal {
     container.empty();
     for (const link of editable.links) {
       const chip = container.createDiv('organize-link-chip');
-      const displayName = link.replace(/\.md$/i, '').split('/').pop() ?? link;
+      if (!link.enabled) chip.addClass('organize-chip-disabled');
+      const displayName = link.path.replace(/\.md$/i, '').split('/').pop() ?? link.path;
       chip.createEl('span', { text: `[[${displayName}]]`, cls: 'organize-link-chip-text' });
-      chip.createEl('span', {
-        text: '×',
-        cls: 'organize-link-chip-remove',
-      }).addEventListener('click', () => {
-        editable.links = editable.links.filter(l => l !== link);
+      const action = chip.createEl('span', {
+        cls: link.enabled ? 'organize-link-chip-remove' : 'organize-chip-restore',
+      });
+      action.textContent = link.enabled ? '×' : '↺';
+      action.addEventListener('click', () => {
+        link.enabled = !link.enabled;
         this.renderLinkChips(container, editable);
       });
     }
@@ -160,7 +192,9 @@ export class OrganizeBatchPreviewModal extends Modal {
     const appliedEntries: BatchAppliedEntry[] = [];
 
     for (const editable of this.editableItems) {
-      const hasChanges = editable.tags.length > 0 || editable.links.length > 0;
+      const enabledTags = editable.tags.filter(t => t.enabled).map(t => t.name);
+      const enabledLinks = editable.links.filter(l => l.enabled).map(l => l.path);
+      const hasChanges = enabledTags.length > 0 || enabledLinks.length > 0;
       if (!hasChanges) continue;
 
       let previousContent: string;
@@ -175,15 +209,15 @@ export class OrganizeBatchPreviewModal extends Modal {
       try {
         const entryId = crypto.randomUUID();
 
-        if (editable.tags.length > 0) {
-          await this.callbacks.actions.applyTags(editable.notePath, [...editable.tags]);
+        if (enabledTags.length > 0) {
+          await this.callbacks.actions.applyTags(editable.notePath, enabledTags);
         }
-        if (editable.links.length > 0) {
-          await this.callbacks.actions.addLinks(editable.notePath, editable.links.map(l => createNotePath(l)));
+        if (enabledLinks.length > 0) {
+          await this.callbacks.actions.addLinks(editable.notePath, enabledLinks.map(l => createNotePath(l)));
         }
 
-        const desc = `Organize Selected: tags=${editable.tags.length}, links=${editable.links.length}`;
-        await this.callbacks.recordHistory(entryId, editable.notePath, previousContent, desc, [...editable.tags], [...editable.links]);
+        const desc = `Organize Selected: tags=${enabledTags.length}, links=${enabledLinks.length}`;
+        await this.callbacks.recordHistory(entryId, editable.notePath, previousContent, desc, enabledTags, enabledLinks);
 
         appliedEntries.push({ notePath: editable.notePath, historyEntryId: entryId });
         success++;

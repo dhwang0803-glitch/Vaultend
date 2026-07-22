@@ -516,6 +516,11 @@ export class MaintenanceResultView extends ItemView {
         status: 'pending',
       });
 
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.open'))
+        .onClick(() => this.openFile(item.notePath as string)),
+      );
+
       this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
       this.applyPersistedState(entries[entries.length - 1]);
     }
@@ -561,6 +566,11 @@ export class MaintenanceResultView extends ItemView {
       const linkEntry = entries[entries.length - 1];
 
       const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
+
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.open'))
+        .onClick(() => this.openFile(item.sourcePath as string)),
+      );
 
       if (item.suggestedFix) {
         settingEl.addButton(btn => btn
@@ -679,6 +689,8 @@ export class MaintenanceResultView extends ItemView {
         status: 'pending',
       });
 
+      this.addNoteSelect(settingEl, [pair.noteA, pair.noteB]);
+
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.openSideBySide'))
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
@@ -713,8 +725,9 @@ export class MaintenanceResultView extends ItemView {
     for (const group of filtered) {
       const variantTags = group.variants.map(v => `${v.tag as string} (${v.count})`).join(', ');
       const settingEl = new Setting(section)
-        .setName(t('duplicateTag.keep', { tag: group.canonicalTag as string }))
-        .setDesc(`${t('duplicateTag.variants', { tags: variantTags })} · ${t('duplicateTag.affected', { count: group.affectedNotes.length })}`);
+        .setName(t('duplicateTag.keep', { tag: group.canonicalTag as string }));
+      settingEl.descEl.createDiv({ text: t('duplicateTag.variants', { tags: variantTags }), cls: 'maintenance-card-path' });
+      settingEl.descEl.createDiv({ text: t('duplicateTag.affected', { count: group.affectedNotes.length }), cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'duplicate-tags');
 
       const replaceTags = group.variants
@@ -735,6 +748,8 @@ export class MaintenanceResultView extends ItemView {
         status: 'pending',
       });
       const dupTagEntry = entries[entries.length - 1];
+
+      this.addNoteSelect(settingEl, group.affectedNotes);
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.mergeTags'))
@@ -1189,6 +1204,24 @@ export class MaintenanceResultView extends ItemView {
   }
 
   // ─── Utilities ───
+
+  private addNoteSelect(setting: Setting, notes: ReadonlyArray<NotePath>): void {
+    if (notes.length === 0) return;
+    let selected = '';
+    setting.addDropdown(dropdown => {
+      dropdown.addOption('', t('btn.showNotes', { count: notes.length }));
+      for (const note of notes) {
+        dropdown.addOption(note as string, this.basename(note));
+      }
+      dropdown.onChange(value => { selected = value; });
+    });
+    setting.addButton(btn => btn
+      .setButtonText(t('btn.open'))
+      .onClick(() => {
+        if (selected) this.openFile(selected);
+      }),
+    );
+  }
 
   private basename(path: NotePath): string {
     return (path as string).split('/').pop()?.replace('.md', '') ?? (path as string);
