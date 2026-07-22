@@ -111,6 +111,7 @@ const en = {
   'batch.selectedApplyTags': 'Apply Tags to Selected',
   'batch.selectedMergeTags': 'Merge Selected',
   'batch.selectedOrganize': 'Organize Selected',
+  'batch.selectedUndo': 'Undo Selected',
 
   // Dismiss
   'dismiss.tooltip': 'Dismiss',

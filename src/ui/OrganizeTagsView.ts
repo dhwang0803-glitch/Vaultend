@@ -61,7 +61,6 @@ export class OrganizeTagsView extends ItemView {
     entry.status = 'pending';
     entry.historyEntryId = undefined;
     entry.container.removeClass('organize-tags-entry-applied');
-    entry.checkbox.removeClass('vaultend-hidden');
 
     const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
     if (undoBtn) undoBtn.remove();
@@ -223,7 +222,7 @@ export class OrganizeTagsView extends ItemView {
     selectAllContainer.createEl('span', { text: t('batch.selectAll') });
     selectAllCheckbox.addEventListener('change', () => {
       for (const entry of this.entries) {
-        if (entry.status === 'pending') {
+        if (entry.status === 'pending' || entry.status === 'applied') {
           entry.checkbox.checked = selectAllCheckbox.checked;
         }
       }
@@ -238,6 +237,11 @@ export class OrganizeTagsView extends ItemView {
       .addButton(btn =>
         btn.setButtonText(t('organizeTags.skipSelected'))
           .onClick(() => this.skipBatch()),
+      )
+      .addButton(btn =>
+        btn.setButtonText(t('batch.selectedUndo'))
+          .setWarning()
+          .onClick(() => this.undoBatch()),
       );
   }
 
@@ -445,7 +449,7 @@ export class OrganizeTagsView extends ItemView {
 
   private markEntryApplied(entry: TagGroupEntry): void {
     entry.container.addClass('organize-tags-entry-applied');
-    entry.checkbox.addClass('vaultend-hidden');
+    entry.checkbox.checked = false;
 
     const controlEl = entry.setting.controlEl;
     const buttons = controlEl.querySelectorAll('button');
@@ -464,8 +468,8 @@ export class OrganizeTagsView extends ItemView {
     entry.setting.setDesc(t('organizeTags.applied'));
   }
 
-  private async undoEntry(entry: TagGroupEntry): Promise<void> {
-    if (!entry.historyEntryId) return;
+  private async undoEntry(entry: TagGroupEntry): Promise<boolean> {
+    if (!entry.historyEntryId) return false;
     const undoneId = entry.historyEntryId;
     try {
       await this.historyPort.undo(undoneId);
@@ -473,7 +477,6 @@ export class OrganizeTagsView extends ItemView {
       entry.historyEntryId = undefined;
 
       entry.container.removeClass('organize-tags-entry-applied');
-      entry.checkbox.removeClass('vaultend-hidden');
 
       const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
       if (undoBtn) undoBtn.remove();
@@ -492,9 +495,28 @@ export class OrganizeTagsView extends ItemView {
       );
       new Notice(t('undo.success'));
       this.app.workspace.trigger(HISTORY_CHANGED_EVENT, undoneId);
+      return true;
     } catch (err) {
       new Notice(t('undo.failed', { error: localizeError(err) }));
+      return false;
     }
+  }
+
+  private async undoBatch(): Promise<void> {
+    const selected = this.entries.filter(e => e.status === 'applied' && e.checkbox.checked);
+    if (selected.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+
+    let success = 0;
+    let failed = 0;
+    for (const entry of [...selected].reverse()) {
+      const ok = await this.undoEntry(entry);
+      if (ok) success++;
+      else failed++;
+    }
+    new Notice(t('notice.batchRestoreResult', { success: String(success), failed: String(failed) }));
   }
 
   private async applyBatch(): Promise<void> {

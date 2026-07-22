@@ -67,9 +67,6 @@ export class OrganizeFolderResultView extends ItemView {
     entry.historyEntryId = undefined;
 
     entry.container.removeClass('organize-folder-entry-applied');
-    if (!this.autoApplyMode) {
-      entry.checkbox.removeClass('vaultend-hidden');
-    }
     const undoBtn = entry.setting.controlEl.querySelector('.mod-warning');
     if (undoBtn) undoBtn.remove();
     if (!this.autoApplyMode) {
@@ -308,7 +305,7 @@ export class OrganizeFolderResultView extends ItemView {
     selectAllContainer.createEl('span', { text: t('batch.selectAll') });
     selectAllCheckbox.addEventListener('change', () => {
       for (const entry of this.entries) {
-        if (entry.status === 'pending') {
+        if (entry.status === 'pending' || entry.status === 'applied') {
           entry.checkbox.checked = selectAllCheckbox.checked;
         }
       }
@@ -323,6 +320,11 @@ export class OrganizeFolderResultView extends ItemView {
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.skipSelected'))
           .onClick(() => this.skipBatch()),
+      )
+      .addButton(btn =>
+        btn.setButtonText(t('batch.selectedUndo'))
+          .setWarning()
+          .onClick(() => this.undoBatch()),
       );
   }
 
@@ -530,7 +532,7 @@ export class OrganizeFolderResultView extends ItemView {
 
   private markEntryApplied(entry: OrganizeFolderEntry): void {
     entry.container.addClass('organize-folder-entry-applied');
-    entry.checkbox.addClass('vaultend-hidden');
+    entry.checkbox.checked = false;
 
     // Remove action buttons except Open, add Undo
     const controlEl = entry.setting.controlEl;
@@ -548,8 +550,8 @@ export class OrganizeFolderResultView extends ItemView {
     entry.setting.setDesc(t('organizeFolder.applied'));
   }
 
-  private async undoEntry(entry: OrganizeFolderEntry): Promise<void> {
-    if (!entry.historyEntryId) return;
+  private async undoEntry(entry: OrganizeFolderEntry): Promise<boolean> {
+    if (!entry.historyEntryId) return false;
     const undoneId = entry.historyEntryId;
     try {
       await this.historyPort.undo(undoneId);
@@ -557,20 +559,44 @@ export class OrganizeFolderResultView extends ItemView {
       entry.historyEntryId = undefined;
 
       entry.container.removeClass('organize-folder-entry-applied');
-      if (!this.autoApplyMode) {
-        entry.checkbox.removeClass('vaultend-hidden');
-      }
 
       const controlEl = entry.setting.controlEl;
       const undoBtn = controlEl.querySelector('.mod-warning');
       if (undoBtn) undoBtn.remove();
 
+      if (!this.autoApplyMode) {
+        entry.setting.addButton(btn =>
+          btn.setButtonText(t('organizeFolder.applyNote'))
+            .setCta()
+            .onClick(() => this.applyEntry(entry)),
+        );
+      }
+
       entry.setting.setDesc(entry.result.notePath as string);
       new Notice(t('undo.success'));
       this.app.workspace.trigger(HISTORY_CHANGED_EVENT, undoneId);
+      return true;
     } catch (err) {
       new Notice(t('undo.failed', { error: localizeError(err) }));
+      return false;
     }
+  }
+
+  private async undoBatch(): Promise<void> {
+    const selected = this.entries.filter(e => e.status === 'applied' && e.checkbox.checked);
+    if (selected.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+
+    let success = 0;
+    let failed = 0;
+    for (const entry of [...selected].reverse()) {
+      const ok = await this.undoEntry(entry);
+      if (ok) success++;
+      else failed++;
+    }
+    new Notice(t('notice.batchRestoreResult', { success: String(success), failed: String(failed) }));
   }
 
   private async applyBatch(): Promise<void> {

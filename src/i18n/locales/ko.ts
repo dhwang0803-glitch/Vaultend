@@ -113,6 +113,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedApplyTags': '선택 태그 적용',
   'batch.selectedMergeTags': '선택 병합',
   'batch.selectedOrganize': '선택 정리',
+  'batch.selectedUndo': '선택 실행취소',
 
   // Dismiss
   'dismiss.tooltip': '무시',
