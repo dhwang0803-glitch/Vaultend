@@ -1,6 +1,5 @@
 import { App, Notice, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
-import type { PreferencePort } from '../application/ports/PreferencePort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
 import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
@@ -58,7 +57,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
     private readonly plugin: Plugin,
     private readonly config: ConfigPort,
     private readonly onMaintenanceSettingsChanged?: () => void,
-    private readonly preference?: PreferencePort,
     private readonly onAIConfigChanged?: () => void,
   ) {
     super(app, plugin);
@@ -205,37 +203,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
     new Setting(containerEl)
       .setDesc(t('settings.maintenanceScopeNote'));
 
-    if (ENABLE_PRO) {
-      const autoMaintenanceSetting = new Setting(containerEl)
-        .setName(t('settings.autoMaintenance'))
-        .setDesc(t('settings.autoMaintenanceDesc'));
-
-      autoMaintenanceSetting.addToggle(toggle => {
-        toggle
-          .setValue(this.settings!.maintenanceEnabled)
-          .onChange(async (value) => {
-            await this.config.updateSettings({ maintenanceEnabled: value });
-            this.onMaintenanceSettingsChanged?.();
-          });
-      });
-
-      new Setting(containerEl)
-        .setName(t('settings.maintenanceInterval'))
-        .setDesc(t('settings.maintenanceIntervalDesc'))
-        .addText(text => {
-          text
-            .setPlaceholder('60')
-            .setValue(String(this.settings!.maintenanceIntervalMinutes))
-            .onChange(async (value) => {
-              const parsed = parseInt(value, 10);
-              if (!isNaN(parsed) && parsed > 0) {
-                await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
-                this.onMaintenanceSettingsChanged?.();
-              }
-            });
-        });
-    }
-
     new Setting(containerEl)
       .setName(t('settings.rejectDecayDays'))
       .setDesc(t('settings.rejectDecayDaysDesc'))
@@ -294,15 +261,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
     const rulesContainer = containerEl.createDiv();
     this.renderPrivacyRules(rulesContainer);
 
-    // --- AI Learning ---
-    if (this.preference) {
-      containerEl.createEl('h3', { text: t('settings.aiLearning') });
-      new Setting(containerEl)
-        .setDesc(t('settings.aiLearningDesc'));
-
-      const learningContainer = containerEl.createDiv();
-      this.renderAILearningSection(learningContainer);
-    }
   }
 
   private renderPrivacyRules(container: HTMLElement): void {
@@ -386,207 +344,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
       setting.setName(rule.name);
     }
     setting.settingEl.addClass('vaultend-privacy-rule');
-  }
-
-  private async renderAILearningSection(container: HTMLElement): Promise<void> {
-    container.empty();
-
-    const ruleSet = await this.preference!.load();
-    const hasRules = ruleSet && ruleSet.rules.length > 0;
-
-    if (!hasRules) {
-      container.createEl('p', {
-        text: t('settings.aiLearningEmpty'),
-        cls: 'setting-item-description',
-      });
-    } else {
-      container.createEl('p', {
-        text: t('settings.aiLearningStats', {
-          ruleCount: ruleSet.rules.length,
-          signalCount: ruleSet.signals.length,
-        }),
-        cls: 'setting-item-description',
-      });
-
-      const manualRules = ruleSet.rules.filter(r => r.source === 'manual');
-      const learnedRules = ruleSet.rules.filter(r => r.source !== 'manual');
-
-      for (const rule of [...manualRules, ...learnedRules]) {
-        const actionLabel = rule.action === 'approved'
-          ? t('settings.aiLearningRuleApproved')
-          : t('settings.aiLearningRuleRejected');
-        const sourceLabel = rule.source === 'manual'
-          ? t('settings.aiLearningRuleManual')
-          : t('settings.aiLearningRuleLearned');
-        const hitInfo = rule.source === 'manual' ? '' : ` (×${rule.hitCount})`;
-        const display = `${actionLabel}: ${rule.pattern}${hitInfo}`;
-
-        new Setting(container)
-          .setName(display)
-          .setDesc(sourceLabel)
-          .addExtraButton(btn => {
-            btn.setIcon('trash')
-              .setTooltip(t('settings.aiLearningDelete'))
-              .onClick(async () => {
-                await this.preference!.deleteRule(rule.id);
-                this.renderAILearningSection(container);
-              });
-          });
-      }
-    }
-
-    this.renderManualRuleForm(container);
-
-    if (hasRules) {
-      new Setting(container)
-        .addButton(btn => {
-          btn.setButtonText(t('settings.aiLearningResetAll'))
-            .setWarning()
-            .onClick(async () => {
-              await this.preference!.resetAll();
-              new Notice(t('settings.aiLearningResetConfirm'));
-              this.renderAILearningSection(container);
-            });
-        });
-    }
-
-    await this.renderSuppressionsSection(container);
-  }
-
-  private async renderSuppressionsSection(container: HTMLElement): Promise<void> {
-    if (!this.preference) return;
-    const suppressions = await this.preference.getSuppressions();
-    if (suppressions.length === 0) return;
-
-    container.createEl('h4', { text: t('settings.suppressionsTitle') });
-    container.createEl('p', {
-      text: t('settings.suppressionsDesc'),
-      cls: 'setting-item-description',
-    });
-
-    const now = Date.now();
-    for (const entry of suppressions) {
-      const remaining = Math.max(0, Math.ceil((entry.expiresAt - now) / 86_400_000));
-      const desc = remaining > 0
-        ? t('settings.suppressionExpires', { days: remaining })
-        : t('settings.suppressionExpired');
-
-      new Setting(container)
-        .setName(entry.label)
-        .setDesc(desc)
-        .addExtraButton(btn => {
-          btn.setIcon('x')
-            .setTooltip(t('settings.suppressionRemove'))
-            .onClick(async () => {
-              await this.preference!.unsuppress(entry.id);
-              this.renderAILearningSection(container);
-            });
-        });
-    }
-  }
-
-  private renderManualRuleForm(container: HTMLElement): void {
-    const formEl = container.createDiv({ cls: 'vaultend-manual-rule-form' });
-
-    let selectedType: 'exclusion' | 'folder-routing' | 'tag-mapping' = 'exclusion';
-    let selectedAction: 'approved' | 'rejected' = 'rejected';
-    let inputFrom = '';
-    let inputTo = '';
-
-    const dynamicEl = formEl.createDiv();
-
-    const rebuildInputs = () => {
-      dynamicEl.empty();
-
-      if (selectedType !== 'exclusion') {
-        new Setting(dynamicEl)
-          .setName(selectedType === 'folder-routing'
-            ? t('settings.aiLearningActionAlways') + ' / ' + t('settings.aiLearningActionNever')
-            : t('settings.aiLearningActionAlways') + ' / ' + t('settings.aiLearningActionNever'))
-          .addDropdown(dd => {
-            dd.addOption('approved', t('settings.aiLearningActionAlways'))
-              .addOption('rejected', t('settings.aiLearningActionNever'))
-              .setValue(selectedAction)
-              .onChange(v => { selectedAction = v as 'approved' | 'rejected'; });
-          });
-      }
-
-      if (selectedType === 'exclusion') {
-        new Setting(dynamicEl)
-          .setName(t('settings.aiLearningPatternFolder'))
-          .addText(text => {
-            text.setPlaceholder('Templates').onChange(v => { inputFrom = v; });
-          });
-      } else {
-        new Setting(dynamicEl)
-          .setName(t('settings.aiLearningPatternFrom'))
-          .addText(text => {
-            const ph = selectedType === 'folder-routing' ? 'Notes' : '#wip';
-            text.setPlaceholder(ph).onChange(v => { inputFrom = v; });
-          });
-        new Setting(dynamicEl)
-          .setName(t('settings.aiLearningPatternTo'))
-          .addText(text => {
-            const ph = selectedType === 'folder-routing' ? 'Projects' : '#draft';
-            text.setPlaceholder(ph).onChange(v => { inputTo = v; });
-          });
-      }
-    };
-
-    new Setting(formEl)
-      .setName(t('settings.aiLearningAddRule'))
-      .setDesc(t('settings.aiLearningAddRuleDesc'))
-      .addDropdown(dd => {
-        dd.addOption('exclusion', t('settings.aiLearningRuleTypeExclusion'))
-          .addOption('folder-routing', t('settings.aiLearningRuleTypeFolderRouting'))
-          .addOption('tag-mapping', t('settings.aiLearningRuleTypeTagMapping'))
-          .setValue(selectedType)
-          .onChange(v => {
-            selectedType = v as typeof selectedType;
-            selectedAction = v === 'exclusion' ? 'rejected' : 'approved';
-            inputFrom = '';
-            inputTo = '';
-            rebuildInputs();
-          });
-      });
-
-    rebuildInputs();
-
-    new Setting(formEl)
-      .addButton(btn => {
-        btn.setButtonText(t('settings.aiLearningAddRule'))
-          .setCta()
-          .onClick(async () => {
-            const from = inputFrom.trim();
-            if (!from) return;
-
-            let pattern: string;
-            let action = selectedAction;
-
-            switch (selectedType) {
-              case 'exclusion':
-                pattern = `exclude:${from}/*`;
-                action = 'rejected';
-                break;
-              case 'folder-routing': {
-                const to = inputTo.trim();
-                if (!to) return;
-                pattern = `folder:${from}→${to}`;
-                break;
-              }
-              case 'tag-mapping': {
-                const to = inputTo.trim();
-                if (!to) return;
-                pattern = `tag:${from}→${to}`;
-                break;
-              }
-            }
-
-            await this.preference!.addManualRule(selectedType, pattern, action);
-            new Notice(t('settings.aiLearningRuleAdded'));
-            this.renderAILearningSection(container);
-          });
-      });
   }
 
   private renderProviderSettings(containerEl: HTMLElement): void {

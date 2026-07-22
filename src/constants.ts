@@ -9,7 +9,6 @@ export const HISTORY_CHANGED_EVENT = 'vaultend:history-changed';
 export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
 export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';
 export const ORGANIZE_FOLDER_VIEW_TYPE = 'vaultend-organize-folder';
-export const ORGANIZE_VAULT_VIEW_TYPE = 'vaultend-organize-vault';
 export const ORGANIZE_TAGS_VIEW_TYPE = 'vaultend-organize-tags';
 
 /** 플러그인 내부 데이터 폴더 경로 */
@@ -19,7 +18,6 @@ export const DIRTY_SET_PATH = `${PLUGIN_DATA_FOLDER}/dirty-set.json`;
 export const TFIDF_CORPUS_PATH = `${PLUGIN_DATA_FOLDER}/tfidf-corpus.json`;
 export const EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/embeddings.json`;
 export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
-export const ORGANIZE_VAULT_FOLDER = `${PLUGIN_DATA_FOLDER}/organize-vault`;
 export const TAG_GROUPS_PATH = `${PLUGIN_DATA_FOLDER}/tag-groups.json`;
 
 /** 기본 설정값 */
@@ -50,35 +48,10 @@ export const TAG_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/tag-embeddings.json`;
 /** Note Embedding Cache */
 export const NOTE_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/note-embeddings.json`;
 
-/** Preference Learning 상수 */
-export const PREFERENCES_PATH = `${PLUGIN_DATA_FOLDER}/preferences.json`;
-export const PREFERENCE_SIGNAL_MAX = 200;
-export const PREFERENCE_FEWSHOT_MAX = 10;
-export const PREFERENCE_RULE_THRESHOLD = 3;
-export const PREFERENCE_REJECT_DECAY_DAYS = 7;
-
 /** Organize Folder 스마트 필터링 상수 */
 export const ORGANIZE_MIN_WORD_COUNT = 50;
 export const ORGANIZE_SUFFICIENT_LINKS = 3;
 
-/** Refactor 파이프라인 상수 */
-export const REFACTOR_BATCH_SIZE = 50;
-export const REFACTOR_CONTENT_PREVIEW = 300;
-export const FLEETING_WORD_COUNT_THRESHOLD = 150;
-export const FLEETING_MIN_CLUSTER_SIZE = 2;
-export const REFACTOR_MAX_TAGS_IN_PROMPT = 200;
-export const REORG_LOW_CONFIDENCE_THRESHOLD = 0.5;
-export const REORG_TIER2_TRIGGER_RATIO = 0.3;
-
 /** Organize Tags 상수 */
 export const TAG_GROUPING_BATCH_SIZE = 200;
 
-/** Vault Refactor 재설계 상수 */
-export const COMMAND_VAULT_REFACTOR = 'vault-refactor';
-export const MISPLACED_AFFINITY_THRESHOLD = 0.3;
-export const MISPLACED_BATCH_SIZE = 30;
-export const BLOATED_FOLDER_THRESHOLD = 30;
-export const THIN_FOLDER_THRESHOLD = 3;
-export const PROMOTE_MATURITY_AGE_DAYS = 7;
-export const PROMOTE_MIN_WORD_COUNT = 100;
-export const DEFAULT_FLEETING_FOLDERS: ReadonlyArray<string> = ['Inbox', 'Fleeting'];

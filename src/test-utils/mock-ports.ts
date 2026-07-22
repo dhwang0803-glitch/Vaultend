@@ -5,7 +5,6 @@ import type { SearchIndexPort, SearchResult } from '../application/ports/SearchI
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import type { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import type { ClockPort } from '../application/ports/ClockPort';
-import type { PreferencePort } from '../application/ports/PreferencePort';
 import type { TagEmbeddingCachePort } from '../application/ports/TagEmbeddingCachePort';
 
 import type { Timestamp } from '../domain/values/Timestamp';
@@ -91,19 +90,6 @@ export function createMockClock(now?: number): ClockPort {
   const ts = (now ?? 1720000000000) as Timestamp;
   return {
     now: vi.fn().mockReturnValue(ts),
-  };
-}
-
-export function createMockPreference(overrides?: Partial<PreferencePort>): PreferencePort {
-  return {
-    load: vi.fn().mockResolvedValue(null),
-    save: vi.fn().mockResolvedValue(undefined),
-    recordSignal: vi.fn().mockResolvedValue({ version: 1, rules: [], signals: [], fewShotExamples: [], lastUpdated: 0 }),
-    getPreferenceContext: vi.fn().mockResolvedValue(''),
-    deleteRule: vi.fn().mockResolvedValue(undefined),
-    resetAll: vi.fn().mockResolvedValue(undefined),
-    addManualRule: vi.fn().mockResolvedValue(undefined),
-    ...overrides,
   };
 }
 

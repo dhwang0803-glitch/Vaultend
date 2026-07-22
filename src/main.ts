@@ -22,12 +22,6 @@ import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
-import { GenerateOrganizeVaultUseCase } from './application/usecases/GenerateOrganizeVaultUseCase';
-import { ApplyOrganizeVaultUseCase } from './application/usecases/ApplyOrganizeVaultUseCase';
-import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrganizeVaultUseCase';
-import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefactorCostUseCase';
-import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
-import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 import { BuildSummaryIndexUseCase } from './application/usecases/BuildSummaryIndexUseCase';
 import { OrganizeTagsUseCase } from './application/usecases/OrganizeTagsUseCase';
 import { replaceRelatedNotesSection } from './application/utils/relatedNotesSection';
@@ -39,19 +33,13 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
-import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
 import { OrganizeTagsView, ORGANIZE_TAGS_VIEW_TYPE } from './ui/OrganizeTagsView';
-import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
-import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
 import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
 import { FileTagGroupCacheAdapter } from './adapters/tag-group-cache/FileTagGroupCacheAdapter';
 import { FileNoteEmbeddingCacheAdapter } from './adapters/note-embedding-cache/FileNoteEmbeddingCacheAdapter';
 import { NoteEmbeddingService } from './domain/services/NoteEmbeddingService';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
-
-// Pro (tree-shaken in free builds via ENABLE_PRO=false)
-import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
 
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
@@ -72,7 +60,6 @@ import {
   DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
   DEFAULT_ARCHIVE_FOLDER,
   DEFAULT_LOCALE,
-  COMMAND_VAULT_REFACTOR,
   COMMAND_ORGANIZE_TAGS,
 } from './constants';
 import { t, setLocale, detectObsidianLocale } from './i18n';
@@ -118,8 +105,6 @@ const DEFAULT_SETTINGS: PluginSettings = {
   knownTags: [],
   trackTokenUsage: true,
   locale: DEFAULT_LOCALE,
-  licenseKey: '',
-  proGraceDeadline: 0,
 };
 
 export default class KnowledgeMaintenancePlugin extends Plugin {
@@ -136,8 +121,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
   private embeddingAdapter!: AIEmbeddingAdapter;
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
-  private organizeVaultAdapter!: FileOrganizeVaultAdapter;
-  private preferenceAdapter!: FilePreferenceAdapter;
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
   private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
   private tagGroupCacheAdapter!: FileTagGroupCacheAdapter;
@@ -154,16 +137,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
   private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
-  private generateOrganizeVaultUseCase!: GenerateOrganizeVaultUseCase;
-  private applyOrganizeVaultUseCase!: ApplyOrganizeVaultUseCase;
-  private rollbackOrganizeVaultUseCase!: RollbackOrganizeVaultUseCase;
-  private estimateRefactorCostUseCase!: EstimateRefactorCostUseCase;
-  private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
-  private recordPreferenceUseCase!: RecordPreferenceUseCase;
   private organizeTagsUseCase!: OrganizeTagsUseCase;
-
-  // Pro (beta only — tree-shaken in free builds)
-  private licenseAdapter: import('./application/ports/LicensePort').LicensePort | null = null;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -186,11 +160,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 2. Initialize adapters
     this.wireAdapters();
 
-    // 2b. Pro features (beta builds only — dead-code-eliminated in free builds)
-    if (ENABLE_PRO) {
-      this.wireProFeatures();
-    }
-
     // 3. Initialize use cases
     this.wireUseCases();
 
@@ -203,7 +172,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 6. Register settings tab
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
       this.scheduleMaintenanceIfEnabled();
-    }, this.preferenceAdapter, async () => {
+    }, async () => {
       const gen = ++this.embeddingInitGeneration;
       try {
         await this.reinitializeEmbeddings(gen);
@@ -375,19 +344,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
     this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter);
 
-    // Organize Vault adapter — file-based storage for OrganizeVault plans
-    this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
-
-    if (ENABLE_PRO) {
-      this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
-    }
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
     this.noteEmbeddingCacheAdapter = new FileNoteEmbeddingCacheAdapter(this.vaultAdapter);
     this.tagGroupCacheAdapter = new FileTagGroupCacheAdapter(this.vaultAdapter);
-  }
-
-  private wireProFeatures(): void {
-    this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
   }
 
   private wireUseCases(): void {
@@ -448,36 +407,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.vaultAdapter, this.changeTracker,
     );
 
-    if (ENABLE_PRO) {
-      this.generateOrganizeVaultUseCase = new GenerateOrganizeVaultUseCase(
-        this.clockAdapter, this.vaultAdapter,
-        this.searchIndex, this.organizeVaultAdapter,
-        this.aiAdapter, this.configPort,
-        this.preferenceAdapter,
-      );
-
-      this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
-        this.vaultAdapter, this.historyAdapter,
-        this.clockAdapter, this.organizeVaultAdapter, this.configPort,
-      );
-
-      this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
-        this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
-      );
-
-      this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase(this.configPort);
-
-      this.recordPreferenceUseCase = new RecordPreferenceUseCase(
-        this.preferenceAdapter, this.clockAdapter,
-      );
-
-      this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
-        this.clockAdapter, this.vaultAdapter,
-        this.searchIndex, this.organizeVaultAdapter,
-        this.aiAdapter, this.configPort,
-        this.preferenceAdapter,
-      );
-    }
   }
 
   private registerViews(): void {
@@ -504,7 +433,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (fileA instanceof TFile) this.app.workspace.getLeaf(false).openFile(fileA);
           if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
         },
-        (pair) => this.triggerMergeForPair(pair),
+        () => {},
         (notePaths, onProgress) => this.previewOrganizeNotes(notePaths, onProgress),
         (notePaths, onProgress) => this.previewOrganizeNotesTagsOnly(notePaths, onProgress),
         this.buildBatchOrganizeCallbacks(),
@@ -542,27 +471,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       ),
     );
 
-    if (ENABLE_PRO) {
-      this.registerView(
-        ORGANIZE_VAULT_VIEW_TYPE,
-        (leaf: WorkspaceLeaf) => new OrganizeVaultView(
-          leaf,
-          this.runMaintenanceUseCase,
-          this.generateOrganizeVaultUseCase,
-          this.applyOrganizeVaultUseCase,
-          this.rollbackOrganizeVaultUseCase,
-          this.organizeVaultAdapter,
-          (path: string) => {
-            const file = this.app.vault.getAbstractFileByPath(path);
-            if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-          },
-          this.vaultAdapter,
-          this.estimateRefactorCostUseCase,
-          this.generateRefactorPlanUseCase,
-          this.recordPreferenceUseCase,
-        ),
-      );
-    }
   }
 
 
@@ -640,21 +548,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         }
       },
     });
-
-    if (ENABLE_PRO) {
-      this.addCommand({
-        id: COMMAND_VAULT_REFACTOR,
-        name: t('command.vaultRefactor'),
-        callback: async () => {
-          await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-          if (leaves.length > 0) {
-            const view = leaves[0].view as OrganizeVaultView;
-            view.openRefactorModal();
-          }
-        },
-      });
-    }
 
   }
 
@@ -784,7 +677,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async scheduleMaintenanceIfEnabled(): Promise<void> {
-    if (!ENABLE_PRO) return;
     if (this.maintenanceInterval !== null) {
       window.clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
@@ -876,33 +768,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       new Notice(t('notice.organizePreviewFailed', { failed }));
     }
     return results;
-  }
-
-  private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {
-    if (!ENABLE_PRO) return;
-    const minPlan: MaintenancePlan = {
-      orphanNotes: [],
-      duplicateCandidates: [pair],
-      brokenLinks: [],
-      missingTags: [],
-      emptyNotes: [],
-      duplicateTags: [],
-      untaggedNotes: [],
-      timestamp: timestampNow(),
-    };
-    try {
-      const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(minPlan);
-      if (organizeVaultPlan.proposals.length === 0) {
-        new Notice(t('organizeVault.empty'));
-        return;
-      }
-      const leaf = this.app.workspace.getLeaf('tab');
-      await leaf.setViewState({ type: ORGANIZE_VAULT_VIEW_TYPE, active: true });
-      const view = leaf.view as OrganizeVaultView;
-      view.showPlan(organizeVaultPlan);
-    } catch (err) {
-      new Notice(t('organizeVault.scanFailed', { error: String(err) }));
-    }
   }
 
   private async syncEmbeddingsBackground(): Promise<void> {

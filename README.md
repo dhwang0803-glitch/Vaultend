@@ -18,6 +18,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
   - [Cost Transparency](#cost-transparency)
   - [Note Organizer](#note-organizer)
   - [Organize Folder](#organize-folder)
+  - [Organize Tags](#organize-tags)
   - [Vault Maintenance](#vault-maintenance)
   - [Activity Log](#activity-log)
   - [Privacy Protection](#privacy-protection)
@@ -114,19 +115,50 @@ Batch-organize any folder in your vault with AI. Pick a folder, and the plugin c
 | Tag/link chips | View suggested tags and links as removable chips |
 | Folder suggestion | Proposed destination folder with "(New)" badge for non-existing folders |
 | Apply / Skip | Apply changes per-note or skip individual notes (autoApply=off) |
-| Batch operations | Select All checkbox + "Apply Selected" / "Skip Selected" buttons |
+| Batch preview | Before batch-apply, preview all suggestions in a modal with per-tag/link chip toggles (× to disable, ↺ to restore) — remove unwanted suggestions without re-calling AI |
+| Batch operations | Select All checkbox + "Apply" / "Skip" buttons |
 | Undo | Revert any applied change (tags, links, folder move) via Undo button |
 | Open note | Click to open any note directly from the result panel |
 | Token & cost | Per-note token usage and estimated cost (classification + link suggestion combined) |
 
 **Two modes**:
-- **autoApply=off** (default): Review each note's suggestions, check/uncheck, then Apply Selected
+- **autoApply=off** (default): Review each note's suggestions, check/uncheck, then Apply
 - **autoApply=on**: Changes are applied automatically; use Undo to revert any unwanted change
 
 **How AI decides tags, links, and folders**:
 - **Tags**: Hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), new tags are created when no strong match exists. New tags never semantically overlap with existing ones.
 - **Links**: AI analyzes note content and selects related notes from your vault. Every suggested link is validated against actual vault notes — hallucinated links are filtered out.
 - **Folder**: AI classifies the note's category and maps it to an appropriate folder path, inferred from your vault's existing folder structure.
+
+---
+
+### Organize Tags
+
+Find and merge duplicate tags across your vault using AI-powered similarity detection.
+
+<!-- TODO: screenshot of Organize Tags view -->
+
+**How to use**: `Ctrl/Cmd + P` → "Organize Tags"
+
+**How it works**:
+1. The plugin collects all tags in your vault
+2. **Stage 1** — String normalization: groups tags that differ only in casing, hyphens, or pluralization (e.g., `#project-management` vs `#ProjectManagement`)
+3. **Stage 2** — AI embedding similarity: detects semantically similar tags across languages (e.g., `#meeting-notes` vs `#회의록`)
+4. Results open in a side panel showing each duplicate group with the canonical tag and its variants
+
+**Result panel features**:
+
+| Feature | Description |
+|---------|-------------|
+| Canonical tag | The recommended tag to keep (editable — click to change) |
+| Variant list | All similar tags that will be merged |
+| Affected notes | Number of notes that will be updated |
+| Edit | Customize the canonical tag name before merging |
+| Merge / Skip | Merge per-group or skip |
+| Batch operations | Select All + "Merge" / "Skip" buttons |
+| Undo | Revert merged tags via Undo button or Activity Log |
+
+**Merge** replaces all variant tags with the canonical tag across every affected note's frontmatter. Each merge is recorded in the Activity Log with full undo support.
 
 ---
 
@@ -148,7 +180,7 @@ Scan your vault for structural issues and fix them in bulk. **No AI required** �
 | Empty Notes | Critical | Notes with no content (shows backlink impact) |
 | Orphan Notes | Warning | Notes not linked from anywhere (canvas-aware) |
 | Duplicates | Warning | Similar notes detected via TF-IDF cosine similarity (side-by-side view) |
-| Duplicate Tags | Warning | Duplicate tags detected via 2-stage analysis: string normalization + cross-language embedding similarity |
+| Duplicate Tags | Warning | Duplicate tags detected via 2-stage analysis: string normalization + cross-language embedding similarity (see also [Organize Tags](#organize-tags)) |
 | Untagged Notes | Info | Notes without any tags |
 | Missing Tags | Info | AI-suggested tags for notes that need them |
 
@@ -171,12 +203,13 @@ Each issue has contextual action buttons:
 | Action | Available for | Effect |
 |--------|--------------|--------|
 | Open | All | Open the note in editor |
+| Note dropdown + Open | Duplicate Tags, Duplicates | Browse affected notes in a dropdown and open any one |
 | Archive | Empty, Orphan | Move to archive folder (with restore support) |
 | Delete | Empty, Orphan | Delete permanently (with undo) |
-| Apply Tags | Missing Tags | Write suggested tags to frontmatter |
+| Apply Tags | Missing Tags, Untagged | Write suggested tags to frontmatter |
 | Remove Link | Broken Links | Convert `[[broken]]` to plain text |
 | Open Side by Side | Duplicates | Compare two notes in split view |
-| Merge Tags | Duplicate Tags | Merge variant tags into canonical form across all affected notes |
+| Merge | Duplicate Tags | Merge variant tags into canonical form across all affected notes |
 | Dismiss | All | Strikethrough + Undo button (recoverable) |
 
 #### Batch Operations
@@ -184,7 +217,7 @@ Each issue has contextual action buttons:
 Select multiple items and act on them at once:
 
 1. Check the **Select All** checkbox at the top of a section (or check individual items)
-2. Click an action button: **Archive Selected**, **Delete Selected**, **Dismiss Selected**, etc.
+2. Click an action button: **Archive**, **Delete**, **Dismiss**, etc.
 
 #### Undo & Restore
 
@@ -250,6 +283,7 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 
 | Organize Current Note | Classify and tag the active note | Yes |
 | Organize Folder | Select a folder and batch-organize its notes | Yes |
+| Organize Tags | Find and merge duplicate tags across the vault | Yes |
 | Run Maintenance | Scan entire vault for issues | Partial |
 | Scan this folder for maintenance | Right-click context menu | Partial |
 | Organize Folder (context menu) | Right-click a folder to organize it | Yes |
@@ -422,7 +456,7 @@ domain/          ← Pure business logic (zero external deps)
   errors/        ← Domain-specific errors (i18n)
 
 application/     ← Use cases + port interfaces
-  usecases/      ← RunMaintenance, OrganizeNote, OrganizeVault, SyncEmbeddings, etc.
+  usecases/      ← RunMaintenance, OrganizeNote, OrganizeVault, OrganizeTags, SyncEmbeddings, etc.
   ports/         ← AIProviderPort, VaultAccessPort, EmbeddingPort, VectorStorePort, etc.
 
 adapters/        ← Port implementations (external deps live here)
@@ -464,7 +498,7 @@ main.ts          ← Composition Root
 | API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Organizer, Organize Folder). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
-| Duplicates | Note duplicates use TF-IDF cosine similarity — may miss very short notes. Tag duplicates use 2-stage detection (string normalization + embedding); embedding stage requires AI and is capped at 500 tags. |
+| Duplicates | Note duplicates use TF-IDF cosine similarity — may miss very short notes. Tag duplicates (Maintenance + Organize Tags) use 2-stage detection (string normalization + embedding); embedding stage requires AI and is capped at 500 tags per batch. |
 | Mobile | Background switching may interrupt AI calls. |
 | Privacy | Rules control this plugin only. Review your AI provider's data policies separately. |
 

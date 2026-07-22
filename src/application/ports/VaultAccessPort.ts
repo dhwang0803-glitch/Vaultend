@@ -1,6 +1,17 @@
 import { Note } from '../../domain/models/Note';
-import type { NoteMetadataEntry } from '../../domain/models/RefactorModels';
 import { NotePath } from '../../domain/values/NotePath';
+
+export interface NoteMetadataEntry {
+  readonly path: string;
+  readonly folder: string;
+  readonly tags: ReadonlyArray<string>;
+  readonly links: ReadonlyArray<string>;
+  readonly backlinks: ReadonlyArray<string>;
+  readonly wordCount: number;
+  readonly createdAt: number;
+  readonly modifiedAt: number;
+  readonly fileSize: number;
+}
 
 /**
  * Vault 접근 포트 — Obsidian Vault의 파일 시스템 연산을 추상화한다.
