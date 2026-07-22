@@ -356,6 +356,12 @@
   border-bottom: none;
   margin-bottom: 2px;
   padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.maintenance-batch-controls .setting-item-info {
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .maintenance-batch-controls .setting-item-name {
@@ -363,6 +369,13 @@
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.maintenance-batch-controls .setting-item-control {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .maintenance-batch-checkbox {
@@ -666,6 +679,35 @@
 .organize-chip-small {
   font-size: var(--font-ui-smaller);
   padding: 1px 6px;
+}
+
+.organize-batch-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.organize-batch-tag-chips .organize-chip {
+  cursor: default;
+}
+
+.organize-chip-disabled {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.organize-chip-restore {
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: var(--text-accent);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.organize-chip-restore:hover {
+  color: var(--text-success);
+  background: rgba(var(--color-green-rgb), 0.15);
 }
 
 .organize-batch-links {
