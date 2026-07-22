@@ -35,6 +35,7 @@ export class OrganizeBatchPreviewModal extends Modal {
     app: App,
     private readonly items: ReadonlyArray<BatchPreviewItem>,
     private readonly callbacks: BatchOrganizeCallbacks,
+    private readonly tagsOnly: boolean = false,
   ) {
     super(app);
     this.editableItems = items.map(item => ({
@@ -83,9 +84,11 @@ export class OrganizeBatchPreviewModal extends Modal {
       }
     }
 
-    this.renderEditableLinks(details, editable);
+    if (!this.tagsOnly) {
+      this.renderEditableLinks(details, editable);
+    }
 
-    if (editable.tags.length === 0 && editable.links.length === 0) {
+    if (editable.tags.length === 0 && (this.tagsOnly || editable.links.length === 0)) {
       details.createEl('span', { text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
     }
   }

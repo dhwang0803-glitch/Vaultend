@@ -99,10 +99,10 @@ describe('NoteEmbeddingService', () => {
       expect(results).toEqual([]);
     });
 
-    it('uses default threshold (0.55) and maxResults (5)', () => {
+    it('uses default threshold (0.40) and maxResults (5)', () => {
       const results = NoteEmbeddingService.findSimilarNotes(target, candidates);
       for (const r of results) {
-        expect(r.similarity).toBeGreaterThanOrEqual(0.55);
+        expect(r.similarity).toBeGreaterThanOrEqual(0.40);
       }
       expect(results.length).toBeLessThanOrEqual(5);
     });
@@ -133,8 +133,8 @@ describe('NoteEmbeddingService', () => {
       expect(NoteEmbeddingService.DEFAULT_CONFIG.bodyWeight).toBe(0.8);
     });
 
-    it('SIMILARITY_THRESHOLD is 0.55', () => {
-      expect(NoteEmbeddingService.SIMILARITY_THRESHOLD).toBe(0.55);
+    it('SIMILARITY_THRESHOLD is 0.40', () => {
+      expect(NoteEmbeddingService.SIMILARITY_THRESHOLD).toBe(0.40);
     });
 
     it('MAX_LINK_SUGGESTIONS is 5', () => {

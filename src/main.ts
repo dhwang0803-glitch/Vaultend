@@ -111,7 +111,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   organizeConfidenceThreshold: 0,
   embeddingsEnabled: false,
   embeddingsModel: '',
-  linkSimilarityThreshold: 0.55,
+  linkSimilarityThreshold: 0.40,
   rrfEmbeddingWeight: 4.0,
   rrfK: 20,
   privacyRules: [],
@@ -505,8 +505,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
         },
         (pair) => this.triggerMergeForPair(pair),
-        (notePaths) => this.previewOrganizeNotes(notePaths),
-        (notePaths) => this.previewOrganizeNotesTagsOnly(notePaths),
+        (notePaths, onProgress) => this.previewOrganizeNotes(notePaths, onProgress),
+        (notePaths, onProgress) => this.previewOrganizeNotesTagsOnly(notePaths, onProgress),
         this.buildBatchOrganizeCallbacks(),
       ),
     );
@@ -842,16 +842,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
   }
 
-  private async previewOrganizeNotes(notePaths: NotePath[]): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
+  private async previewOrganizeNotes(notePaths: NotePath[], onProgress?: (current: number, total: number) => void): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
     const results: Array<{ notePath: NotePath; result: OrganizeResult }> = [];
     let failed = 0;
-    for (const notePath of notePaths) {
+    for (let i = 0; i < notePaths.length; i++) {
       try {
-        const result = await this.organizeNoteUseCase.execute(notePath, false);
-        results.push({ notePath, result });
+        const result = await this.organizeNoteUseCase.execute(notePaths[i], false);
+        results.push({ notePath: notePaths[i], result });
       } catch {
         failed++;
       }
+      onProgress?.(i + 1, notePaths.length);
     }
     if (failed > 0) {
       new Notice(t('notice.organizePreviewFailed', { failed }));
@@ -859,16 +860,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     return results;
   }
 
-  private async previewOrganizeNotesTagsOnly(notePaths: NotePath[]): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
+  private async previewOrganizeNotesTagsOnly(notePaths: NotePath[], onProgress?: (current: number, total: number) => void): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
     const results: Array<{ notePath: NotePath; result: OrganizeResult }> = [];
     let failed = 0;
-    for (const notePath of notePaths) {
+    for (let i = 0; i < notePaths.length; i++) {
       try {
-        const result = await this.organizeNoteUseCase.execute(notePath, false, { skipLinkSuggestion: true });
-        results.push({ notePath, result });
+        const result = await this.organizeNoteUseCase.execute(notePaths[i], false, { skipLinkSuggestion: true });
+        results.push({ notePath: notePaths[i], result });
       } catch {
         failed++;
       }
+      onProgress?.(i + 1, notePaths.length);
     }
     if (failed > 0) {
       new Notice(t('notice.organizePreviewFailed', { failed }));

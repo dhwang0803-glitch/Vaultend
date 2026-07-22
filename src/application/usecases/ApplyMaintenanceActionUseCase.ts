@@ -301,7 +301,7 @@ export class ApplyMaintenanceActionUseCase {
       return tagsMatch[1].split(',').map(t => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
         .map(t => t.startsWith('#') ? t : `#${t}`);
     }
-    return tagsMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+    return tagsMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim().replace(/^["']|["']$/g, '')).filter(Boolean)
       .map(t => t.startsWith('#') ? t : `#${t}`);
   }
 

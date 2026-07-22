@@ -192,7 +192,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       )
       .addSlider(slider => {
         slider
-          .setLimits(0.40, 0.80, 0.05)
+          .setLimits(0.30, 0.80, 0.05)
           .setValue(this.settings!.linkSimilarityThreshold)
           .setDynamicTooltip()
           .onChange(async (value) => {

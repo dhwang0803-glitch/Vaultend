@@ -308,7 +308,7 @@ const ko: { [K in keyof typeof en]: string } = {
 
   'settings.linkSimilarity': '링크 제안',
   'settings.linkSimilarityThreshold': '유사도 임계값',
-  'settings.linkSimilarityThresholdDesc': '임베딩 기반 링크 제안의 최소 코사인 유사도 (0.40–0.80). 낮을수록 더 많은 링크를 제안하지만 노이즈가 포함될 수 있습니다.',
+  'settings.linkSimilarityThresholdDesc': '임베딩 기반 링크 제안의 최소 코사인 유사도 (0.30–0.80). 낮을수록 더 많은 링크를 제안하지만 노이즈가 포함될 수 있습니다.',
 
   'settings.search': '검색 (고급)',
   'settings.rrfEmbeddingWeight': '임베딩 가중치',

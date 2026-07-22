@@ -57,8 +57,8 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
-    private readonly onOrganizePreview?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
-    private readonly onOrganizeTagsOnly?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    private readonly onOrganizePreview?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    private readonly onOrganizeTagsOnly?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
   ) {
     super(leaf);
@@ -460,7 +460,7 @@ export class MaintenanceResultView extends ItemView {
     const entries: BatchEntry[] = [];
     this.renderBatchControls(section, entries);
     if (this.onOrganizeTagsOnly) {
-      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly);
+      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly, true);
     }
 
     for (const notePath of filtered) {
@@ -498,7 +498,7 @@ export class MaintenanceResultView extends ItemView {
     const entries: BatchEntry[] = [];
     this.renderBatchControls(section, entries);
     if (this.onOrganizeTagsOnly) {
-      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly);
+      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly, true);
     }
 
     for (const item of filtered) {
@@ -1097,7 +1097,8 @@ export class MaintenanceResultView extends ItemView {
   private addOrganizeButton(
     section: HTMLElement,
     entries: BatchEntry[],
-    previewFn?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    previewFn?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    tagsOnly: boolean = false,
   ): void {
     const batchControls = section.querySelector('.maintenance-batch-controls .setting-item-control');
     if (!batchControls) return;
@@ -1106,13 +1107,14 @@ export class MaintenanceResultView extends ItemView {
       text: t('batch.selectedOrganize'),
     });
     batchControls.prepend(btn);
-    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries, previewFn));
+    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries, previewFn, tagsOnly));
   }
 
   private async executeOrganizeBatch(
     btn: HTMLButtonElement,
     entries: BatchEntry[],
-    previewFn?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    previewFn?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    tagsOnly: boolean = false,
   ): Promise<void> {
     const preview = previewFn ?? this.onOrganizePreview;
     if (!preview || !this.batchOrganizeCallbacks) return;
@@ -1135,7 +1137,9 @@ export class MaintenanceResultView extends ItemView {
     btn.textContent = t('organize.processing', { current: 0, total: notePaths.length });
 
     try {
-      const previews = await preview(notePaths);
+      const previews = await preview(notePaths, (current, total) => {
+        btn.textContent = t('organize.processing', { current, total });
+      });
       btn.textContent = originalText;
       btn.disabled = false;
 
@@ -1149,7 +1153,7 @@ export class MaintenanceResultView extends ItemView {
         return;
       }
 
-      new OrganizeBatchPreviewModal(this.app, items, this.batchOrganizeCallbacks)
+      new OrganizeBatchPreviewModal(this.app, items, this.batchOrganizeCallbacks, tagsOnly)
         .setOnApplied((appliedEntries) => this.onBatchOrganizeApplied(appliedEntries, entries))
         .open();
     } catch (err) {

@@ -308,7 +308,7 @@ const en = {
 
   'settings.linkSimilarity': 'Link Suggestion',
   'settings.linkSimilarityThreshold': 'Similarity Threshold',
-  'settings.linkSimilarityThresholdDesc': 'Minimum cosine similarity for embedding-based link suggestions (0.40–0.80). Lower values suggest more links but may include noise.',
+  'settings.linkSimilarityThresholdDesc': 'Minimum cosine similarity for embedding-based link suggestions (0.30–0.80). Lower values suggest more links but may include noise.',
 
   'settings.search': 'Search (Advanced)',
   'settings.rrfEmbeddingWeight': 'Embedding weight',
