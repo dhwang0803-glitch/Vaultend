@@ -88,8 +88,4 @@ export interface PluginSettings {
 
   // Language
   readonly locale: 'auto' | 'en' | 'ko';
-
-  // License
-  readonly licenseKey: string;
-  readonly proGraceDeadline: number;
 }

@@ -1,9 +1,8 @@
 import { App, TFile, TFolder, CachedMetadata } from 'obsidian';
-import { VaultAccessPort, VaultEventHandler } from '../../application/ports/VaultAccessPort';
+import { VaultAccessPort, VaultEventHandler, NoteMetadataEntry } from '../../application/ports/VaultAccessPort';
 import { Note, createNote } from '../../domain/models/Note';
 import { NoteMetadata } from '../../domain/models/NoteMetadata';
 import { NoteChunk } from '../../domain/models/NoteChunk';
-import type { NoteMetadataEntry } from '../../domain/models/RefactorModels';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createNoteId } from '../../domain/values/NoteId';
 import { createNoteTitle } from '../../domain/values/NoteTitle';

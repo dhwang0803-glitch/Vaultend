@@ -30,5 +30,4 @@ export type {
 } from './ConfigPort';
 
 export type { ClockPort } from './ClockPort';
-export type { OrganizeVaultPort } from './OrganizeVaultPort';
 export type { TagEmbeddingCachePort, TagEmbeddingCacheMeta } from './TagEmbeddingCachePort';
