@@ -48,7 +48,7 @@ export function parseLinkSelectionResponse(
   try {
     const trimmed = jsonStr.trim();
     const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i);
-    parsed = JSON.parse(match ? match[1].trim() : trimmed);
+    parsed = JSON.parse(match ? match[1].trim() : trimmed) as Record<string, unknown>;
   } catch {
     return result;
   }

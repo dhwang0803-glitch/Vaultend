@@ -63,7 +63,7 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     const stored: StoredEntry[] = [];
     for (const [, entry] of this.entries) {
       stored.push({
-        notePath: entry.notePath as string,
+        notePath: entry.notePath,
         chunkIndex: entry.chunkIndex,
         vector: this.float32ToBase64(entry.vector),
       });

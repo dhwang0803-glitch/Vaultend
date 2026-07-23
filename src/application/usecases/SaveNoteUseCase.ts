@@ -56,7 +56,7 @@ export class SaveNoteUseCase {
     const target = request.target as Extract<SaveTarget, { kind: 'append-to-note' }>;
     const existingContent = await this.vault.readNote(target.targetPath);
     if (!existingContent) {
-      throw new NoteNotFoundError(target.targetPath as string);
+      throw new NoteNotFoundError(target.targetPath);
     }
 
     const newContent = target.headingPath
@@ -178,7 +178,7 @@ export class SaveNoteUseCase {
   }
 
   private formatDate(timestamp: Timestamp, format?: string): string {
-    const date = new Date(timestamp as number);
+    const date = new Date(timestamp);
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');

@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
+import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting, TFolder } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
@@ -46,7 +46,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
   private modelAnchorEl: HTMLElement | null = null;
   private providerSettingsContainerEl: HTMLElement | null = null;
   private isCustomMode = false;
-  private aiConfigDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private aiConfigDebounceTimer: number | null = null;
 
   constructor(
     app: App,
@@ -59,14 +59,18 @@ export class PluginSettingTab extends ObsidianSettingTab {
   }
 
   private scheduleAIConfigChanged(): void {
-    if (this.aiConfigDebounceTimer) clearTimeout(this.aiConfigDebounceTimer);
-    this.aiConfigDebounceTimer = setTimeout(() => {
+    if (this.aiConfigDebounceTimer) window.clearTimeout(this.aiConfigDebounceTimer);
+    this.aiConfigDebounceTimer = window.setTimeout(() => {
       this.aiConfigDebounceTimer = null;
       this.onAIConfigChanged?.();
     }, 1500);
   }
 
-  async display(): Promise<void> {
+  display(): void {
+    void this.render();
+  }
+
+  private async render(): Promise<void> {
     const { containerEl } = this;
     containerEl.empty();
 
@@ -91,7 +95,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             const resolved = value === 'auto' ? detectObsidianLocale() : value as SupportedLocale;
             setLocale(resolved);
             this.refreshOpenViews();
-            this.display();
+            void this.render();
           });
       });
 
@@ -115,7 +119,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
             this.scheduleAIConfigChanged();
-            this.display();
+            void this.render();
           });
       });
 
@@ -150,7 +154,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
         slider
           .setLimits(1024, 16384, 1024)
           .setValue(this.settings!.aiMaxTokens)
-          .setDynamicTooltip()
           .onChange(async (value) => {
             await this.config.updateSettings({ aiMaxTokens: value });
           });
@@ -187,7 +190,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
         slider
           .setLimits(0.30, 0.80, 0.05)
           .setValue(this.settings!.linkSimilarityThreshold)
-          .setDynamicTooltip()
           .onChange(async (value) => {
             await this.config.updateSettings({ linkSimilarityThreshold: value });
           });
@@ -426,7 +428,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     const provider = this.settings!.aiProvider;
     const models = AI_MODELS[provider] ?? [];
     const modelField = 'aiModel';
-    const currentModel = this.settings![modelField] as string;
+    const currentModel = this.settings![modelField];
     const isKnownModel = models.some(m => m.id === currentModel);
     const showCustomInput = this.isCustomMode || !isKnownModel;
 
@@ -483,8 +485,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
     },
   ): void {
     const wrapper = containerEl.createDiv({ cls: 'setting-item vaultend-chip-setting' });
-    wrapper.createEl('div', { text: opts.label, cls: 'setting-item-name' });
-    wrapper.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
+    wrapper.createDiv({ text: opts.label, cls: 'setting-item-name' });
+    wrapper.createDiv({ text: opts.desc, cls: 'setting-item-description' });
 
     const chipContainer = wrapper.createDiv({ cls: 'vaultend-chip-container' });
 
@@ -494,10 +496,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
         const chip = chipContainer.createDiv({ cls: 'vaultend-chip' });
         chip.createSpan({ text: item });
         const removeBtn = chip.createSpan({ cls: 'vaultend-chip-remove', text: '×' });
-        removeBtn.addEventListener('click', async () => {
+        removeBtn.addEventListener('click', () => {
           opts.items.splice(opts.items.indexOf(item), 1);
-          await opts.onUpdate(opts.items);
-          renderChips();
+          void opts.onUpdate(opts.items).then(() => renderChips());
         });
       }
     };
@@ -525,9 +526,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
     };
 
     const addBtn = inputRow.createEl('button', { text: t('settings.chipAdd'), cls: 'vaultend-chip-add-btn' });
-    addBtn.addEventListener('click', () => addItem(input.value));
+    addBtn.addEventListener('click', () => { void addItem(input.value); });
     input.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') { e.preventDefault(); addItem(input.value); }
+      if (e.key === 'Enter') { e.preventDefault(); void addItem(input.value); }
     });
 
     const cachedSuggestions = opts.suggestions();
@@ -546,7 +547,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       suggestionsEl.removeClass('vaultend-hidden');
       for (const suggestion of filtered) {
         const item = suggestionsEl.createDiv({ cls: 'vaultend-chip-suggestion-item', text: suggestion });
-        item.addEventListener('click', () => addItem(suggestion));
+        item.addEventListener('click', () => { void addItem(suggestion); });
       }
     });
 
@@ -556,9 +557,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
   }
 
   private collectVaultFolders(): string[] {
-    const { TFolder } = require('obsidian');
     const folders: string[] = [];
-    const collect = (folder: InstanceType<typeof TFolder>) => {
+    const collect = (folder: TFolder) => {
       if (folder.path) folders.push(folder.path);
       for (const child of folder.children ?? []) {
         if (child instanceof TFolder) collect(child);
@@ -603,11 +603,11 @@ export class PluginSettingTab extends ObsidianSettingTab {
     }
     for (const leaf of this.app.workspace.getLeavesOfType(MAINTENANCE_LOG_VIEW_TYPE)) {
       const view = leaf.view as { refresh?: () => Promise<void> };
-      view.refresh?.();
+      void view.refresh?.();
     }
     for (const leaf of this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE)) {
       const view = leaf.view as { refresh?: () => Promise<void> };
-      view.refresh?.();
+      void view.refresh?.();
     }
   }
 }

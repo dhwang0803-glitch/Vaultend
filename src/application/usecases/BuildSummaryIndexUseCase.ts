@@ -113,7 +113,7 @@ export class BuildSummaryIndexUseCase {
   ): Promise<{ processedCount: number; tokenUsage: TokenUsage }> {
     const hashMap = new Map<string, string>();
     for (const nd of noteData) {
-      hashMap.set(nd.notePath as string, nd.contentHash);
+      hashMap.set(nd.notePath, nd.contentHash);
     }
 
     const tokenUsages: TokenUsage[] = [];
@@ -129,7 +129,7 @@ export class BuildSummaryIndexUseCase {
       for (const result of settled) {
         if (result.status === 'fulfilled') {
           for (const sr of result.value.results) {
-            const contentHash = hashMap.get(sr.notePath as string) ?? '';
+            const contentHash = hashMap.get(sr.notePath) ?? '';
             this.noteEmbeddingCache.put({
               notePath: sr.notePath,
               vector: new Float32Array(0),

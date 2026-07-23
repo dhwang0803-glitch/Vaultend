@@ -19,7 +19,7 @@ export function parseBatchSummaryResponse(
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
     return [];
   }

@@ -80,7 +80,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   }
 
   get(notePath: NotePath): NoteEmbeddingEntry | undefined {
-    const data = this.cache.get(notePath as string);
+    const data = this.cache.get(notePath);
     if (!data) return undefined;
     return { notePath, vector: data.vector, contentHash: data.contentHash, onelineSummary: data.onelineSummary };
   }
@@ -88,7 +88,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   getMany(notePaths: ReadonlyArray<NotePath>): Map<NotePath, NoteEmbeddingEntry> {
     const result = new Map<NotePath, NoteEmbeddingEntry>();
     for (const np of notePaths) {
-      const data = this.cache.get(np as string);
+      const data = this.cache.get(np);
       if (data) {
         result.set(np, { notePath: np, vector: data.vector, contentHash: data.contentHash, onelineSummary: data.onelineSummary });
       }
@@ -106,7 +106,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   }
 
   put(entry: NoteEmbeddingEntry): void {
-    this.cache.set(entry.notePath as string, {
+    this.cache.set(entry.notePath, {
       vector: entry.vector,
       contentHash: entry.contentHash,
       onelineSummary: entry.onelineSummary,
@@ -116,7 +116,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
 
   putMany(entries: ReadonlyArray<NoteEmbeddingEntry>): void {
     for (const entry of entries) {
-      this.cache.set(entry.notePath as string, {
+      this.cache.set(entry.notePath, {
         vector: entry.vector,
         contentHash: entry.contentHash,
         onelineSummary: entry.onelineSummary,
@@ -126,7 +126,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   }
 
   delete(notePath: NotePath): void {
-    if (this.cache.delete(notePath as string)) {
+    if (this.cache.delete(notePath)) {
       this.dirty = true;
     }
   }
@@ -165,7 +165,7 @@ export class FileNoteEmbeddingCacheAdapter implements NoteEmbeddingCachePort {
   }
 
   needsUpdate(notePath: NotePath, contentHash: string): boolean {
-    const data = this.cache.get(notePath as string);
+    const data = this.cache.get(notePath);
     if (!data) return true;
     return data.contentHash !== contentHash;
   }

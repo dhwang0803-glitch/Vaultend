@@ -8,6 +8,22 @@ import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
 import { getModelPricing, estimateCostFromPricing } from '../../domain/models/PricingTable';
 
+interface GeminiGenerateResponse {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+    finishReason?: string;
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+}
+
+interface GeminiBatchEmbedResponse {
+  embeddings: Array<{ values: number[] }>;
+}
+
 export class GeminiAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
   private static readonly MAX_RETRIES = 3;
@@ -31,7 +47,7 @@ export class GeminiAdapter implements AIProviderPort {
 
     const systemInstruction = request.messages
       ? (() => {
-          const sysMsg = request.messages!.find(m => m.role === 'system');
+          const sysMsg = request.messages?.find(m => m.role === 'system');
           return sysMsg ? { parts: [{ text: sysMsg.content }] } : undefined;
         })()
       : request.systemPrompt
@@ -58,7 +74,7 @@ export class GeminiAdapter implements AIProviderPort {
     };
 
     const response = await this.requestWithRetry(params);
-    const result = response.json;
+    const result = response.json as GeminiGenerateResponse;
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const usage = result.usageMetadata ?? {};
 
@@ -117,7 +133,7 @@ export class GeminiAdapter implements AIProviderPort {
     };
 
     const response = await this.requestWithRetry(params);
-    const result = response.json as { embeddings: Array<{ values: number[] }> };
+    const result = response.json as GeminiBatchEmbedResponse;
 
     const embeddings = result.embeddings.map(e => new Float32Array(e.values));
     const dimension = embeddings.length > 0 ? embeddings[0].length : 0;
@@ -138,7 +154,7 @@ export class GeminiAdapter implements AIProviderPort {
 
   private async parseJsonWithRetry(content: string, originalPrompt: string): Promise<Record<string, unknown>> {
     try {
-      return JSON.parse(this.stripCodeBlock(content));
+      return JSON.parse(this.stripCodeBlock(content)) as Record<string, unknown>;
     } catch {
       const repairResponse = await this.callCompletion({
         prompt: `Your previous response was not valid JSON. The original request was:\n\n${originalPrompt}\n\nRespond ONLY with valid JSON. No markdown, no code blocks, no explanation.`,
@@ -149,7 +165,7 @@ export class GeminiAdapter implements AIProviderPort {
       });
 
       try {
-        return JSON.parse(this.stripCodeBlock(repairResponse.content));
+        return JSON.parse(this.stripCodeBlock(repairResponse.content)) as Record<string, unknown>;
       } catch {
         throw new AIParseError('Gemini', content);
       }

@@ -20,18 +20,19 @@ export class OrganizeResultModal extends Modal {
     private readonly actions: OrganizeApplyActions,
   ) {
     super(app);
-    this.selectedTags = result.addedTags.map(tag => tag as string);
+    this.selectedTags = [...result.addedTags];
     this.selectedLinks = [...result.suggestedLinks];
   }
 
   onOpen(): void {
+    this.modalEl.addClass('vaultend-organize-modal');
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('vaultend-organize-result');
 
     contentEl.createEl('h2', { text: t('organize.title') });
 
-    const noteName = (this.notePath as string).split('/').pop()?.replace('.md', '') ?? '';
+    const noteName = this.notePath.split('/').pop()?.replace('.md', '') ?? '';
     contentEl.createEl('p', {
       text: noteName,
       cls: 'organize-note-name',
@@ -79,7 +80,7 @@ export class OrganizeResultModal extends Modal {
   private rebuildTagList(tagListEl: HTMLElement): void {
     tagListEl.empty();
     if (this.selectedTags.length === 0) {
-      tagListEl.createEl('span', { text: t('organize.noTags'), cls: 'organize-empty' });
+      tagListEl.createSpan({ text: t('organize.noTags'), cls: 'organize-empty' });
       return;
     }
     for (const tag of this.selectedTags) {
@@ -91,14 +92,14 @@ export class OrganizeResultModal extends Modal {
       if (reason?.reason) {
         chip.setAttribute('title', reason.reason);
       }
-      chip.createEl('span', { text: `#${tag}` });
+      chip.createSpan({ text: `#${tag}` });
       if (reason) {
-        chip.createEl('span', {
+        chip.createSpan({
           text: String(reason.score),
           cls: 'organize-chip-score',
         });
       }
-      const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+      const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
       removeBtn.addEventListener('click', () => {
         this.selectedTags = this.selectedTags.filter(t2 => t2 !== tag);
         this.rebuildTagList(tagListEl);
@@ -142,14 +143,14 @@ export class OrganizeResultModal extends Modal {
   private rebuildLinkList(linkListEl: HTMLElement): void {
     linkListEl.empty();
     if (this.selectedLinks.length === 0) {
-      linkListEl.createEl('span', { text: t('organize.noLinks'), cls: 'organize-empty' });
+      linkListEl.createSpan({ text: t('organize.noLinks'), cls: 'organize-empty' });
       return;
     }
     for (const link of this.selectedLinks) {
-      const linkPath = (link as string).replace('.md', '');
+      const linkPath = link.replace('.md', '');
       const chip = linkListEl.createDiv('organize-chip');
-      chip.createEl('span', { text: `[[${linkPath}]]` });
-      const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+      chip.createSpan({ text: `[[${linkPath}]]` });
+      const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
       removeBtn.addEventListener('click', () => {
         this.selectedLinks = this.selectedLinks.filter(l => l !== link);
         this.rebuildLinkList(linkListEl);
@@ -163,7 +164,7 @@ export class OrganizeResultModal extends Modal {
     const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '');
     const path = cleaned.endsWith('.md') ? cleaned : `${cleaned}.md`;
     const asNotePath = path as unknown as NotePath;
-    if (!this.selectedLinks.some(l => (l as string) === path)) {
+    if (!this.selectedLinks.some(l => l === path)) {
       this.selectedLinks.push(asNotePath);
       this.rebuildLinkList(linkListEl);
     }
@@ -173,7 +174,7 @@ export class OrganizeResultModal extends Modal {
   private renderTokenUsage(container: HTMLElement): void {
     const usage = this.result.tokenUsage;
     const costText = usage.estimatedCostUsd < 0
-      ? t('organize.costUnavailable' as any)
+      ? t('organize.costUnavailable')
       : t('organize.cost', { amount: usage.estimatedCostUsd.toFixed(4) });
     const parts = [
       t('organize.tokens', { count: usage.totalTokens.toLocaleString() }),

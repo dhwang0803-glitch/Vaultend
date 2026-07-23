@@ -414,7 +414,7 @@ Add rules in the Privacy section. Each rule has:
 
 ## Installation
 
-### From Community Plugins (coming soon)
+### From Community Plugins
 
 1. Open **Settings → Community Plugins → Browse**
 2. Search "Vaultend"

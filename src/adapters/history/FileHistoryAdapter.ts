@@ -85,9 +85,9 @@ export class FileHistoryAdapter implements HistoryPort {
         }
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { affectedFiles: _af, ...preservedMeta } = target.metadata as Record<string, unknown>;
-        entries[idx] = { ...target, metadata: preservedMeta } as HistoryEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit affectedFiles
+        const { affectedFiles: _af, ...preservedMeta } = target.metadata!;
+        entries[idx] = { ...target, metadata: preservedMeta };
 
         const restored = files.length - failed.length;
         entries.push({
@@ -102,7 +102,7 @@ export class FileHistoryAdapter implements HistoryPort {
           }),
         });
 
-        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        await this.vault.writeFileRaw(filePath, JSON.stringify(entries, null, 2));
         if (failed.length > 0) {
           console.warn(`[Vaultend] tag-merge undo partial failure: ${failed.join(', ')}`);
         }
@@ -114,9 +114,9 @@ export class FileHistoryAdapter implements HistoryPort {
         await this.vault.moveNote(archivedPath, target.notePath);
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit metadata
         const { metadata: _cleared, ...rest } = target;
-        entries[idx] = rest as HistoryEntry;
+        entries[idx] = rest;
 
         entries.push({
           id: crypto.randomUUID(),
@@ -126,7 +126,7 @@ export class FileHistoryAdapter implements HistoryPort {
           description: t('historyDesc.restore', { path: target.notePath as string, action: target.action }),
         });
 
-        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        await this.vault.writeFileRaw(filePath, JSON.stringify(entries, null, 2));
         return;
       }
 
@@ -134,9 +134,9 @@ export class FileHistoryAdapter implements HistoryPort {
         await this.vault.writeNote(target.notePath, target.previousContent);
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit previousContent
         const { previousContent: _cleared, ...rest } = target;
-        entries[idx] = rest as HistoryEntry;
+        entries[idx] = rest;
 
         entries.push({
           id: crypto.randomUUID(),
@@ -146,7 +146,7 @@ export class FileHistoryAdapter implements HistoryPort {
           description: t('historyDesc.restore', { path: target.notePath as string, action: target.action }),
         });
 
-        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        await this.vault.writeFileRaw(filePath, JSON.stringify(entries, null, 2));
         return;
       }
     }
@@ -155,11 +155,13 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   private async loadMonthEntries(filePath: NotePath): Promise<HistoryEntry[]> {
-    const raw = await this.vault.readFileRaw(filePath as string);
+    const raw = await this.vault.readFileRaw(filePath);
     if (!raw) return [];
 
     try {
-      return JSON.parse(raw) as HistoryEntry[];
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as HistoryEntry[];
     } catch {
       console.warn(`[Vaultend] History file parse failed: ${filePath}`);
       return [];
@@ -167,7 +169,7 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   private getMonthKey(timestamp: Timestamp): string {
-    const date = new Date(timestamp as number);
+    const date = new Date(timestamp);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;

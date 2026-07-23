@@ -508,7 +508,7 @@
 }
 
 /* Organize Result Modal */
-.modal:has(.vaultend-organize-result) {
+.vaultend-organize-modal {
   width: 560px;
   max-width: 90vw;
   max-height: 80vh;

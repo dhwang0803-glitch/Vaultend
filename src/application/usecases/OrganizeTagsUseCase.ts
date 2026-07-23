@@ -322,12 +322,12 @@ export class OrganizeTagsUseCase {
           const childCount = tagCountMap.get(childTag.toLowerCase()) ?? 0;
           const nestedCount = tagCountMap.get(nestedPath.toLowerCase()) ?? 0;
 
-          const affectedNoteSet = new Set<string>();
+          const affectedNoteSet = new Set<NotePath>();
           const childNotes = tagToNotes.get(childTag.toLowerCase()) ?? [];
           for (const n of childNotes) {
-            affectedNoteSet.add(n as unknown as string);
+            affectedNoteSet.add(n);
           }
-          const affectedNotes = [...affectedNoteSet].map(p => p as unknown as NotePath);
+          const affectedNotes = [...affectedNoteSet];
 
           result.push({
             canonicalTag: nestedPath as TagName,
@@ -354,16 +354,16 @@ export class OrganizeTagsUseCase {
 
       variants.sort((a, b) => b.count - a.count);
 
-      const affectedNoteSet = new Set<string>();
+      const affectedNoteSet = new Set<NotePath>();
       const allTagsInGroup = [group.canonical, ...group.variants];
       for (const v of allTagsInGroup) {
         const notes = tagToNotes.get(v.toLowerCase()) ?? [];
         for (const n of notes) {
-          affectedNoteSet.add(n as unknown as string);
+          affectedNoteSet.add(n);
         }
       }
 
-      const affectedNotes = [...affectedNoteSet].map(p => p as unknown as NotePath);
+      const affectedNotes = [...affectedNoteSet];
 
       result.push({
         canonicalTag: group.canonical as TagName,

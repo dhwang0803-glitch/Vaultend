@@ -50,8 +50,8 @@ export class OrganizeBatchPreviewModal extends Modal {
     super(app);
     this.editableItems = items.map(item => ({
       notePath: item.notePath,
-      tags: item.result.addedTags.map(tag => ({ name: tag as string, enabled: true })),
-      links: item.result.suggestedLinks.map(link => ({ path: link as string, enabled: true })),
+      tags: item.result.addedTags.map(tag => ({ name: tag, enabled: true })),
+      links: item.result.suggestedLinks.map(link => ({ path: link, enabled: true })),
     }));
   }
 
@@ -81,14 +81,14 @@ export class OrganizeBatchPreviewModal extends Modal {
 
   private renderItem(container: HTMLElement, editable: EditableItem): void {
     const card = container.createDiv('organize-batch-card');
-    const noteName = (editable.notePath as string).split('/').pop()?.replace('.md', '') ?? '';
-    card.createEl('div', { text: noteName, cls: 'organize-batch-card-name' });
+    const noteName = editable.notePath.split('/').pop()?.replace('.md', '') ?? '';
+    card.createDiv({ text: noteName, cls: 'organize-batch-card-name' });
 
     const details = card.createDiv('organize-batch-card-details');
 
     if (editable.tags.length > 0) {
       const tagLine = details.createDiv('organize-batch-tags');
-      tagLine.createEl('span', { text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
+      tagLine.createSpan({ text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
       const chipContainer = tagLine.createDiv('organize-batch-tag-chips');
       this.renderTagChips(chipContainer, editable);
     }
@@ -98,7 +98,7 @@ export class OrganizeBatchPreviewModal extends Modal {
     }
 
     if (editable.tags.length === 0 && (this.tagsOnly || editable.links.length === 0)) {
-      details.createEl('span', { text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
+      details.createSpan({ text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
     }
   }
 
@@ -108,8 +108,8 @@ export class OrganizeBatchPreviewModal extends Modal {
       const chip = container.createDiv('organize-chip organize-chip-small');
       if (!tag.enabled) chip.addClass('organize-chip-disabled');
 
-      chip.createEl('span', { text: `#${tag.name}`, cls: 'organize-chip-text' });
-      const action = chip.createEl('span', {
+      chip.createSpan({ text: `#${tag.name}`, cls: 'organize-chip-text' });
+      const action = chip.createSpan({
         cls: tag.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
         attr: { 'aria-label': tag.enabled ? 'Remove' : 'Restore' },
       });
@@ -125,7 +125,7 @@ export class OrganizeBatchPreviewModal extends Modal {
 
   private renderEditableLinks(container: HTMLElement, editable: EditableItem): void {
     const linksSection = container.createDiv('organize-batch-links');
-    linksSection.createEl('span', { text: t('organize.linksLabel'), cls: 'organize-batch-label' });
+    linksSection.createSpan({ text: t('organize.linksLabel'), cls: 'organize-batch-label' });
 
     const chipContainer = linksSection.createDiv('organize-link-chips');
     this.renderLinkChips(chipContainer, editable);
@@ -159,8 +159,8 @@ export class OrganizeBatchPreviewModal extends Modal {
       const chip = container.createDiv('organize-link-chip');
       if (!link.enabled) chip.addClass('organize-chip-disabled');
       const displayName = link.path.replace(/\.md$/i, '').split('/').pop() ?? link.path;
-      chip.createEl('span', { text: `[[${displayName}]]`, cls: 'organize-link-chip-text' });
-      const action = chip.createEl('span', {
+      chip.createSpan({ text: `[[${displayName}]]`, cls: 'organize-link-chip-text' });
+      const action = chip.createSpan({
         cls: link.enabled ? 'organize-link-chip-remove' : 'organize-chip-restore',
       });
       action.textContent = link.enabled ? '×' : '↺';
@@ -202,7 +202,7 @@ export class OrganizeBatchPreviewModal extends Modal {
         previousContent = await this.callbacks.readContent(editable.notePath);
       } catch (err) {
         failed++;
-        console.error(`Vaultend: batch read failed for ${editable.notePath as string}`, err);
+        console.error(`Vaultend: batch read failed for ${editable.notePath}`, err);
         continue;
       }
 
@@ -223,11 +223,11 @@ export class OrganizeBatchPreviewModal extends Modal {
         success++;
       } catch (err) {
         failed++;
-        console.error(`Vaultend: batch apply failed for ${editable.notePath as string}`, err);
+        console.error(`Vaultend: batch apply failed for ${editable.notePath}`, err);
         try {
           await this.callbacks.writeContent(editable.notePath, previousContent);
         } catch (restoreErr) {
-          console.error(`Vaultend: failed to restore ${editable.notePath as string}`, restoreErr);
+          console.error(`Vaultend: failed to restore ${editable.notePath}`, restoreErr);
         }
       }
     }

@@ -1,10 +1,10 @@
 {
 	"id": "vaultend",
 	"name": "Vaultend",
-	"version": "1.0.3",
-	"minAppVersion": "1.7.2",
+	"version": "1.0.4",
+	"minAppVersion": "1.13.0",
 	"description": "Classify, tag, link, and organize your notes with AI-powered vault maintenance.",
-	"author": "dhwang0803",
+	"author": "dhwang0803-glitch",
 	"authorUrl": "https://github.com/dhwang0803-glitch",
 	"isDesktopOnly": false
 }

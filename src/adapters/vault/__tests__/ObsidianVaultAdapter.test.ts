@@ -23,6 +23,7 @@ function createMockApp(overrides?: Record<string, any>) {
       }),
       create: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
+      trash: vi.fn().mockResolvedValue(undefined),
       createFolder: vi.fn().mockResolvedValue(undefined),
       getMarkdownFiles: vi.fn(() => files),
       on: vi.fn().mockReturnValue({ id: 'ref' }),
@@ -199,12 +200,12 @@ describe('ObsidianVaultAdapter', () => {
     it('존재하는 파일을 삭제한다', async () => {
       const file = addFile(app, 'delete-me.md');
       await adapter.deleteNote(np('delete-me.md'));
-      expect(app.vault.delete).toHaveBeenCalledWith(file);
+      expect(app.vault.trash).toHaveBeenCalledWith(file, true);
     });
 
     it('존재하지 않는 파일이면 아무것도 하지 않는다', async () => {
       await adapter.deleteNote(np('ghost.md'));
-      expect(app.vault.delete).not.toHaveBeenCalled();
+      expect(app.vault.trash).not.toHaveBeenCalled();
     });
   });
 

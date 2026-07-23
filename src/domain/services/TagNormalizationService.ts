@@ -80,7 +80,7 @@ export class TagNormalizationService {
     const a = (tagA.startsWith('#') ? tagA.slice(1) : tagA).toLowerCase();
     const b = (tagB.startsWith('#') ? tagB.slice(1) : tagB).toLowerCase();
 
-    if (/[^\x00-\x7F]/.test(a) || /[^\x00-\x7F]/.test(b)) return RELAXED;
+    if (/[^\x20-\x7E]/.test(a) || /[^\x20-\x7E]/.test(b)) return RELAXED;
 
     const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
 

@@ -23,7 +23,7 @@ export class MaintenanceLogView extends ItemView {
     if (this.refreshTimer) window.clearTimeout(this.refreshTimer);
     this.refreshTimer = window.setTimeout(() => {
       this.refreshTimer = null;
-      this.refresh();
+      void this.refresh();
     }, 300);
   }
 
@@ -70,17 +70,17 @@ export class MaintenanceLogView extends ItemView {
 
     for (const entry of entries) {
       const setting = new Setting(contentEl);
-      const time = formatDate(entry.timestamp as number);
+      const time = formatDate(entry.timestamp);
       setting.setName(`[${time}] ${entry.action}`);
       setting.setDesc(this.formatDescription(entry));
 
       const canUndo = entry.previousContent !== undefined
         || (entry.action === 'archive' && entry.metadata?.archivedTo)
-        || (entry.action === 'tag-merge' && Array.isArray(entry.metadata?.affectedFiles) && (entry.metadata!.affectedFiles as unknown[]).length > 0);
+        || (entry.action === 'tag-merge' && Array.isArray(entry.metadata?.affectedFiles) && entry.metadata!.affectedFiles.length > 0);
       if (canUndo) {
         setting.addButton(btn => btn
           .setButtonText(t('log.undo'))
-          .setWarning()
+          .setDestructive()
           .onClick(async () => {
             try {
               await this.historyPort.undo(entry.id);
@@ -97,7 +97,7 @@ export class MaintenanceLogView extends ItemView {
 
   private formatDescription(entry: HistoryEntry): string {
     const meta = entry.metadata ?? {};
-    const path = entry.notePath as string;
+    const path = entry.notePath;
 
     switch (entry.action) {
       case 'delete':

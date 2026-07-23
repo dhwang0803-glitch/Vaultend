@@ -1,4 +1,4 @@
-import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
+import { FuzzySuggestModal, ItemView, Notice, Setting, TFolder, WorkspaceLeaf } from 'obsidian';
 import { OrganizeFolderUseCase, OrganizeFolderResult } from '../application/usecases/RunInboxProcessUseCase';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { OrganizeApplyActions } from './OrganizeResultModal';
@@ -73,10 +73,10 @@ export class OrganizeFolderResultView extends ItemView {
       entry.setting.addButton(btn =>
         btn.setButtonText(t('organizeFolder.applyNote'))
           .setCta()
-          .onClick(() => this.applyEntry(entry)),
+          .onClick(() => { void this.applyEntry(entry); }),
       );
     }
-    entry.setting.setDesc(entry.result.notePath as string);
+    entry.setting.setDesc(entry.result.notePath);
   }
 
   async onClose(): Promise<void> {
@@ -101,15 +101,14 @@ export class OrganizeFolderResultView extends ItemView {
   }
 
   private promptFolderAndScan(): void {
-    const { FuzzySuggestModal, TFolder } = require('obsidian');
-    const modal = new (class extends FuzzySuggestModal<typeof TFolder> {
+    const modal = new (class extends FuzzySuggestModal<TFolder> {
       constructor(private view: OrganizeFolderResultView) {
         super(view.app);
         this.setPlaceholder(t('organizeFolder.placeholder'));
       }
-      getItems(): (typeof TFolder)[] {
-        const folders: (typeof TFolder)[] = [];
-        const collect = (folder: typeof TFolder) => {
+      getItems(): TFolder[] {
+        const folders: TFolder[] = [];
+        const collect = (folder: TFolder) => {
           folders.push(folder);
           for (const child of folder.children ?? []) {
             if (child instanceof TFolder) collect(child);
@@ -118,11 +117,11 @@ export class OrganizeFolderResultView extends ItemView {
         collect(this.view.app.vault.getRoot());
         return folders;
       }
-      getItemText(folder: typeof TFolder): string {
+      getItemText(folder: TFolder): string {
         return folder.path || '/ (Vault Root)';
       }
-      onChooseItem(folder: typeof TFolder): void {
-        this.view.triggerScan(folder.path);
+      onChooseItem(folder: TFolder): void {
+        void this.view.triggerScan(folder.path);
       }
     })(this);
     modal.open();
@@ -147,7 +146,7 @@ export class OrganizeFolderResultView extends ItemView {
         folder: folderPath,
         signal: this.abortController.signal,
         onProgress: (info) => {
-          this.renderProgress(folderPath, info.current, info.total, info.currentNotePath as string);
+          this.renderProgress(folderPath, info.current, info.total, info.currentNotePath);
         },
       });
       this.currentResult = result;
@@ -184,7 +183,7 @@ export class OrganizeFolderResultView extends ItemView {
     new Setting(actions)
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.cancel'))
-          .setWarning()
+          .setDestructive()
           .onClick(() => this.abortController?.abort()),
       );
   }
@@ -220,7 +219,7 @@ export class OrganizeFolderResultView extends ItemView {
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.rescan'))
           .onClick(() => {
-            if (this.targetFolder !== null) this.triggerScan(this.targetFolder);
+            if (this.targetFolder !== null) void this.triggerScan(this.targetFolder);
           }),
       );
 
@@ -229,14 +228,14 @@ export class OrganizeFolderResultView extends ItemView {
         btn.setButtonText(t('organizeFolder.continue', { remaining: String(result.remainingCount) }))
           .setCta()
           .onClick(() => {
-            if (this.targetFolder !== null) this.triggerScan(this.targetFolder);
+            if (this.targetFolder !== null) void this.triggerScan(this.targetFolder);
           }),
       );
     }
 
     // Summary
     const summaryEl = this.contentEl.createDiv({ cls: 'organize-folder-summary' });
-    summaryEl.createEl('span', {
+    summaryEl.createSpan({
       text: result.remainingCount > 0
         ? t('organizeFolder.batchSummary', {
             processed: String(result.processedCount),
@@ -256,8 +255,8 @@ export class OrganizeFolderResultView extends ItemView {
       const { tooShort, alreadyLinked, alreadyOrganized } = result.skipBreakdown;
       const smartSkipped = tooShort + alreadyLinked + alreadyOrganized;
       if (smartSkipped > 0) {
-        summaryEl.createEl('span', {
-          text: t('organizeFolder.skipDetail' as any, {
+        summaryEl.createSpan({
+          text: t('organizeFolder.skipDetail', {
             tooShort: String(tooShort),
             alreadyLinked: String(alreadyLinked),
             alreadyOrganized: String(alreadyOrganized),
@@ -276,10 +275,10 @@ export class OrganizeFolderResultView extends ItemView {
         totalCost += result.linkSelectionTokenUsage.estimatedCostUsd;
       }
       const hasCostData = totalCost >= 0;
-      summaryEl.createEl('span', {
+      summaryEl.createSpan({
         text: hasCostData
           ? t('organizeFolder.tokenTotal', { count: totalTokens.toLocaleString(), cost: totalCost.toFixed(4) })
-          : t('organizeFolder.tokenTotalUnavailable' as any, { count: totalTokens.toLocaleString() }),
+          : t('organizeFolder.tokenTotalUnavailable', { count: totalTokens.toLocaleString() }),
         cls: 'organize-folder-token-info',
       });
     }
@@ -289,7 +288,7 @@ export class OrganizeFolderResultView extends ItemView {
       const errorDiv = this.contentEl.createDiv({ cls: 'organize-folder-error-list' });
       const ul = errorDiv.createEl('ul');
       for (const err of result.errors) {
-        ul.createEl('li', { text: `${err.path as string}: ${err.error}` });
+        ul.createEl('li', { text: `${err.path}: ${err.error}` });
       }
     }
 
@@ -319,7 +318,7 @@ export class OrganizeFolderResultView extends ItemView {
 
     const selectAllContainer = batchEl.createDiv({ cls: 'maintenance-batch-checkbox' });
     const selectAllCheckbox = selectAllContainer.createEl('input', { type: 'checkbox' });
-    selectAllContainer.createEl('span', { text: t('batch.selectAll') });
+    selectAllContainer.createSpan({ text: t('batch.selectAll') });
     selectAllCheckbox.addEventListener('change', () => {
       for (const entry of this.entries) {
         if (entry.status === 'pending' || entry.status === 'applied') {
@@ -340,14 +339,14 @@ export class OrganizeFolderResultView extends ItemView {
       )
       .addButton(btn =>
         btn.setButtonText(t('batch.selectedUndo'))
-          .setWarning()
+          .setDestructive()
           .onClick(() => this.undoBatch()),
       );
   }
 
   private renderNoteEntry(container: HTMLElement, result: OrganizeResult): void {
     const notePath = result.notePath;
-    const pathStr = notePath as string;
+    const pathStr = notePath;
     const basename = pathStr.split('/').pop()?.replace('.md', '') ?? pathStr;
 
     const entryContainer = container.createDiv({ cls: 'organize-folder-entry' });
@@ -382,7 +381,7 @@ export class OrganizeFolderResultView extends ItemView {
       setting,
       status: this.autoApplyMode && result.historyEntryId ? 'applied' : 'pending',
       historyEntryId: result.historyEntryId,
-      selectedTags: result.addedTags.map(tag => tag as string),
+      selectedTags: [...result.addedTags],
       selectedLinks: [...result.suggestedLinks],
       container: entryContainer,
     };
@@ -390,7 +389,7 @@ export class OrganizeFolderResultView extends ItemView {
 
     const detailsEl = entryContainer.createDiv({ cls: 'organize-folder-note-details' });
     if (result.lowConfidence) {
-      detailsEl.createEl('span', {
+      detailsEl.createSpan({
         text: t('organizeFolder.lowConfidence'),
         cls: 'organize-folder-low-confidence',
       });
@@ -404,13 +403,13 @@ export class OrganizeFolderResultView extends ItemView {
     // Per-note token usage
     if (result.tokenUsage.totalTokens > 0) {
       const costAvailable = result.tokenUsage.estimatedCostUsd >= 0;
-      detailsEl.createEl('span', {
+      detailsEl.createSpan({
         text: costAvailable
-          ? t('organizeFolder.tokenNote' as Parameters<typeof t>[0], {
+          ? t('organizeFolder.tokenNote', {
               count: result.tokenUsage.totalTokens,
               cost: result.tokenUsage.estimatedCostUsd.toFixed(4),
             })
-          : t('organizeFolder.tokenNoteUnavailable' as any, {
+          : t('organizeFolder.tokenNoteUnavailable', {
               count: result.tokenUsage.totalTokens,
             }),
         cls: 'organize-folder-token-note',
@@ -434,8 +433,8 @@ export class OrganizeFolderResultView extends ItemView {
       this.renderLinkSection(detailsEl, entry);
     } else if (result.addedTags.length > 0) {
       const noLinkEl = detailsEl.createDiv({ cls: 'organize-folder-section' });
-      noLinkEl.createEl('span', {
-        text: t('organizeFolder.noLinks' as Parameters<typeof t>[0]),
+      noLinkEl.createSpan({
+        text: t('organizeFolder.noLinks'),
         cls: 'organize-folder-no-links',
       });
     }
@@ -447,14 +446,14 @@ export class OrganizeFolderResultView extends ItemView {
       setting.addButton(btn =>
         btn.setButtonText(t('organizeFolder.applyNote'))
           .setCta()
-          .onClick(() => this.applyEntry(entry)),
+          .onClick(() => { void this.applyEntry(entry); }),
       );
     }
   }
 
   private renderTagSection(container: HTMLElement, entry: OrganizeFolderEntry): void {
     const section = container.createDiv({ cls: 'organize-folder-section' });
-    section.createEl('span', { text: t('organizeFolder.tagsSection'), cls: 'organize-folder-section-label' });
+    section.createSpan({ text: t('organizeFolder.tagsSection'), cls: 'organize-folder-section-label' });
     const chipList = section.createDiv({ cls: 'organize-tag-list' });
 
     for (const tag of entry.selectedTags) {
@@ -462,19 +461,19 @@ export class OrganizeFolderResultView extends ItemView {
       const chipClasses = ['organize-chip'];
       if (reason?.isNew) chipClasses.push('organize-chip-new');
 
-      const chip = chipList.createEl('span', { cls: chipClasses.join(' ') });
+      const chip = chipList.createSpan({ cls: chipClasses.join(' ') });
       if (reason?.reason) {
         chip.setAttribute('title', reason.reason);
       }
-      chip.createEl('span', { text: tag });
+      chip.createSpan({ text: tag });
       if (reason) {
-        chip.createEl('span', {
+        chip.createSpan({
           text: String(reason.score),
           cls: 'organize-chip-score',
         });
       }
       if (entry.status === 'pending' && !this.autoApplyMode) {
-        const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+        const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
         removeBtn.addEventListener('click', () => {
           entry.selectedTags = entry.selectedTags.filter(t => t !== tag);
           chip.remove();
@@ -485,14 +484,14 @@ export class OrganizeFolderResultView extends ItemView {
 
   private renderLinkSection(container: HTMLElement, entry: OrganizeFolderEntry): void {
     const section = container.createDiv({ cls: 'organize-folder-section' });
-    section.createEl('span', { text: t('organizeFolder.linksSection'), cls: 'organize-folder-section-label' });
+    section.createSpan({ text: t('organizeFolder.linksSection'), cls: 'organize-folder-section-label' });
     const chipList = section.createDiv({ cls: 'organize-link-list' });
 
     for (const link of entry.selectedLinks) {
-      const linkPath = (link as string).replace('.md', '');
-      const chip = chipList.createEl('span', { text: `[[${linkPath}]]`, cls: 'organize-chip' });
+      const linkPath = link.replace('.md', '');
+      const chip = chipList.createSpan({ text: `[[${linkPath}]]`, cls: 'organize-chip' });
       if (entry.status === 'pending' && !this.autoApplyMode) {
-        const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
+        const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
         removeBtn.addEventListener('click', () => {
           entry.selectedLinks = entry.selectedLinks.filter(l => l !== link);
           chip.remove();
@@ -518,7 +517,7 @@ export class OrganizeFolderResultView extends ItemView {
         previousContent,
         metadata: {
           tags: entry.selectedTags,
-          links: entry.selectedLinks.map(l => l as string),
+          links: [...entry.selectedLinks],
         },
       });
 
@@ -529,10 +528,9 @@ export class OrganizeFolderResultView extends ItemView {
         await this.applyActions.addLinks(entry.result.notePath, entry.selectedLinks);
       }
       // Mark as processed
-      const currentNotePath = entry.result.notePath as string;
-      const stillExists = await this.vault.exists(currentNotePath as unknown as NotePath);
+      const stillExists = await this.vault.exists(entry.result.notePath);
       if (stillExists) {
-        await this.vault.updateFrontmatter(currentNotePath as unknown as NotePath, { processed: true });
+        await this.vault.updateFrontmatter(entry.result.notePath, { processed: true });
       }
 
       entry.status = 'applied';
@@ -559,7 +557,7 @@ export class OrganizeFolderResultView extends ItemView {
     if (entry.historyEntryId) {
       entry.setting.addButton(btn =>
         btn.setButtonText(t('organizeFolder.undoNote'))
-          .setWarning()
+          .setDestructive()
           .onClick(() => this.undoEntry(entry)),
       );
     }
@@ -585,11 +583,11 @@ export class OrganizeFolderResultView extends ItemView {
         entry.setting.addButton(btn =>
           btn.setButtonText(t('organizeFolder.applyNote'))
             .setCta()
-            .onClick(() => this.applyEntry(entry)),
+            .onClick(() => { void this.applyEntry(entry); }),
         );
       }
 
-      entry.setting.setDesc(entry.result.notePath as string);
+      entry.setting.setDesc(entry.result.notePath);
       new Notice(t('undo.success'));
       this.app.workspace.trigger(HISTORY_CHANGED_EVENT, undoneId);
       return true;

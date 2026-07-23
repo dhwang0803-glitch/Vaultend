@@ -57,7 +57,7 @@ export class OrganizeNoteUseCase {
 
     const note = await this.vault.readNote(notePath);
     if (!note) {
-      throw new NoteNotFoundError(notePath as string);
+      throw new NoteNotFoundError(notePath);
     }
 
     const settings = await this.config.getSettings();

@@ -161,14 +161,9 @@ export class OrganizeFolderUseCase {
     const noteSummaryMap = new Map<NotePath, string>();
     if (this.noteEmbeddingCache) {
       const allEntries = this.noteEmbeddingCache.getAll();
-      let withSummary = 0;
-      let withoutSummary = 0;
       for (const [path, entry] of allEntries) {
         if (entry.onelineSummary) {
           noteSummaryMap.set(path, entry.onelineSummary);
-          withSummary++;
-        } else {
-          withoutSummary++;
         }
       }
     }

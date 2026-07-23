@@ -61,7 +61,7 @@ export class FileChangeTrackingAdapter implements ChangeTrackingPort {
     if (!raw) return;
 
     try {
-      const data: DirtySetData = JSON.parse(raw);
+      const data = JSON.parse(raw) as DirtySetData;
       if (Array.isArray(data.dirtyPaths)) {
         for (const p of data.dirtyPaths) {
           this.dirtySet.add(createNotePath(p));

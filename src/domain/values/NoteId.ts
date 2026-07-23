@@ -9,5 +9,5 @@ export function createNoteId(raw: string): NoteId {
 }
 
 export function noteIdToString(id: NoteId): string {
-  return id as string;
+  return id;
 }

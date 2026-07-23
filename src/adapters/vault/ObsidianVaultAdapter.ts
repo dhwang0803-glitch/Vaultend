@@ -24,7 +24,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   ) {}
 
   async readNote(path: NotePath): Promise<Note | null> {
-    const file = this.app.vault.getAbstractFileByPath(path as string);
+    const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return null;
 
     const content = await this.app.vault.read(file);
@@ -63,9 +63,9 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async deleteNote(path: NotePath): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(path as string);
+    const file = this.app.vault.getAbstractFileByPath(path);
     if (file instanceof TFile) {
-      await this.app.vault.delete(file);
+      await this.app.vault.trash(file, true);
     }
   }
 
@@ -90,9 +90,9 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(path as string);
+    const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) {
-      throw new NoteNotFoundError(path as string);
+      throw new NoteNotFoundError(path);
     }
 
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
@@ -101,15 +101,15 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async exists(path: NotePath): Promise<boolean> {
-    return this.app.vault.getAbstractFileByPath(path as string) !== null;
+    return this.app.vault.getAbstractFileByPath(path) !== null;
   }
 
   async moveNote(from: NotePath, to: NotePath): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(from as string);
+    const file = this.app.vault.getAbstractFileByPath(from);
     if (!(file instanceof TFile)) {
-      throw new NoteNotFoundError(from as string);
+      throw new NoteNotFoundError(from);
     }
-    const toStr = to as string;
+    const toStr: string = to;
     const folderPath = toStr.substring(0, toStr.lastIndexOf('/'));
     if (folderPath) {
       await this.ensureFolderExists(folderPath);
@@ -261,7 +261,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       let wordCount: number;
       try {
         const content = await this.app.vault.cachedRead(file);
-        const body = content.replace(/^(?:﻿)?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+        const body = content.replace(/^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
         const words = body.match(/\S+/g);
         wordCount = words ? words.length : 0;
       } catch {

@@ -11,7 +11,7 @@ export class FileCorpusStatsAdapter implements CorpusStatsPort {
     if (!raw) return null;
 
     try {
-      const stats: TfIdfCorpusStats = JSON.parse(raw);
+      const stats = JSON.parse(raw) as TfIdfCorpusStats;
       if (typeof stats.documentCount !== 'number' || !stats.documentFrequency) {
         return null;
       }

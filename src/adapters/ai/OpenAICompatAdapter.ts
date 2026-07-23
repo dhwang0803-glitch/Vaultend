@@ -127,7 +127,7 @@ export class OpenAICompatAdapter implements AIProviderPort {
     const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i);
     const clean = match ? match[1].trim() : trimmed;
     try {
-      return JSON.parse(clean);
+      return JSON.parse(clean) as Record<string, unknown>;
     } catch {
       throw new AIParseError(this.providerName, content);
     }

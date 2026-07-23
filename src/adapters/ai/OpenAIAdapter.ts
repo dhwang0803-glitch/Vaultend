@@ -114,7 +114,7 @@ export class OpenAIAdapter implements AIProviderPort {
 
   private async parseJsonWithRetry(content: string, originalPrompt: string): Promise<Record<string, unknown>> {
     try {
-      return JSON.parse(this.stripCodeBlock(content));
+      return JSON.parse(this.stripCodeBlock(content)) as Record<string, unknown>;
     } catch {
       const repairResponse = await this.callCompletion({
         prompt: `Your previous response was not valid JSON. The original request was:\n\n${originalPrompt}\n\nRespond ONLY with valid JSON. No markdown, no code blocks, no explanation.`,
@@ -125,7 +125,7 @@ export class OpenAIAdapter implements AIProviderPort {
       });
 
       try {
-        return JSON.parse(this.stripCodeBlock(repairResponse.content));
+        return JSON.parse(this.stripCodeBlock(repairResponse.content)) as Record<string, unknown>;
       } catch {
         throw new AIParseError('OpenAI', content);
       }

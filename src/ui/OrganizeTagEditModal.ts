@@ -20,11 +20,11 @@ export class OrganizeTagEditModal extends Modal {
     private readonly variants: ReadonlyArray<{ tag: TagName; count: number }>,
   ) {
     super(app);
-    this.selectedCanonical = canonicalTag as string;
-    this.includedVariants = new Set(variants.map(v => v.tag as string));
+    this.selectedCanonical = canonicalTag;
+    this.includedVariants = new Set(variants.map(v => v.tag));
   }
 
-  open(): Promise<TagGroupEditResult | null> {
+  prompt(): Promise<TagGroupEditResult | null> {
     return new Promise((resolve) => {
       this.resolve = resolve;
       super.open();
@@ -40,7 +40,7 @@ export class OrganizeTagEditModal extends Modal {
       .setName(t('organizeTags.editCanonical'))
       .addDropdown(dd => {
         for (const v of this.variants) {
-          dd.addOption(v.tag as string, `${v.tag as string} (${v.count})`);
+          dd.addOption(v.tag, `${v.tag} (${v.count})`);
         }
         dd.setValue(this.selectedCanonical);
         dd.onChange(val => {
@@ -66,11 +66,11 @@ export class OrganizeTagEditModal extends Modal {
     this.checkboxes = [];
 
     for (const v of this.variants) {
-      const tagStr = v.tag as string;
+      const tagStr = v.tag;
       const row = variantContainer.createDiv({ cls: 'organize-tags-edit-row' });
-      const cb = row.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+      const cb = row.createEl('input', { type: 'checkbox' });
       cb.checked = true;
-      row.createEl('span', { text: `${tagStr} (${v.count})` });
+      row.createSpan({ text: `${tagStr} (${v.count})` });
 
       this.checkboxes.push({ tag: tagStr, cb });
 

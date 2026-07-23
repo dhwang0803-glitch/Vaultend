@@ -46,7 +46,7 @@ import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
-import type { MaintenancePlan, DuplicatePair, OrganizeResult } from './domain/models/OrganizeModels';
+import type { MaintenancePlan, OrganizeResult } from './domain/models/OrganizeModels';
 import { timestampNow } from './domain/values/Timestamp';
 import {
   DEFAULT_SAVE_FOLDER,
@@ -176,7 +176,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         await this.reinitializeEmbeddings(gen);
         if (gen !== this.embeddingInitGeneration) return;
         if (this.embeddingAdapter.isReady()) {
-          this.syncEmbeddingsBackground();
+          void this.syncEmbeddingsBackground();
         }
       } catch (err) {
         console.error('Vaultend: AI config change re-initialization failed', err);
@@ -205,7 +205,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         await this.reinitializeEmbeddings();
 
         if (this.embeddingAdapter.isReady()) {
-          this.syncEmbeddingsBackground();
+          void this.syncEmbeddingsBackground();
         }
       }
     });
@@ -214,7 +214,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   onunload(): void {
 
     // Persist dirty set before shutdown
-    this.changeTracker.persist();
+    this.changeTracker.persist().catch(() => {});
 
     // Unsubscribe event watchers
     if (this.unsubscribeVaultEvents) {
@@ -296,24 +296,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async loadSettings(): Promise<void> {
-    const data = await this.loadData();
-    const raw = data ?? {};
+    const data: Record<string, unknown> = (await this.loadData() as Record<string, unknown> | null) ?? {};
 
     // Migrate legacy setting names
-    if ('inboxFolder' in raw && !('captureFolder' in raw)) {
-      raw.captureFolder = raw.inboxFolder;
-      delete raw.inboxFolder;
+    if ('inboxFolder' in data && !('captureFolder' in data)) {
+      data.captureFolder = data.inboxFolder;
+      delete data.inboxFolder;
     }
-    if ('autoApplyInbox' in raw && !('autoApplyOrganize' in raw)) {
-      raw.autoApplyOrganize = raw.autoApplyInbox;
-      delete raw.autoApplyInbox;
+    if ('autoApplyInbox' in data && !('autoApplyOrganize' in data)) {
+      data.autoApplyOrganize = data.autoApplyInbox;
+      delete data.autoApplyInbox;
     }
-    if ('inboxConfidenceThreshold' in raw && !('organizeConfidenceThreshold' in raw)) {
-      raw.organizeConfidenceThreshold = raw.inboxConfidenceThreshold;
-      delete raw.inboxConfidenceThreshold;
+    if ('inboxConfidenceThreshold' in data && !('organizeConfidenceThreshold' in data)) {
+      data.organizeConfidenceThreshold = data.inboxConfidenceThreshold;
+      delete data.inboxConfidenceThreshold;
     }
 
-    this.settings = { ...DEFAULT_SETTINGS, ...raw };
+    this.settings = { ...DEFAULT_SETTINGS, ...data } as PluginSettings;
   }
 
   private wireAdapters(): void {
@@ -520,7 +519,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
           if (leaves.length > 0) {
             const view = leaves[0].view as OrganizeFolderResultView;
-            view.triggerScan(folder.path);
+            void view.triggerScan(folder.path);
           }
         }).open();
       },
@@ -529,7 +528,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.addCommand({
       id: 'open-maintenance-log',
       name: t('command.openLog'),
-      callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
+      callback: () => { void this.activateView(MAINTENANCE_LOG_VIEW_TYPE); },
     });
 
     this.addCommand({
@@ -623,7 +622,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
               const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
               if (leaves.length > 0) {
                 const view = leaves[0].view as OrganizeFolderResultView;
-                view.triggerScan(file.path);
+                void view.triggerScan(file.path);
               }
             });
         });
@@ -655,17 +654,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
         // Incremental search index update (BM25 + embeddings)
         if (event.type === 'delete') {
-          this.searchIndex.remove(event.path);
+          this.searchIndex.remove(event.path).catch(() => {});
           this.vectorStoreAdapter.remove(event.path).catch(() => {});
         } else if (event.type === 'rename') {
           if (event.oldPath) {
-            this.searchIndex.remove(event.oldPath);
+            this.searchIndex.remove(event.oldPath).catch(() => {});
             this.vectorStoreAdapter.remove(event.oldPath).catch(() => {});
           }
-          this.indexSingleNote(event.path);
+          void this.indexSingleNote(event.path);
           this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
         } else if (event.type === 'create' || event.type === 'modify') {
-          this.indexSingleNote(event.path);
+          void this.indexSingleNote(event.path);
           this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
         }
       }
@@ -783,14 +782,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       await this.searchIndex.rebuild();
       const notes = await this.vaultAdapter.listNotes();
       const saveFolder = this.settings.defaultSaveFolder;
-      let indexed = 0;
       for (const notePath of notes) {
         const pathStr = notePath as string;
         if (saveFolder.length > 0 && (pathStr === saveFolder || pathStr.startsWith(saveFolder + '/'))) continue;
         const note = await this.vaultAdapter.readNote(notePath);
         if (note && note.chunks.length > 0) {
           await this.searchIndex.index(notePath, note.chunks);
-          indexed++;
         }
       }
     } catch (err) {

@@ -17,7 +17,7 @@ export function parseTagGroupingResponse(
   try {
     const trimmed = jsonStr.trim();
     const fenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i);
-    parsed = JSON.parse(fenceMatch ? fenceMatch[1].trim() : trimmed);
+    parsed = JSON.parse(fenceMatch ? fenceMatch[1].trim() : trimmed) as Record<string, unknown>;
   } catch {
     return [];
   }
@@ -29,8 +29,9 @@ export function parseTagGroupingResponse(
 
   const result: ParsedTagGroup[] = [];
 
-  for (const group of rawGroups) {
-    if (typeof group !== 'object' || group === null) continue;
+  for (const rawGroup of rawGroups) {
+    if (typeof rawGroup !== 'object' || rawGroup === null) continue;
+    const group = rawGroup as Record<string, unknown>;
 
     const canonicalIdx = typeof group.canonical === 'number'
       ? group.canonical
@@ -38,7 +39,7 @@ export function parseTagGroupingResponse(
     const canonicalTag = indexToTag.get(canonicalIdx);
     if (!canonicalTag) continue;
 
-    const rawVariants = Array.isArray(group.variants) ? group.variants : [];
+    const rawVariants = Array.isArray(group.variants) ? group.variants as unknown[] : [];
     const variants: string[] = [];
     for (const v of rawVariants) {
       const idx = typeof v === 'number' ? v : parseInt(String(v), 10);

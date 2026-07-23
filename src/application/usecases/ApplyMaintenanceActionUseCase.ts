@@ -144,7 +144,7 @@ export class ApplyMaintenanceActionUseCase {
       notePath,
       timestamp: this.clock.now(),
       description: t('historyDesc.archive', { path: notePath as string, folder: targetFolder }),
-      metadata: { archivedTo: destPath as string },
+      metadata: { archivedTo: destPath },
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: true };
@@ -263,7 +263,7 @@ export class ApplyMaintenanceActionUseCase {
       }
 
       if (changed) {
-        affectedFiles.push({ path: notePath as string, previousContent: note.content });
+        affectedFiles.push({ path: notePath, previousContent: note.content });
         if (!keepAlreadyPresent) {
           updatedTags.push(keepStr);
         }

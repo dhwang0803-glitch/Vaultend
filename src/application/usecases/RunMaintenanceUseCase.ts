@@ -114,7 +114,7 @@ export class RunMaintenanceUseCase {
     for (const notePath of notes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
-      const hasExcludedTag = note.metadata.tags.some(t => excludeTags.has(t as string));
+      const hasExcludedTag = note.metadata.tags.some(t => excludeTags.has(t));
       if (!hasExcludedTag) result.push(notePath);
     }
     return result;
@@ -154,13 +154,13 @@ export class RunMaintenanceUseCase {
       if (!note) continue;
       const tokens = tokenizeForTfIdf(note.content);
       const tags = note.metadata.tags.map(t => t as string);
-      corpus.addDocument(notePath as string, tokens);
+      corpus.addDocument(notePath, tokens);
 
-      candidateData.push({ path: notePath as string, tags, tokens });
+      candidateData.push({ path: notePath, tags, tokens });
 
       const hasBacklinks = note.metadata.backlinks.length > 0;
       const hasLinks = note.metadata.links.length > 0;
-      const referencedByCanvas = canvasRefs.has(notePath as string);
+      const referencedByCanvas = canvasRefs.has(notePath);
       if (!hasBacklinks && !hasLinks && !referencedByCanvas) {
         orphanData.push({ notePath, fileSize: note.metadata.fileSize, tags, tokens });
       }
@@ -170,7 +170,7 @@ export class RunMaintenanceUseCase {
 
     return orphanData.map(orphan => {
       const suggestions = LinkSuggestionService.findRelatedNotes({
-        orphanPath: orphan.notePath as string,
+        orphanPath: orphan.notePath,
         orphanTags: orphan.tags,
         orphanTokens: orphan.tokens,
         candidates: candidateData,
@@ -534,11 +534,11 @@ export class RunMaintenanceUseCase {
   ): MissingTagSuggestion[] {
     const keywordToTag = new Map<string, string>();
     for (const tag of tagSource) {
-      const stripped = (tag as string).startsWith('#') ? (tag as string).substring(1) : tag as string;
+      const stripped = tag.startsWith('#') ? tag.substring(1) : tag;
       const parts = stripped.split('/');
       for (const part of parts) {
         if (part.length >= 4) {
-          keywordToTag.set(part.toLowerCase(), tag as string);
+          keywordToTag.set(part.toLowerCase(), tag);
         }
       }
     }
@@ -597,7 +597,7 @@ export class RunMaintenanceUseCase {
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (note) {
-        noteTagMap.set(notePath as string, note.metadata.tags.map(t => t as string));
+        noteTagMap.set(notePath, note.metadata.tags);
       }
     }
 

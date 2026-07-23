@@ -179,7 +179,7 @@ export class MaintenanceResultView extends ItemView {
       .addButton(btn => btn
         .setButtonText(t('maintenance.startScan'))
         .setCta()
-        .onClick(() => this.triggerScan()),
+        .onClick(() => { void this.triggerScan(); }),
       );
   }
 
@@ -193,10 +193,10 @@ export class MaintenanceResultView extends ItemView {
 
     new Setting(contentEl)
       .setName(t('maintenance.rescan'))
-      .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp as number) }))
+      .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp) }))
       .addButton(btn => btn
         .setButtonText(t('maintenance.rescan'))
-        .onClick(() => this.triggerScan()),
+        .onClick(() => { void this.triggerScan(); }),
       );
 
     const counts = this.computeCounts(plan);
@@ -224,7 +224,7 @@ export class MaintenanceResultView extends ItemView {
 
     if (plan.tokenUsage && plan.tokenUsage.totalTokens > 0) {
       const hasCostData = plan.tokenUsage.estimatedCostUsd >= 0;
-      summaryEl.createEl('span', {
+      summaryEl.createSpan({
         text: hasCostData
           ? t('maintenance.tokenTotal', { count: plan.tokenUsage.totalTokens.toLocaleString(), cost: plan.tokenUsage.estimatedCostUsd.toFixed(4) })
           : t('maintenance.tokenTotalUnavailable', { count: plan.tokenUsage.totalTokens.toLocaleString() }),
@@ -351,13 +351,13 @@ export class MaintenanceResultView extends ItemView {
 
   private computeCounts(plan: MaintenancePlan): Record<MaintenanceIssueType, number> {
     return {
-      empty: plan.emptyNotes.filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`)).length,
-      untagged: plan.untaggedNotes.filter(p => !this.dismissedIds.has(`untagged:${p as string}`)).length,
-      'missing-tags': plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`)).length,
-      'broken-link': plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length,
-      orphan: plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`)).length,
-      duplicate: plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length,
-      'duplicate-tags': plan.duplicateTags.filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag as string}`)).length,
+      empty: plan.emptyNotes.filter(i => !this.dismissedIds.has(`empty:${i.notePath}`)).length,
+      untagged: plan.untaggedNotes.filter(p => !this.dismissedIds.has(`untagged:${p}`)).length,
+      'missing-tags': plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath}`)).length,
+      'broken-link': plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath}:${i.lineNumber}:${i.targetLink}`)).length,
+      orphan: plan.orphanNotes.filter(e => !this.dismissedIds.has(`orphan:${e.notePath}`)).length,
+      duplicate: plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA}|${p.noteB}`)).length,
+      'duplicate-tags': plan.duplicateTags.filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag}`)).length,
     };
   }
 
@@ -381,8 +381,8 @@ export class MaintenanceResultView extends ItemView {
 
   private renderEmptyNotes(container: HTMLElement, items: ReadonlyArray<EmptyNoteEntry>): void {
     const filtered = items
-      .filter(i => !this.dismissedIds.has(`empty:${i.notePath as string}`))
-      .filter(i => this.matchesSearch(i.notePath as string));
+      .filter(i => !this.dismissedIds.has(`empty:${i.notePath}`))
+      .filter(i => this.matchesSearch(i.notePath));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'empty', t('issue.emptyNotes', { count: filtered.length }));
 
@@ -397,7 +397,7 @@ export class MaintenanceResultView extends ItemView {
     for (const item of filtered) {
       const settingEl = new Setting(section)
         .setName(this.basename(item.notePath))
-        .setDesc(item.notePath as string);
+        .setDesc(item.notePath);
       this.applyCardClass(settingEl, 'empty');
 
       if (item.backlinkCount > 0) {
@@ -418,42 +418,42 @@ export class MaintenanceResultView extends ItemView {
         action: { kind: 'archive-note', notePath: item.notePath, targetFolder: '' },
         setting: settingEl,
         issueType: 'empty',
-        identifier: item.notePath as string,
+        identifier: item.notePath,
         status: 'pending',
       });
       const emptyEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(item.notePath as string)),
+        .onClick(() => this.openFile(item.notePath)),
       );
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
         .setCta()
-        .onClick(() => this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath as string}`, emptyEntry)),
+        .onClick(() => { void this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath}`, emptyEntry); }),
       );
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.delete'))
-        .setWarning()
-        .onClick(() => this.executeAction(
+        .setDestructive()
+        .onClick(() => { void this.executeAction(
           { kind: 'delete-orphan', notePath: item.notePath },
           settingEl,
-          `empty:${item.notePath as string}`,
+          `empty:${item.notePath}`,
           emptyEntry,
-        )),
+        ); }),
       );
 
-      this.addDismissButton(settingEl, 'empty', item.notePath as string);
+      this.addDismissButton(settingEl, 'empty', item.notePath);
       this.applyPersistedState(emptyEntry);
     }
   }
 
   private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>, _missingTags?: ReadonlyArray<MissingTagSuggestion>): void {
     const filtered = items
-      .filter(p => !this.dismissedIds.has(`untagged:${p as string}`))
-      .filter(p => this.matchesSearch(p as string));
+      .filter(p => !this.dismissedIds.has(`untagged:${p}`))
+      .filter(p => this.matchesSearch(p));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
 
@@ -466,32 +466,32 @@ export class MaintenanceResultView extends ItemView {
     for (const notePath of filtered) {
       const settingEl = new Setting(section)
         .setName(this.basename(notePath));
-      settingEl.descEl.createDiv({ text: notePath as string, cls: 'maintenance-card-path' });
+      settingEl.descEl.createDiv({ text: notePath, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'untagged');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
+        action: { kind: 'dismiss', issueType: 'untagged', identifier: notePath },
         setting: settingEl,
         issueType: 'untagged',
-        identifier: notePath as string,
+        identifier: notePath,
         status: 'pending',
       });
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(notePath as string)),
+        .onClick(() => this.openFile(notePath)),
       );
 
-      this.addDismissButton(settingEl, 'untagged', notePath as string);
+      this.addDismissButton(settingEl, 'untagged', notePath);
       this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
   private renderMissingTags(container: HTMLElement, items: ReadonlyArray<MissingTagSuggestion>): void {
     const filtered = items
-      .filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`))
-      .filter(i => this.matchesSearch(i.notePath as string));
+      .filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath}`))
+      .filter(i => this.matchesSearch(i.notePath));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'missing-tags', t('issue.missingTags', { count: filtered.length }));
 
@@ -504,32 +504,32 @@ export class MaintenanceResultView extends ItemView {
     for (const item of filtered) {
       const settingEl = new Setting(section)
         .setName(this.basename(item.notePath));
-      settingEl.descEl.createDiv({ text: item.notePath as string, cls: 'maintenance-card-path' });
+      settingEl.descEl.createDiv({ text: item.notePath, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'missing-tags');
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'dismiss', issueType: 'missing-tags', identifier: item.notePath as string },
+        action: { kind: 'dismiss', issueType: 'missing-tags', identifier: item.notePath },
         setting: settingEl,
         issueType: 'missing-tags',
-        identifier: item.notePath as string,
+        identifier: item.notePath,
         status: 'pending',
       });
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(item.notePath as string)),
+        .onClick(() => this.openFile(item.notePath)),
       );
 
-      this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
+      this.addDismissButton(settingEl, 'missing-tags', item.notePath);
       this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
   private renderBrokenLinks(container: HTMLElement, items: ReadonlyArray<BrokenLink>): void {
     const filtered = items
-      .filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`))
-      .filter(i => this.matchesSearch(i.sourcePath as string));
+      .filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath}:${i.lineNumber}:${i.targetLink}`))
+      .filter(i => this.matchesSearch(i.sourcePath));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'broken-link', t('issue.brokenLinks', { count: filtered.length }));
 
@@ -560,50 +560,50 @@ export class MaintenanceResultView extends ItemView {
           : { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
         setting: settingEl,
         issueType: 'broken-link',
-        identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
+        identifier: `${item.sourcePath}:${item.lineNumber}:${item.targetLink}`,
         status: 'pending',
       });
       const linkEntry = entries[entries.length - 1];
 
-      const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
+      const brokenLinkKey = `broken-link:${item.sourcePath}:${item.lineNumber}:${item.targetLink}`;
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(item.sourcePath as string)),
+        .onClick(() => this.openFile(item.sourcePath)),
       );
 
       if (item.suggestedFix) {
         settingEl.addButton(btn => btn
           .setButtonText(t('btn.fixLink'))
           .setCta()
-          .onClick(() => this.executeAction(
+          .onClick(() => { void this.executeAction(
             { kind: 'fix-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, fixedTarget: item.suggestedFix!, lineNumber: item.lineNumber } satisfies FixBrokenLink,
             settingEl,
             brokenLinkKey,
             linkEntry,
-          )),
+          ); }),
         );
       }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.removeLink'))
-        .onClick(() => this.executeAction(
+        .onClick(() => { void this.executeAction(
           { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
           settingEl,
           brokenLinkKey,
           linkEntry,
-        )),
+        ); }),
       );
 
-      this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`);
+      this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath}:${item.lineNumber}:${item.targetLink}`);
       this.applyPersistedState(linkEntry);
     }
   }
 
   private renderOrphanNotes(container: HTMLElement, items: ReadonlyArray<OrphanNoteEntry>): void {
     const filtered = items
-      .filter(e => !this.dismissedIds.has(`orphan:${e.notePath as string}`))
-      .filter(e => this.matchesSearch(e.notePath as string))
+      .filter(e => !this.dismissedIds.has(`orphan:${e.notePath}`))
+      .filter(e => this.matchesSearch(e.notePath))
       .slice()
       .sort((a, b) => b.fileSize - a.fileSize);
     if (filtered.length === 0) return;
@@ -624,7 +624,7 @@ export class MaintenanceResultView extends ItemView {
       const sizeStr = this.formatFileSize(entry.fileSize);
       const settingEl = new Setting(section)
         .setName(this.basename(entry.notePath));
-      settingEl.descEl.createDiv({ text: `${entry.notePath as string} · ${sizeStr}`, cls: 'maintenance-card-path' });
+      settingEl.descEl.createDiv({ text: `${entry.notePath} · ${sizeStr}`, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'orphan');
 
       entries.push({
@@ -632,41 +632,41 @@ export class MaintenanceResultView extends ItemView {
         action: { kind: 'archive-note', notePath: entry.notePath, targetFolder: '' },
         setting: settingEl,
         issueType: 'orphan',
-        identifier: entry.notePath as string,
+        identifier: entry.notePath,
         status: 'pending',
       });
       const orphanEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(entry.notePath as string)),
+        .onClick(() => this.openFile(entry.notePath)),
       );
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
-        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath as string}`, orphanEntry)),
+        .onClick(() => { void this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath}`, orphanEntry); }),
       );
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.delete'))
-        .setWarning()
-        .onClick(() => this.executeAction(
+        .setDestructive()
+        .onClick(() => { void this.executeAction(
           { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
-          `orphan:${entry.notePath as string}`,
+          `orphan:${entry.notePath}`,
           orphanEntry,
-        )),
+        ); }),
       );
 
-      this.addDismissButton(settingEl, 'orphan', entry.notePath as string);
+      this.addDismissButton(settingEl, 'orphan', entry.notePath);
       this.applyPersistedState(orphanEntry);
     }
   }
 
   private renderDuplicates(container: HTMLElement, items: ReadonlyArray<DuplicatePair>): void {
     const filtered = items
-      .filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`))
-      .filter(p => this.matchesSearch(p.noteA as string) || this.matchesSearch(p.noteB as string));
+      .filter(p => !this.dismissedIds.has(`duplicate:${p.noteA}|${p.noteB}`))
+      .filter(p => this.matchesSearch(p.noteA) || this.matchesSearch(p.noteB));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'duplicate', t('issue.duplicates', { count: filtered.length }));
 
@@ -682,10 +682,10 @@ export class MaintenanceResultView extends ItemView {
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'dismiss', issueType: 'duplicate', identifier: `${pair.noteA as string}|${pair.noteB as string}` },
+        action: { kind: 'dismiss', issueType: 'duplicate', identifier: `${pair.noteA}|${pair.noteB}` },
         setting: settingEl,
         issueType: 'duplicate',
-        identifier: `${pair.noteA as string}|${pair.noteB as string}`,
+        identifier: `${pair.noteA}|${pair.noteB}`,
         status: 'pending',
       });
 
@@ -693,19 +693,19 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.openSideBySide'))
-        .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
+        .onClick(() => this.openFileSplit(pair.noteA, pair.noteB)),
       );
 
-      this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
+      this.addDismissButton(settingEl, 'duplicate', `${pair.noteA}|${pair.noteB}`);
       this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
   private renderDuplicateTags(container: HTMLElement, items: ReadonlyArray<DuplicateTagGroup>): void {
     const filtered = items
-      .filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag as string}`))
-      .filter(g => this.matchesSearch(g.canonicalTag as string)
-        || g.variants.some(v => this.matchesSearch(v.tag as string)));
+      .filter(g => !this.dismissedIds.has(`duplicate-tags:${g.canonicalTag}`))
+      .filter(g => this.matchesSearch(g.canonicalTag)
+        || g.variants.some(v => this.matchesSearch(v.tag)));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'duplicate-tags', t('issue.duplicateTags', { count: filtered.length }));
 
@@ -713,15 +713,15 @@ export class MaintenanceResultView extends ItemView {
     this.renderBatchControls(section, entries, t('batch.selectedMergeTags'));
 
     for (const group of filtered) {
-      const variantTags = group.variants.map(v => `${v.tag as string} (${v.count})`).join(', ');
+      const variantTags = group.variants.map(v => `${v.tag} (${v.count})`).join(', ');
       const settingEl = new Setting(section)
-        .setName(t('duplicateTag.keep', { tag: group.canonicalTag as string }));
+        .setName(t('duplicateTag.keep', { tag: group.canonicalTag }));
       settingEl.descEl.createDiv({ text: t('duplicateTag.variants', { tags: variantTags }), cls: 'maintenance-card-path' });
       settingEl.descEl.createDiv({ text: t('duplicateTag.affected', { count: group.affectedNotes.length }), cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'duplicate-tags');
 
       const replaceTags = group.variants
-        .filter(v => (v.tag as string) !== (group.canonicalTag as string))
+        .filter(v => v.tag !== group.canonicalTag)
         .map(v => v.tag);
 
       entries.push({
@@ -734,7 +734,7 @@ export class MaintenanceResultView extends ItemView {
         },
         setting: settingEl,
         issueType: 'duplicate-tags',
-        identifier: group.canonicalTag as string,
+        identifier: group.canonicalTag,
         status: 'pending',
       });
       const dupTagEntry = entries[entries.length - 1];
@@ -744,8 +744,8 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.mergeTags'))
         .setCta()
-        .onClick(async () => {
-          this.executeAction(
+        .onClick(() => {
+          void this.executeAction(
             {
               kind: 'merge-duplicate-tags',
               keepTag: group.canonicalTag,
@@ -753,13 +753,13 @@ export class MaintenanceResultView extends ItemView {
               affectedNotes: group.affectedNotes,
             },
             settingEl,
-            `duplicate-tags:${group.canonicalTag as string}`,
+            `duplicate-tags:${group.canonicalTag}`,
             dupTagEntry,
           );
         }),
       );
 
-      this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag as string);
+      this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag);
       this.applyPersistedState(dupTagEntry);
     }
   }
@@ -791,7 +791,7 @@ export class MaintenanceResultView extends ItemView {
       batchSetting.addButton(btn => {
         btn.setButtonText(primaryLabel)
           .onClick(() => primaryActionOverride ? primaryActionOverride(entries) : this.executeBatch(entries));
-        if (primaryWarning) btn.setWarning();
+        if (primaryWarning) btn.setDestructive();
       });
     }
 
@@ -799,18 +799,18 @@ export class MaintenanceResultView extends ItemView {
       batchSetting.addButton(btn => {
         btn.setButtonText(secondaryLabel)
           .onClick(() => secondaryActionOverride(entries));
-        if (secondaryWarning) btn.setWarning();
+        if (secondaryWarning) btn.setDestructive();
       });
     }
 
     batchSetting.addButton(btn => btn
       .setButtonText(t('batch.selectedDismiss'))
-      .onClick(() => this.dismissBatch(entries)),
+      .onClick(() => { void this.dismissBatch(entries); }),
     );
 
     batchSetting.addButton(btn => btn
       .setButtonText(t('batch.selectedRestore'))
-      .onClick(() => this.restoreBatch(entries)),
+      .onClick(() => { void this.restoreBatch(entries); }),
     );
   }
 
@@ -842,7 +842,7 @@ export class MaintenanceResultView extends ItemView {
 
         setting.addButton(b => b
           .setButtonText(t('log.undo'))
-          .setWarning()
+          .setDestructive()
           .onClick(() => {
             this.dismissedIds.delete(`${issueType}:${identifier}`);
             this.render();
@@ -911,7 +911,7 @@ export class MaintenanceResultView extends ItemView {
   private addRestoreButton(setting: Setting, historyEntryId: string, appliedKey: string): void {
     setting.addButton(btn => btn
       .setButtonText(t('log.undo'))
-      .setWarning()
+      .setDestructive()
       .onClick(async () => {
         btn.setDisabled(true);
         try {
@@ -1061,7 +1061,7 @@ export class MaintenanceResultView extends ItemView {
 
         entry.setting.addButton(b => b
           .setButtonText(t('log.undo'))
-          .setWarning()
+          .setDestructive()
           .onClick(() => {
             this.dismissedIds.delete(dismissKey);
             this.render();
@@ -1126,7 +1126,7 @@ export class MaintenanceResultView extends ItemView {
       text: t('batch.selectedOrganize'),
     });
     batchControls.prepend(btn);
-    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries, previewFn, tagsOnly));
+    btn.addEventListener('click', () => { void this.executeOrganizeBatch(btn, entries, previewFn, tagsOnly); });
   }
 
   private async executeOrganizeBatch(
@@ -1184,7 +1184,7 @@ export class MaintenanceResultView extends ItemView {
 
   private onBatchOrganizeApplied(appliedEntries: ReadonlyArray<BatchAppliedEntry>, batchEntries: BatchEntry[]): void {
     for (const applied of appliedEntries) {
-      const pathStr = applied.notePath as string;
+      const pathStr = applied.notePath;
       const entry = batchEntries.find(e => e.identifier === pathStr && e.status === 'pending');
       if (!entry) continue;
 
@@ -1215,7 +1215,7 @@ export class MaintenanceResultView extends ItemView {
     setting.addDropdown(dropdown => {
       dropdown.addOption('', t('btn.showNotes', { count: notes.length }));
       for (const note of notes) {
-        dropdown.addOption(note as string, this.basename(note));
+        dropdown.addOption(note, this.basename(note));
       }
       dropdown.onChange(value => { selected = value; });
     });
@@ -1228,7 +1228,7 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private basename(path: NotePath): string {
-    return (path as string).split('/').pop()?.replace('.md', '') ?? (path as string);
+    return path.split('/').pop()?.replace('.md', '') ?? path;
   }
 
   private formatFileSize(bytes: number): string {

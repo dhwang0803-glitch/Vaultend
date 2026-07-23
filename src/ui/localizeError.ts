@@ -1,4 +1,4 @@
-import { t, LocaleKey } from '../i18n';
+import { t } from '../i18n';
 import {
   NoteNotFoundError,
   DuplicateNoteError,
@@ -13,25 +13,25 @@ export function localizeError(err: unknown): string {
   if (!(err instanceof Error)) return String(err);
 
   if (err instanceof NoteNotFoundError) {
-    return t('error.noteNotFound' as LocaleKey, { id: err.identifier });
+    return t('error.noteNotFound', { id: err.identifier });
   }
   if (err instanceof DuplicateNoteError) {
-    return t('error.duplicateNote' as LocaleKey, { path: err.path });
+    return t('error.duplicateNote', { path: err.path });
   }
   if (err instanceof InvalidNoteContentError) {
-    return t('error.invalidContent' as LocaleKey, { reason: err.reason });
+    return t('error.invalidContent', { reason: err.reason });
   }
   if (err instanceof RateLimitError) {
-    return t('error.rateLimit' as LocaleKey, { ms: err.retryAfterMs });
+    return t('error.rateLimit', { ms: err.retryAfterMs });
   }
   if (err instanceof PrivacyViolationError) {
-    return t('error.privacyViolation' as LocaleKey, { rule: err.ruleName });
+    return t('error.privacyViolation', { rule: err.ruleName });
   }
   if (err instanceof AIProviderError) {
-    return t('error.aiProvider' as LocaleKey, { provider: err.provider, status: err.statusCode, detail: err.detail });
+    return t('error.aiProvider', { provider: err.provider, status: err.statusCode, detail: err.detail });
   }
   if (err instanceof HistoryEntryNotFoundError) {
-    return t('error.historyNotFound' as LocaleKey, { id: err.entryId });
+    return t('error.historyNotFound', { id: err.entryId });
   }
 
   return err.message;

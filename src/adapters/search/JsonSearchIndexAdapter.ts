@@ -136,13 +136,13 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     const raw = await this.vault.readFileRaw(SEARCH_INDEX_PATH);
     if (raw) {
       try {
-        const data = JSON.parse(raw);
+        const data = JSON.parse(raw) as { miniSearchIndex?: unknown; noteDocIds?: Record<string, string[]>; version?: number };
         if (data.miniSearchIndex && data.noteDocIds && data.version === INDEX_VERSION) {
           this.miniSearch = MiniSearch.loadJSON<IndexedDocument>(
             JSON.stringify(data.miniSearchIndex),
             { ...MINISEARCH_OPTIONS, autoVacuum: false, searchOptions: { prefix: true, fuzzy: false, boost: { noteName: 3 } } },
           );
-          this.noteDocIds = new Map(Object.entries(data.noteDocIds as Record<string, string[]>));
+          this.noteDocIds = new Map(Object.entries(data.noteDocIds));
         } else {
           this.dirty = true;
           await this.flush();

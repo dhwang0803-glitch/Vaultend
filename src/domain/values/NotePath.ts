@@ -9,5 +9,5 @@ export function createNotePath(raw: string): NotePath {
 }
 
 export function notePathToString(path: NotePath): string {
-  return path as string;
+  return path;
 }
