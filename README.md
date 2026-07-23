@@ -26,7 +26,6 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 - [Settings](#settings)
 - [Installation](#installation)
 - [Internationalization](#internationalization)
-- [Architecture](#architecture)
 - [Compatibility](#compatibility)
 - [Known Limitations](#known-limitations)
 - [Development](#development)
@@ -469,40 +468,6 @@ The same 3 files go in `.obsidian/plugins/vaultend/`.
 Change in **Settings → Language**. Views update immediately; command palette names update after restart.
 
 Want to contribute a translation? See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
----
-
-## Architecture
-
-Clean Architecture — dependencies always point inward toward the domain.
-
-```
-domain/          ← Pure business logic (zero external deps)
-  models/        ← Note, MaintenanceAction, HistoryEntry, TokenUsage, DuplicateTagGroup
-  values/        ← NotePath, TagName, Timestamp, Severity
-  services/      ← TfIdfCorpus, TagNormalizationService, tokenize
-  errors/        ← Domain-specific errors (i18n)
-
-application/     ← Use cases + port interfaces
-  usecases/      ← RunMaintenance, OrganizeNote, OrganizeVault, OrganizeTags, SyncEmbeddings, etc.
-  ports/         ← AIProviderPort, VaultAccessPort, EmbeddingPort, VectorStorePort, etc.
-
-adapters/        ← Port implementations (external deps live here)
-  ai/            ← OpenAI, Gemini, DynamicAI adapters
-  vault/         ← ObsidianVaultAdapter
-  history/       ← FileHistoryAdapter
-  search/        ← JsonSearchIndexAdapter
-  embedding/     ← AIEmbeddingAdapter
-  clock/         ← SystemClockAdapter
-  vectorstore/   ← JsonVectorStoreAdapter
-  tracking/      ← FileChangeTrackingAdapter
-  corpus/        ← FileCorpusStatsAdapter
-
-ui/              ← Obsidian views, modals, settings tab
-i18n/            ← Localization (en, ko)
-benchmark/       ← Golden set + vault-benchmark CLI
-main.ts          ← Composition Root
-```
 
 ---
 
