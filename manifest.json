@@ -1,6 +1,7 @@
 {
 	"id": "vaultend",
 	"name": "Vaultend",
+	"version": "1.0.2",
 	"minAppVersion": "1.7.2",
 	"description": "Classify, tag, link, and organize your notes with AI-powered vault maintenance.",
 	"author": "dhwang0803",
