@@ -9,8 +9,9 @@ export interface TagGroupEditResult {
 
 export class OrganizeTagEditModal extends Modal {
   private selectedCanonical: string;
-  private selectedVariants: Set<string>;
+  private includedVariants: Set<string>;
   private customCanonical = '';
+  private checkboxes: Array<{ tag: string; cb: HTMLInputElement }> = [];
   private resolve: ((result: TagGroupEditResult | null) => void) | null = null;
 
   constructor(
@@ -20,9 +21,7 @@ export class OrganizeTagEditModal extends Modal {
   ) {
     super(app);
     this.selectedCanonical = canonicalTag as string;
-    this.selectedVariants = new Set(
-      variants.filter(v => (v.tag as string) !== (canonicalTag as string)).map(v => v.tag as string),
-    );
+    this.includedVariants = new Set(variants.map(v => v.tag as string));
   }
 
   open(): Promise<TagGroupEditResult | null> {
@@ -37,7 +36,6 @@ export class OrganizeTagEditModal extends Modal {
     contentEl.empty();
     contentEl.createEl('h3', { text: t('organizeTags.editTitle') });
 
-    // Canonical selector
     new Setting(contentEl)
       .setName(t('organizeTags.editCanonical'))
       .addDropdown(dd => {
@@ -45,48 +43,56 @@ export class OrganizeTagEditModal extends Modal {
           dd.addOption(v.tag as string, `${v.tag as string} (${v.count})`);
         }
         dd.setValue(this.selectedCanonical);
-        dd.onChange(val => { this.selectedCanonical = val; this.customCanonical = ''; });
+        dd.onChange(val => {
+          this.selectedCanonical = val;
+          this.customCanonical = '';
+          this.includedVariants.add(val);
+          this.syncCheckboxes();
+        });
       });
 
-    // Custom canonical input
     new Setting(contentEl)
       .setName(t('organizeTags.editCustom'))
       .addText(text => {
         text.setPlaceholder('#custom-tag');
         text.onChange(val => {
           this.customCanonical = val.trim();
+          this.syncCheckboxes();
         });
       });
 
-    // Variant checkboxes
     contentEl.createEl('h4', { text: t('organizeTags.editVariants') });
     const variantContainer = contentEl.createDiv({ cls: 'organize-tags-edit-variants' });
+    this.checkboxes = [];
 
     for (const v of this.variants) {
       const tagStr = v.tag as string;
       const row = variantContainer.createDiv({ cls: 'organize-tags-edit-row' });
       const cb = row.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
-      cb.checked = this.selectedVariants.has(tagStr) || tagStr === (this.canonicalTag as string);
-      cb.disabled = tagStr === this.selectedCanonical;
+      cb.checked = true;
       row.createEl('span', { text: `${tagStr} (${v.count})` });
+
+      this.checkboxes.push({ tag: tagStr, cb });
 
       cb.addEventListener('change', () => {
         if (cb.checked) {
-          this.selectedVariants.add(tagStr);
+          this.includedVariants.add(tagStr);
         } else {
-          this.selectedVariants.delete(tagStr);
+          this.includedVariants.delete(tagStr);
         }
       });
     }
 
-    // Buttons
+    this.syncCheckboxes();
+
     new Setting(contentEl)
       .addButton(btn =>
         btn.setButtonText(t('organizeTags.editSave'))
           .setCta()
           .onClick(() => {
-            const canonical = this.customCanonical || this.selectedCanonical;
-            const variants = [...this.selectedVariants].filter(v => v !== canonical);
+            let canonical = this.customCanonical || this.selectedCanonical;
+            if (!canonical.startsWith('#')) canonical = `#${canonical}`;
+            const variants = [...this.includedVariants].filter(v => v !== canonical);
             this.resolve?.({ canonical, variants });
             this.resolve = null;
             this.close();
@@ -100,6 +106,18 @@ export class OrganizeTagEditModal extends Modal {
             this.close();
           }),
       );
+  }
+
+  private syncCheckboxes(): void {
+    const effectiveCanonical = this.customCanonical || this.selectedCanonical;
+    for (const { tag, cb } of this.checkboxes) {
+      const isCanonical = tag === effectiveCanonical;
+      cb.disabled = isCanonical;
+      if (isCanonical) {
+        cb.checked = true;
+        this.includedVariants.add(tag);
+      }
+    }
   }
 
   onClose(): void {

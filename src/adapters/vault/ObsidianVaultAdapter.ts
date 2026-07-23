@@ -7,7 +7,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createNoteId } from '../../domain/values/NoteId';
 import { createNoteTitle } from '../../domain/values/NoteTitle';
 import { createTimestamp } from '../../domain/values/Timestamp';
-import { createTagName } from '../../domain/values/TagName';
+import { createTagName, normalizeNestedTag } from '../../domain/values/TagName';
 import { createChunkText } from '../../domain/values/ChunkText';
 import { createHeadingPath } from '../../domain/values/HeadingPath';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
@@ -138,7 +138,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     const files = this.app.vault.getMarkdownFiles();
 
     const trackTag = (tag: string, seen: Set<string>) => {
-      const withHash = tag.startsWith('#') ? tag : `#${tag}`;
+      const withHash = normalizeNestedTag(tag);
       if (seen.has(withHash)) return;
       seen.add(withHash);
       countByTag.set(withHash, (countByTag.get(withHash) ?? 0) + 1);
@@ -233,12 +233,11 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
 
       const rawTags: string[] = [];
       if (cache?.tags) {
-        for (const t of cache.tags) rawTags.push(t.tag);
+        for (const t of cache.tags) rawTags.push(normalizeNestedTag(t.tag));
       }
       if (Array.isArray(frontmatter.tags)) {
         for (const t of frontmatter.tags) {
-          const tag = String(t);
-          rawTags.push(tag.startsWith('#') ? tag : `#${tag}`);
+          rawTags.push(normalizeNestedTag(String(t)));
         }
       }
       const tags = [...new Set(rawTags)];
@@ -373,12 +372,11 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     const rawTags: string[] = [];
 
     if (cache?.tags) {
-      for (const t of cache.tags) rawTags.push(t.tag);
+      for (const t of cache.tags) rawTags.push(normalizeNestedTag(t.tag));
     }
     if (Array.isArray(frontmatter.tags)) {
       for (const t of frontmatter.tags) {
-        const tag = String(t);
-        rawTags.push(tag.startsWith('#') ? tag : `#${tag}`);
+        rawTags.push(normalizeNestedTag(String(t)));
       }
     }
 

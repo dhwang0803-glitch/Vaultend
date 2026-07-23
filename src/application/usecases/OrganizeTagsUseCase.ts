@@ -355,7 +355,8 @@ export class OrganizeTagsUseCase {
       variants.sort((a, b) => b.count - a.count);
 
       const affectedNoteSet = new Set<string>();
-      for (const v of group.variants) {
+      const allTagsInGroup = [group.canonical, ...group.variants];
+      for (const v of allTagsInGroup) {
         const notes = tagToNotes.get(v.toLowerCase()) ?? [];
         for (const n of notes) {
           affectedNoteSet.add(n as unknown as string);
@@ -384,16 +385,18 @@ export class OrganizeTagsUseCase {
   }
 
   static computeNestedPath(parent: string, child: string): string {
-    const parentLower = parent.toLowerCase();
-    const childLower = child.toLowerCase();
+    const parentBody = parent.startsWith('#') ? parent : `#${parent}`;
+    const childBody = child.startsWith('#') ? child.slice(1) : child;
+    const parentLower = parentBody.toLowerCase();
+    const childLower = childBody.toLowerCase();
 
     for (const sep of ['-', '_']) {
-      if (childLower.startsWith(parentLower + sep)) {
-        const suffix = child.substring(parent.length + 1);
-        return `${parent}/${suffix}`;
+      if (childLower.startsWith(parentLower.slice(1) + sep)) {
+        const suffix = childBody.substring(parentBody.length - 1 + 1);
+        return `${parentBody}/${suffix}`;
       }
     }
 
-    return `${parent}/${child}`;
+    return `${parentBody}/${childBody}`;
   }
 }

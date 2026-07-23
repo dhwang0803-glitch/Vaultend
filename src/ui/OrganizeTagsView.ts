@@ -3,6 +3,7 @@ import { OrganizeTagsUseCase, OrganizeTagsResult, OrganizeTagsProgress } from '.
 import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
 import { DuplicateTagGroup } from '../domain/models/OrganizeModels';
+import { NotePath } from '../domain/values/NotePath';
 import { TagName } from '../domain/values/TagName';
 import { ORGANIZE_TAGS_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { OrganizeTagEditModal } from './OrganizeTagEditModal';
@@ -315,25 +316,10 @@ export class OrganizeTagsView extends ItemView {
       }
     }
 
-    // Affected notes (clickable) — not for relate
+    // Affected notes dropdown + Open button — not for relate
     if (groupType !== 'relate' && group.affectedNotes.length > 0) {
-      const notesEl = detailsEl.createDiv({ cls: 'organize-tags-affected' });
-      const maxShow = Math.min(group.affectedNotes.length, 3);
-      for (let i = 0; i < maxShow; i++) {
-        const notePath = group.affectedNotes[i] as unknown as string;
-        const basename = notePath.split('/').pop()?.replace('.md', '') ?? notePath;
-        const link = notesEl.createEl('a', { text: basename, cls: 'organize-tags-note-link' });
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.openFile(notePath);
-        });
-      }
-      if (group.affectedNotes.length > maxShow) {
-        notesEl.createEl('span', {
-          text: t('organizeTags.andMore', { count: String(group.affectedNotes.length - maxShow) }),
-          cls: 'organize-tags-more',
-        });
-      }
+      const notesSetting = new Setting(detailsEl).setClass('organize-tags-note-select');
+      this.addNoteSelect(notesSetting, group.affectedNotes);
     }
 
     // Action buttons — vary by type
@@ -547,5 +533,25 @@ export class OrganizeTagsView extends ItemView {
       this.skipEntry(entry);
     }
     new Notice(t('notice.batchComplete', { count: String(selected.length) }));
+  }
+
+  private addNoteSelect(setting: Setting, notes: ReadonlyArray<NotePath>): void {
+    if (notes.length === 0) return;
+    let selected = '';
+    setting.addDropdown(dropdown => {
+      dropdown.addOption('', t('btn.showNotes', { count: notes.length }));
+      for (const note of notes) {
+        const path = note as unknown as string;
+        const basename = path.split('/').pop()?.replace('.md', '') ?? path;
+        dropdown.addOption(path, basename);
+      }
+      dropdown.onChange(value => { selected = value; });
+    });
+    setting.addButton(btn => btn
+      .setButtonText(t('btn.open'))
+      .onClick(() => {
+        if (selected) this.openFile(selected);
+      }),
+    );
   }
 }

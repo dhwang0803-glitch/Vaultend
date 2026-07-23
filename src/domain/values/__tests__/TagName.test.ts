@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTagName, sanitizeTagName } from '../TagName';
+import { createTagName, sanitizeTagName, normalizeNestedTag } from '../TagName';
 
 describe('createTagName', () => {
   it('#이 있는 태그를 그대로 생성한다', () => {
@@ -44,6 +44,38 @@ describe('createTagName', () => {
 
   it('#만 있으면 거부한다', () => {
     expect(() => createTagName('#')).toThrow('유효하지 않은 태그');
+  });
+});
+
+describe('normalizeNestedTag', () => {
+  it('중간 #을 제거한다 (dev/#frontend → #dev/frontend)', () => {
+    expect(normalizeNestedTag('#dev/#frontend')).toBe('#dev/frontend');
+  });
+
+  it('여러 중간 #을 모두 제거한다', () => {
+    expect(normalizeNestedTag('#a/#b/#c')).toBe('#a/b/c');
+  });
+
+  it('#이 없는 nested tag를 정규화한다', () => {
+    expect(normalizeNestedTag('dev/#frontend')).toBe('#dev/frontend');
+  });
+
+  it('일반 태그는 그대로 유지한다', () => {
+    expect(normalizeNestedTag('#project')).toBe('#project');
+  });
+
+  it('#이 없는 일반 태그에 #을 추가한다', () => {
+    expect(normalizeNestedTag('project')).toBe('#project');
+  });
+});
+
+describe('createTagName — nested tags', () => {
+  it('중간 #이 있는 nested tag를 정규화하여 생성한다', () => {
+    expect(createTagName('#dev/#frontend') as string).toBe('#dev/frontend');
+  });
+
+  it('#dev/#backend를 정규화한다', () => {
+    expect(createTagName('#dev/#backend') as string).toBe('#dev/backend');
   });
 });
 

@@ -10,14 +10,22 @@ export function sanitizeTagName(raw: string): string {
   const hasHash = s.startsWith('#');
   const body = hasHash ? s.slice(1) : s;
   const sanitized = body
+    .replace(/#/g, '')
     .replace(/[^\w가-힣\-/]+/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/^-|-$/g, '');
   return `#${sanitized}`;
 }
 
+export function normalizeNestedTag(raw: string): string {
+  const hasHash = raw.startsWith('#');
+  const body = hasHash ? raw.slice(1) : raw;
+  const cleaned = body.replace(/#/g, '');
+  return `#${cleaned}`;
+}
+
 export function createTagName(raw: string): TagName {
-  const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+  const normalized = normalizeNestedTag(raw);
   if (!/^#[\w가-힣\-/]+$/.test(normalized)) {
     throw new Error(`유효하지 않은 태그 이름: ${raw}`);
   }
