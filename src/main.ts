@@ -74,8 +74,6 @@ const DEFAULT_SETTINGS: PluginSettings = {
   aiMaxTokens: DEFAULT_AI_MAX_TOKENS,
   aiTemperature: DEFAULT_AI_TEMPERATURE,
   ollamaBaseUrl: 'http://localhost:11434',
-  deepseekApiKey: '',
-  deepseekModel: 'deepseek-chat',
   customBaseUrl: '',
   customApiKey: '',
   customModel: '',
@@ -242,7 +240,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const s = this.settings;
     switch (s.aiProvider) {
       case 'ollama': return !!s.ollamaBaseUrl;
-      case 'deepseek': return !!(s.deepseekApiKey || s.aiApiKey);
       case 'custom': return !!s.customBaseUrl;
       default: return !!s.aiApiKey;
     }
@@ -254,7 +251,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     switch (s.aiProvider) {
       case 'gemini': return 'gemini-embedding-001';
       case 'ollama': return 'nomic-embed-text';
-      case 'deepseek': return 'default';
       case 'custom': return s.customModel || 'default';
       default: return 'text-embedding-3-small';
     }

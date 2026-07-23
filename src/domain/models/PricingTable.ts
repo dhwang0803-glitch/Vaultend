@@ -38,17 +38,11 @@ const GEMINI_EMBEDDING_MODELS: Record<string, ModelPricing> = {
   'gemini-embedding-001': { inputPer1M: 0.15, outputPer1M: 0 },
 };
 
-const DEEPSEEK_MODELS: Record<string, ModelPricing> = {
-  'deepseek-chat':     { inputPer1M: 0.14, outputPer1M: 0.28 },
-  'deepseek-reasoner': { inputPer1M: 0.14, outputPer1M: 0.28 },
-};
-
 const OLLAMA_PRICING: ModelPricing = { inputPer1M: 0, outputPer1M: 0 };
 
 const PROVIDER_TABLES: Record<string, Record<string, ModelPricing>> = {
   openai: OPENAI_MODELS,
   gemini: GEMINI_MODELS,
-  deepseek: DEEPSEEK_MODELS,
 };
 
 const EMBEDDING_TABLES: Record<string, Record<string, ModelPricing>> = {

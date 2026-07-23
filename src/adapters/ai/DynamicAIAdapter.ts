@@ -45,15 +45,6 @@ export class DynamicAIAdapter implements AIProviderPort {
           settings.aiModel || 'llama3.2',
         );
         break;
-      case 'deepseek':
-        this.cachedAdapter = new OpenAICompatAdapter(
-          'https://api.deepseek.com',
-          settings.deepseekApiKey || settings.aiApiKey,
-          settings.deepseekModel || 'deepseek-chat',
-          'DeepSeek',
-          false,
-        );
-        break;
       case 'custom':
         this.cachedAdapter = new OpenAICompatAdapter(
           settings.customBaseUrl,
@@ -70,12 +61,10 @@ export class DynamicAIAdapter implements AIProviderPort {
     return this.cachedAdapter;
   }
 
-  private buildCacheKey(settings: { aiProvider: string; aiApiKey: string; aiModel: string; ollamaBaseUrl: string; deepseekApiKey: string; deepseekModel: string; customBaseUrl: string; customApiKey: string; customModel: string }): string {
+  private buildCacheKey(settings: { aiProvider: string; aiApiKey: string; aiModel: string; ollamaBaseUrl: string; customBaseUrl: string; customApiKey: string; customModel: string }): string {
     switch (settings.aiProvider) {
       case 'ollama':
         return `ollama:${settings.ollamaBaseUrl}:${settings.aiModel}`;
-      case 'deepseek':
-        return `deepseek:${settings.deepseekApiKey || settings.aiApiKey}:${settings.deepseekModel}`;
       case 'custom':
         return `custom:${settings.customBaseUrl}:${settings.customApiKey}:${settings.customModel}`;
       default:

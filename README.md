@@ -39,7 +39,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 
 1. Install the plugin (see [Installation](#installation))
 2. Go to **Settings → Vaultend → AI Provider**
-3. Select your provider (OpenAI or Google Gemini) and enter your API key
+3. Select your provider (OpenAI, Google Gemini, Ollama, or Custom) and enter your API key
 4. Open the Command Palette (`Ctrl/Cmd + P`) and try **Organize Current Note**
 
 That's it. The plugin is ready to organize your vault.
@@ -307,9 +307,21 @@ Access via **Settings → Community Plugins → Vaultend**.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| AI Provider | OpenAI or Google Gemini | OpenAI |
+| AI Provider | OpenAI, Google Gemini, Ollama (Local), or Custom (OpenAI-compatible) | OpenAI |
 | API Key | Your provider's API key | — |
 | Model | Select from dropdown or enter custom model ID | gpt-4o |
+
+> **Embedding support by provider:**
+> All providers support the core features (classification, tagging, organization, maintenance). Embedding-based features (tag similarity ranking, cross-language tag resolution, link suggestions) require a provider with embedding API support.
+>
+> | Provider | Chat/Completion | Embeddings |
+> |----------|:-:|:-:|
+> | OpenAI | Yes | Yes |
+> | Google Gemini | Yes | Yes |
+> | Ollama (Local) | Yes | Yes (requires embedding model, e.g. `nomic-embed-text`) |
+> | Custom | Yes | Depends on endpoint |
+>
+> **Note on DeepSeek:** DeepSeek was removed in v1.0.2 because it does not provide an embedding API. Since Vaultend relies on embeddings for tag similarity, cross-language tag resolution, and link suggestions, using a provider without embedding support results in degraded functionality. DeepSeek users can use the **Custom (OpenAI-compatible)** provider option if they only need core features, but embedding-based features will not work.
 
 > Changes apply immediately — no restart needed.
 
@@ -353,6 +365,22 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 | `gemini-2.5-flash-lite` | Fastest and most budget-friendly multimodal model |
 
 > Source: [Gemini API Models Reference](https://ai.google.dev/gemini-api/docs/models) (retrieved 2026-07-15)
+
+</details>
+
+<details>
+<summary><b>Ollama Models (Local)</b></summary>
+
+| Model ID | Description |
+|----------|-------------|
+| `llama3.2` | Meta's Llama 3.2 (default) |
+| `llama3.1` | Meta's Llama 3.1 |
+| `mistral` | Mistral AI |
+| `gemma2` | Google Gemma 2 |
+| `qwen2.5` | Alibaba Qwen 2.5 |
+| `phi3` | Microsoft Phi-3 |
+
+> Ollama runs models locally — no API key needed. Install models with `ollama pull <model>`. For embeddings, also install `nomic-embed-text`.
 
 </details>
 
@@ -486,7 +514,7 @@ main.ts          ← Composition Root
 | Desktop | Windows, macOS, Linux |
 | Mobile | Android, iOS |
 
-**AI Providers**: OpenAI API, Google Gemini API (including Gemini Embeddings for hybrid search)
+**AI Providers**: OpenAI API, Google Gemini API, Ollama (local), Custom (OpenAI-compatible). Embedding-based features (tag similarity, link suggestions) require a provider with embedding support.
 
 ---
 

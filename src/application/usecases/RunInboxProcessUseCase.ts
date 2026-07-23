@@ -126,12 +126,15 @@ export class OrganizeFolderUseCase {
 
         if (missingTags.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
-          const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
-          for (let i = 0; i < missingTags.length; i++) {
-            fromCache.set(missingTags[i], resp.embeddings[i]);
-            newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
+          if (resp.embeddings.length > 0) {
+            const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
+            for (let i = 0; i < missingTags.length; i++) {
+              if (!resp.embeddings[i]) continue;
+              fromCache.set(missingTags[i], resp.embeddings[i]);
+              newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
+            }
+            this.tagEmbeddingCache?.putMany(newEntries);
           }
-          this.tagEmbeddingCache?.putMany(newEntries);
         }
         cachedTagEmbeddings = fromCache;
       } catch {
@@ -224,12 +227,15 @@ export class OrganizeFolderUseCase {
         if (newTagStrings.length > 0 && this.aiProvider && cachedTagEmbeddings) {
           try {
             const resp = await this.aiProvider.callEmbedding({ texts: newTagStrings });
-            const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
-            for (let k = 0; k < newTagStrings.length; k++) {
-              cachedTagEmbeddings.set(newTagStrings[k], resp.embeddings[k]);
-              newEntries.push({ tag: newTagStrings[k], vector: resp.embeddings[k] });
+            if (resp.embeddings.length > 0) {
+              const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
+              for (let k = 0; k < newTagStrings.length; k++) {
+                if (!resp.embeddings[k]) continue;
+                cachedTagEmbeddings.set(newTagStrings[k], resp.embeddings[k]);
+                newEntries.push({ tag: newTagStrings[k], vector: resp.embeddings[k] });
+              }
+              this.tagEmbeddingCache?.putMany(newEntries);
             }
-            this.tagEmbeddingCache?.putMany(newEntries);
           } catch {
             // embedding 실패 시 무시
           }

@@ -36,10 +36,6 @@ const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = 
     { id: 'qwen2.5', label: 'Qwen 2.5' },
     { id: 'phi3', label: 'Phi-3' },
   ],
-  deepseek: [
-    { id: 'deepseek-chat', label: 'DeepSeek Chat' },
-    { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  ],
 };
 
 const CUSTOM_MODEL_VALUE = '__custom__';
@@ -110,7 +106,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .addOption('openai', 'OpenAI')
           .addOption('gemini', 'Google Gemini')
           .addOption('ollama', 'Ollama (Local)')
-          .addOption('deepseek', 'DeepSeek')
           .addOption('custom', 'Custom (OpenAI-compatible)')
           .setValue(this.settings!.aiProvider)
           .onChange(async (value) => {
@@ -130,7 +125,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.modelAnchorEl = containerEl.createDiv();
     this.modelAnchorEl.addClass('vaultend-model-anchor');
     this.isCustomMode = false;
-    if (this.settings.aiProvider === 'openai' || this.settings.aiProvider === 'gemini') {
+    if (this.settings.aiProvider !== 'custom') {
       this.renderModelSetting(containerEl);
     }
 
@@ -379,46 +374,6 @@ export class PluginSettingTab extends ObsidianSettingTab {
               this.scheduleAIConfigChanged();
             });
         });
-      new Setting(containerEl)
-        .setName(t('settings.model'))
-        .setDesc(t('settings.modelDesc'))
-        .addText(text => {
-          text
-            .setPlaceholder('llama3.2')
-            .setValue(this.settings!.aiModel || 'llama3.2')
-            .onChange(async (value) => {
-              await this.config.updateSettings({ aiModel: value });
-              this.scheduleAIConfigChanged();
-            });
-        });
-    }
-
-    if (provider === 'deepseek') {
-      new Setting(containerEl)
-        .setName(t('settings.deepseekApiKey'))
-        .setDesc(t('settings.deepseekApiKeyDesc'))
-        .addText(text => {
-          text
-            .setPlaceholder('sk-...')
-            .setValue(this.settings!.deepseekApiKey)
-            .onChange(async (value) => {
-              await this.config.updateSettings({ deepseekApiKey: value });
-              this.scheduleAIConfigChanged();
-            });
-          text.inputEl.type = 'password';
-        });
-      new Setting(containerEl)
-        .setName(t('settings.deepseekModel'))
-        .setDesc(t('settings.deepseekModelDesc'))
-        .addText(text => {
-          text
-            .setPlaceholder('deepseek-chat')
-            .setValue(this.settings!.deepseekModel)
-            .onChange(async (value) => {
-              await this.config.updateSettings({ deepseekModel: value });
-              this.scheduleAIConfigChanged();
-            });
-        });
     }
 
     if (provider === 'custom') {
@@ -470,7 +425,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     const provider = this.settings!.aiProvider;
     const models = AI_MODELS[provider] ?? [];
-    const currentModel = this.settings!.aiModel;
+    const modelField = 'aiModel';
+    const currentModel = this.settings![modelField] as string;
     const isKnownModel = models.some(m => m.id === currentModel);
     const showCustomInput = this.isCustomMode || !isKnownModel;
 
@@ -491,7 +447,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           return;
         }
         this.isCustomMode = false;
-        await this.config.updateSettings({ aiModel: value });
+        await this.config.updateSettings({ [modelField]: value });
         this.settings = await this.config.getSettings();
         this.scheduleAIConfigChanged();
         this.renderModelSetting(parentEl);
@@ -504,7 +460,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .setPlaceholder('model-id')
           .setValue(isKnownModel ? '' : currentModel)
           .onChange(async (value) => {
-            await this.config.updateSettings({ aiModel: value });
+            await this.config.updateSettings({ [modelField]: value });
             this.scheduleAIConfigChanged();
           });
       });

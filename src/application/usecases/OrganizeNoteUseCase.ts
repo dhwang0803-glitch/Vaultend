@@ -281,8 +281,9 @@ export class OrganizeNoteUseCase {
         if (missing.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missing });
           addUsage(resp.tokenUsage);
+          if (resp.embeddings.length === 0) return { tags: candidates.slice(0, maxRelevance), tokenUsage: totalUsage };
           for (let i = 0; i < missing.length; i++) {
-            fromCache.set(missing[i], resp.embeddings[i]);
+            if (resp.embeddings[i]) fromCache.set(missing[i], resp.embeddings[i]);
           }
         }
         tagEmbeddings = fromCache;
@@ -293,8 +294,9 @@ export class OrganizeNoteUseCase {
         if (missing.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missing });
           addUsage(resp.tokenUsage);
+          if (resp.embeddings.length === 0) return { tags: candidates.slice(0, maxRelevance), tokenUsage: totalUsage };
           for (let i = 0; i < missing.length; i++) {
-            fromDisk.set(missing[i], resp.embeddings[i]);
+            if (resp.embeddings[i]) fromDisk.set(missing[i], resp.embeddings[i]);
           }
         }
         tagEmbeddings = fromDisk;
@@ -344,8 +346,10 @@ export class OrganizeNoteUseCase {
         if (missingTags.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
           addUsage(resp.tokenUsage);
+          if (resp.embeddings.length === 0) return { resolved, tokenUsage: totalTokenUsage };
           const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
           for (let i = 0; i < missingTags.length; i++) {
+            if (!resp.embeddings[i]) continue;
             fromCache.set(missingTags[i], resp.embeddings[i]);
             newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
           }
@@ -356,8 +360,10 @@ export class OrganizeNoteUseCase {
 
       const newResp = await this.aiProvider.callEmbedding({ texts: newTags });
       addUsage(newResp.tokenUsage);
+      if (newResp.embeddings.length === 0) return { resolved, tokenUsage: totalTokenUsage };
 
       for (let i = 0; i < newTags.length; i++) {
+        if (!newResp.embeddings[i]) continue;
         let bestTag = '';
         let bestSim = 0;
         for (const [tag, emb] of existingEmbeddings) {
@@ -480,6 +486,10 @@ export class OrganizeNoteUseCase {
         this.aiProvider.callEmbedding({ texts: topNames }),
       ]);
 
+      if (!titleResp.embeddings[0] || !bodyResp.embeddings[0] || candidateResp.embeddings.length === 0) {
+        return { links: [], tokenUsage: noUsage };
+      }
+
       const linkTokenUsage: TokenUsage = {
         promptTokens: titleResp.tokenUsage.promptTokens + bodyResp.tokenUsage.promptTokens + candidateResp.tokenUsage.promptTokens,
         completionTokens: titleResp.tokenUsage.completionTokens + bodyResp.tokenUsage.completionTokens + candidateResp.tokenUsage.completionTokens,
@@ -498,7 +508,7 @@ export class OrganizeNoteUseCase {
       const candidateEmbMap = new Map<NotePath, Float32Array>();
       for (let i = 0; i < topNames.length; i++) {
         const matched = nameToPath.get(topNames[i]);
-        if (matched) candidateEmbMap.set(matched, candidateResp.embeddings[i]);
+        if (matched && candidateResp.embeddings[i]) candidateEmbMap.set(matched, candidateResp.embeddings[i]);
       }
 
       return {

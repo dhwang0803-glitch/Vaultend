@@ -1,7 +1,7 @@
 import { PrivacyRule } from '../../domain/models/PrivacyRule';
 import { TagName } from '../../domain/values/TagName';
 
-export type AIProviderType = 'openai' | 'gemini' | 'ollama' | 'deepseek' | 'custom';
+export type AIProviderType = 'openai' | 'gemini' | 'ollama' | 'custom';
 
 /**
  * 설정 포트 — 플러그인 설정의 읽기/저장을 추상화한다.
@@ -31,8 +31,6 @@ export interface PluginSettings {
 
   // Local / Custom provider settings
   readonly ollamaBaseUrl: string;
-  readonly deepseekApiKey: string;
-  readonly deepseekModel: string;
   readonly customBaseUrl: string;
   readonly customApiKey: string;
   readonly customModel: string;

@@ -286,10 +286,6 @@ const ko: { [K in keyof typeof en]: string } = {
 
   'settings.ollamaBaseUrl': 'Ollama 서버 URL',
   'settings.ollamaBaseUrlDesc': 'Ollama 서버 주소 (기본: http://localhost:11434).',
-  'settings.deepseekApiKey': 'DeepSeek API 키',
-  'settings.deepseekApiKeyDesc': 'DeepSeek API 키를 입력합니다.',
-  'settings.deepseekModel': 'DeepSeek 모델',
-  'settings.deepseekModelDesc': '사용할 모델 (기본: deepseek-chat).',
   'settings.customBaseUrl': '커스텀 서버 URL',
   'settings.customBaseUrlDesc': 'OpenAI 호환 API 엔드포인트의 기본 URL.',
   'settings.customApiKey': '커스텀 API 키',

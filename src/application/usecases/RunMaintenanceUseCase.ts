@@ -643,15 +643,19 @@ export class RunMaintenanceUseCase {
 
       if (missingTags.length > 0) {
         const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
+        if (resp.embeddings.length === 0) return [];
         const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
         for (let i = 0; i < missingTags.length; i++) {
+          if (!resp.embeddings[i]) continue;
           fromCache.set(missingTags[i], resp.embeddings[i]);
           newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
         }
         this.tagEmbeddingCache?.putMany(newEntries);
       }
 
-      const allEmbeddings = tags.map(t => fromCache.get(t)!);
+      const allEmbeddingsRaw = tags.map(t => fromCache.get(t));
+      if (allEmbeddingsRaw.some(e => !e)) return [];
+      const allEmbeddings = allEmbeddingsRaw as Float32Array[];
 
       const merged = new Set<number>();
       const result: CanonicalTagGroup[] = [];

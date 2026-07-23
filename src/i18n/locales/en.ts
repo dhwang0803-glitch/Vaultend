@@ -286,10 +286,6 @@ const en = {
 
   'settings.ollamaBaseUrl': 'Ollama Base URL',
   'settings.ollamaBaseUrlDesc': 'URL of the Ollama server (default: http://localhost:11434).',
-  'settings.deepseekApiKey': 'DeepSeek API Key',
-  'settings.deepseekApiKeyDesc': 'Enter your DeepSeek API key.',
-  'settings.deepseekModel': 'DeepSeek Model',
-  'settings.deepseekModelDesc': 'Model to use (default: deepseek-chat).',
   'settings.customBaseUrl': 'Custom Base URL',
   'settings.customBaseUrlDesc': 'Base URL for OpenAI-compatible API endpoint.',
   'settings.customApiKey': 'Custom API Key',
