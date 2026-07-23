@@ -492,6 +492,7 @@ Want to contribute a translation? See [CONTRIBUTING.md](CONTRIBUTING.md) for det
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
 | Duplicates | Note duplicates use TF-IDF cosine similarity — may miss very short notes. Tag duplicates (Maintenance + Organize Tags) use 2-stage detection (string normalization + embedding); embedding stage requires AI and is capped at 200 tags per batch. |
+| Organize Folder | Processes notes in batches to avoid API rate limits and excessive costs. Click "Continue" to process the next batch. |
 | Mobile | Background switching may interrupt AI calls. |
 | Privacy | Rules control this plugin only. Review your AI provider's data policies separately. |
 
