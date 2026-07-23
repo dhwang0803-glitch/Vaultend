@@ -184,7 +184,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       .setName(t('settings.linkSimilarityThreshold'))
       .setDesc(
         t('settings.linkSimilarityThresholdDesc')
-        + ` (${t('settings.linkSimilarityThreshold')}: ${this.settings!.linkSimilarityThreshold.toFixed(2)})`,
+        + ` (${t('settings.linkSimilarityThreshold')}: ${this.settings.linkSimilarityThreshold.toFixed(2)})`,
       )
       .addSlider(slider => {
         slider
@@ -218,7 +218,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.renderChipSetting(containerEl, {
       label: t('settings.excludeFolders'),
       desc: t('settings.excludeFoldersDesc'),
-      items: [...(this.settings!.maintenanceExcludeFolders ?? [])],
+      items: [...(this.settings.maintenanceExcludeFolders ?? [])],
       placeholder: t('settings.excludeFoldersPlaceholder'),
       suggestions: () => this.collectVaultFolders(),
       onUpdate: async (items) => {
@@ -230,7 +230,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.renderChipSetting(containerEl, {
       label: t('settings.excludeTags'),
       desc: t('settings.excludeTagsDesc'),
-      items: [...(this.settings!.maintenanceExcludeTags ?? [])],
+      items: [...(this.settings.maintenanceExcludeTags ?? [])],
       placeholder: t('settings.excludeTagsPlaceholder'),
       suggestions: () => this.collectVaultTags(),
       onUpdate: async (items) => {
@@ -581,7 +581,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
         }
       }
       if (cache.frontmatter?.tags) {
-        const raw = cache.frontmatter.tags;
+        const raw: unknown = cache.frontmatter.tags;
         const list = Array.isArray(raw) ? raw : [raw];
         for (const item of list) {
           const s = String(item);

@@ -76,7 +76,7 @@ export class MaintenanceLogView extends ItemView {
 
       const canUndo = entry.previousContent !== undefined
         || (entry.action === 'archive' && entry.metadata?.archivedTo)
-        || (entry.action === 'tag-merge' && Array.isArray(entry.metadata?.affectedFiles) && entry.metadata!.affectedFiles.length > 0);
+        || (entry.action === 'tag-merge' && Array.isArray(entry.metadata?.affectedFiles) && entry.metadata.affectedFiles.length > 0);
       if (canUndo) {
         setting.addButton(btn => btn
           .setButtonText(t('log.undo'))
@@ -96,7 +96,7 @@ export class MaintenanceLogView extends ItemView {
   }
 
   private formatDescription(entry: HistoryEntry): string {
-    const meta = entry.metadata ?? {};
+    const meta = (entry.metadata ?? {}) as Record<string, string | number | string[] | undefined>;
     const path = entry.notePath;
 
     switch (entry.action) {
@@ -113,15 +113,15 @@ export class MaintenanceLogView extends ItemView {
       case 'tag-merge':
         if (meta.keepTag && Array.isArray(meta.replacedTags)) {
           return t('historyDesc.tagMerge', {
-            replacedTags: (meta.replacedTags as string[]).join(', '),
+            replacedTags: (meta.replacedTags).join(', '),
             keepTag: String(meta.keepTag),
             count: String(meta.mergedNoteCount ?? 0),
           });
         }
         return entry.description;
       case 'tag-add':
-        if (Array.isArray(meta.tags) && (meta.tags as string[]).length > 0) {
-          return t('historyDesc.tagAdd', { tags: (meta.tags as string[]).join(', '), path });
+        if (Array.isArray(meta.tags) && (meta.tags).length > 0) {
+          return t('historyDesc.tagAdd', { tags: (meta.tags).join(', '), path });
         }
         return t('historyDesc.tagAddSimple', { path });
       case 'link-remove':

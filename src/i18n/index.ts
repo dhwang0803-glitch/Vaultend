@@ -30,10 +30,10 @@ export function formatDate(ts: number): string {
 }
 
 export function detectObsidianLocale(): SupportedLocale {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const momentGlobal = (window as any).moment;
-  if (momentGlobal && typeof momentGlobal === 'function') {
-    const loc: string | undefined = momentGlobal.locale?.();
+  const win = window as Window & { moment?: { locale?: () => string } };
+  const momentGlobal = win.moment;
+  if (momentGlobal && typeof momentGlobal.locale === 'function') {
+    const loc = momentGlobal.locale();
     if (loc?.startsWith('ko')) return 'ko';
   }
   if (typeof navigator !== 'undefined' && navigator.language?.startsWith('ko')) {

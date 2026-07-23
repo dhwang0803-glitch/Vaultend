@@ -39,6 +39,7 @@ function createMockApp(overrides?: Record<string, any>) {
         const fm: Record<string, unknown> = {};
         cb(fm);
       }),
+      trashFile: vi.fn().mockResolvedValue(undefined),
     },
     _files: files,
     ...overrides,
@@ -200,12 +201,12 @@ describe('ObsidianVaultAdapter', () => {
     it('존재하는 파일을 삭제한다', async () => {
       const file = addFile(app, 'delete-me.md');
       await adapter.deleteNote(np('delete-me.md'));
-      expect(app.vault.trash).toHaveBeenCalledWith(file, true);
+      expect(app.fileManager.trashFile).toHaveBeenCalledWith(file);
     });
 
     it('존재하지 않는 파일이면 아무것도 하지 않는다', async () => {
       await adapter.deleteNote(np('ghost.md'));
-      expect(app.vault.trash).not.toHaveBeenCalled();
+      expect(app.fileManager.trashFile).not.toHaveBeenCalled();
     });
   });
 

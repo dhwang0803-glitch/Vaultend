@@ -2,9 +2,9 @@ import MiniSearch from 'minisearch';
 import { SearchIndexPort, SearchResult } from '../../application/ports/SearchIndexPort';
 import { NoteChunk } from '../../domain/models/NoteChunk';
 import { NotePath } from '../../domain/values/NotePath';
+import type { HeadingPath } from '../../domain/values/HeadingPath';
+import type { ChunkText } from '../../domain/values/ChunkText';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
-import { HeadingPath } from '../../domain/values/HeadingPath';
-import { ChunkText } from '../../domain/values/ChunkText';
 import { SEARCH_INDEX_PATH } from '../../constants';
 
 interface IndexedDocument {
@@ -67,9 +67,9 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
         id,
         notePath: pathStr,
         noteName,
-        headingPath: chunk.headingPath as string,
-        text: chunk.text as string,
-        originalText: chunk.text as string,
+        headingPath: chunk.headingPath,
+        text: chunk.text,
+        originalText: chunk.text,
         startLine: chunk.startLine,
         endLine: chunk.endLine,
       });
@@ -98,26 +98,29 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
       if (diverse.length >= maxResults) break;
     }
 
-    return diverse.map(result => ({
-      notePath: result.notePath as NotePath,
-      chunk: {
-        headingPath: result.headingPath as unknown as HeadingPath,
-        text: result.originalText as unknown as ChunkText,
-        startLine: result.startLine as number,
-        endLine: result.endLine as number,
-      } as NoteChunk,
-      score: result.score,
-    }));
+    return diverse.map(result => {
+      const doc = result as unknown as IndexedDocument;
+      return {
+        notePath: doc.notePath as NotePath,
+        chunk: {
+          headingPath: doc.headingPath as HeadingPath,
+          text: doc.originalText as ChunkText,
+          startLine: doc.startLine,
+          endLine: doc.endLine,
+        },
+        score: result.score,
+      };
+    });
   }
 
   async remove(notePath: NotePath): Promise<void> {
     await this.ensureLoaded();
 
-    const ids = this.noteDocIds.get(notePath as string) ?? [];
+    const ids = this.noteDocIds.get(notePath) ?? [];
     if (ids.length > 0) {
       this.miniSearch.discardAll(ids);
     }
-    this.noteDocIds.delete(notePath as string);
+    this.noteDocIds.delete(notePath);
     this.dirty = true;
     await this.flush();
   }

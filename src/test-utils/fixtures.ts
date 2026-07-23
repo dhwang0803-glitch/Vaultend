@@ -5,7 +5,6 @@ import type { PluginSettings } from '../application/ports/ConfigPort';
 import type { NotePath } from '../domain/values/NotePath';
 import type { NoteId } from '../domain/values/NoteId';
 import type { NoteTitle } from '../domain/values/NoteTitle';
-import type { TagName } from '../domain/values/TagName';
 import type { Timestamp } from '../domain/values/Timestamp';
 import type { ChunkText } from '../domain/values/ChunkText';
 import type { HeadingPath } from '../domain/values/HeadingPath';
@@ -24,10 +23,10 @@ export function createTestNote(overrides?: Partial<Note>): Note {
 
 export function createTestMetadata(overrides?: Partial<NoteMetadata>): NoteMetadata {
   return {
-    tags: [] as unknown as ReadonlyArray<TagName>,
+    tags: [],
     aliases: [],
-    links: [] as unknown as ReadonlyArray<NotePath>,
-    backlinks: [] as unknown as ReadonlyArray<NotePath>,
+    links: [],
+    backlinks: [],
     frontmatterKeys: [],
     fileSize: 1024,
     createdAt: 1720000000000 as unknown as Timestamp,
@@ -67,7 +66,7 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     maintenanceExcludeTags: [],
     maintenanceArchiveFolder: 'Archive',
     privacyRules: [],
-    knownTags: [] as unknown as ReadonlyArray<TagName>,
+    knownTags: [],
     trackTokenUsage: false,
     embeddingsEnabled: false,
     embeddingsModel: 'text-embedding-3-small',

@@ -65,7 +65,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   async deleteNote(path: NotePath): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (file instanceof TFile) {
-      await this.app.vault.trash(file, true);
+      await this.app.fileManager.trashFile(file);
     }
   }
 

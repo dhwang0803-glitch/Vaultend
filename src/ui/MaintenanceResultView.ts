@@ -259,7 +259,7 @@ export class MaintenanceResultView extends ItemView {
     }
 
     if (this.filterState.searchQuery) {
-      const input = contentEl.querySelector('.maintenance-search-input') as HTMLInputElement | null;
+      const input = contentEl.querySelector<HTMLInputElement>('.maintenance-search-input');
       if (input) {
         input.focus();
         const len = input.value.length;

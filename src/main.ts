@@ -169,18 +169,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // 6. Register settings tab
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
-      this.scheduleMaintenanceIfEnabled();
-    }, async () => {
-      const gen = ++this.embeddingInitGeneration;
-      try {
-        await this.reinitializeEmbeddings(gen);
-        if (gen !== this.embeddingInitGeneration) return;
-        if (this.embeddingAdapter.isReady()) {
-          void this.syncEmbeddingsBackground();
+      void this.scheduleMaintenanceIfEnabled();
+    }, () => {
+      void (async () => {
+        const gen = ++this.embeddingInitGeneration;
+        try {
+          await this.reinitializeEmbeddings(gen);
+          if (gen !== this.embeddingInitGeneration) return;
+          if (this.embeddingAdapter.isReady()) {
+            void this.syncEmbeddingsBackground();
+          }
+        } catch (err) {
+          console.error('Vaultend: AI config change re-initialization failed', err);
         }
-      } catch (err) {
-        console.error('Vaultend: AI config change re-initialization failed', err);
-      }
+      })();
     }));
 
     // 7. Register folder context menu
@@ -190,7 +192,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.startVaultWatcher();
 
     // 9. Schedule auto-maintenance
-    this.scheduleMaintenanceIfEnabled();
+    void this.scheduleMaintenanceIfEnabled();
 
     // 10. Initialize search index + embeddings on layout ready
     this.app.workspace.onLayoutReady(async () => {
@@ -312,7 +314,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       delete data.inboxConfidenceThreshold;
     }
 
-    this.settings = { ...DEFAULT_SETTINGS, ...data } as PluginSettings;
+    this.settings = { ...DEFAULT_SETTINGS, ...data };
   }
 
   private wireAdapters(): void {
@@ -420,13 +422,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.historyAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+          if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
         },
         (pathA: string, pathB: string) => {
           const fileA = this.app.vault.getAbstractFileByPath(pathA);
           const fileB = this.app.vault.getAbstractFileByPath(pathB);
-          if (fileA instanceof TFile) this.app.workspace.getLeaf(false).openFile(fileA);
-          if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
+          if (fileA instanceof TFile) void this.app.workspace.getLeaf(false).openFile(fileA);
+          if (fileB instanceof TFile) void this.app.workspace.getLeaf('split').openFile(fileB);
         },
         () => {},
         (notePaths, onProgress) => this.previewOrganizeNotes(notePaths, onProgress),
@@ -446,7 +448,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.vaultAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+          if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
         },
         (v: boolean) => { this.isOrganizing = v; },
       ),
@@ -461,7 +463,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.historyAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+          if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
         },
       ),
     );
@@ -514,13 +516,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           new Notice(t('notice.organizeAlreadyRunning'));
           return;
         }
-        new FolderSuggestModal(this.app, async (folder) => {
-          await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-          if (leaves.length > 0) {
-            const view = leaves[0].view as OrganizeFolderResultView;
-            void view.triggerScan(folder.path);
-          }
+        new FolderSuggestModal(this.app, (folder) => {
+          void (async () => {
+            await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+            const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+            if (leaves.length > 0) {
+              const view = leaves[0].view as OrganizeFolderResultView;
+              void view.triggerScan(folder.path);
+            }
+          })();
         }).open();
       },
     });
@@ -633,14 +637,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private async activateView(viewType: string): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(viewType);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
 
     const leaf = this.app.workspace.getRightLeaf(false);
     if (leaf) {
       await leaf.setViewState({ type: viewType, active: true });
-      this.app.workspace.revealLeaf(leaf);
+      void this.app.workspace.revealLeaf(leaf);
     }
   }
 
@@ -650,7 +654,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
       // Track all .md file changes for smart scheduling
       if (pathStr.endsWith('.md')) {
-        this.changeTracker.markDirty(event.path);
+        void this.changeTracker.markDirty(event.path);
 
         // Incremental search index update (BM25 + embeddings)
         if (event.type === 'delete') {
@@ -681,30 +685,32 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     let firstRun = true;
-    this.maintenanceInterval = window.setInterval(async () => {
-      if (this.isMaintenanceRunning) return;
-      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
-      if (leaves.length > 0) {
-        const view = leaves[0].view as MaintenanceResultView;
-        if (view.isScanInProgress()) return;
-      }
-      this.isMaintenanceRunning = true;
-      try {
-        if (this.settings.smartScheduling && !firstRun) {
-          const lastScan = await this.changeTracker.getLastScanTimestamp();
-          if (lastScan !== null) {
-            const dirtySet = await this.changeTracker.getDirtySet();
-            if (dirtySet.size === 0) return;
-          }
+    this.maintenanceInterval = window.setInterval(() => {
+      void (async () => {
+        if (this.isMaintenanceRunning) return;
+        const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as MaintenanceResultView;
+          if (view.isScanInProgress()) return;
         }
-        firstRun = false;
-        const plan = await this.runMaintenanceUseCase.execute();
-        this.showMaintenancePlanIfNeeded(plan);
-      } catch (err) {
-        console.error('Vaultend: scheduled maintenance failed', err);
-      } finally {
-        this.isMaintenanceRunning = false;
-      }
+        this.isMaintenanceRunning = true;
+        try {
+          if (this.settings.smartScheduling && !firstRun) {
+            const lastScan = await this.changeTracker.getLastScanTimestamp();
+            if (lastScan !== null) {
+              const dirtySet = await this.changeTracker.getDirtySet();
+              if (dirtySet.size === 0) return;
+            }
+          }
+          firstRun = false;
+          const plan = await this.runMaintenanceUseCase.execute();
+          void this.showMaintenancePlanIfNeeded(plan);
+        } catch (err) {
+          console.error('Vaultend: scheduled maintenance failed', err);
+        } finally {
+          this.isMaintenanceRunning = false;
+        }
+      })();
     }, ms);
     this.registerInterval(this.maintenanceInterval);
   }

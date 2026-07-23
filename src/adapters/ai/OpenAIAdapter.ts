@@ -188,7 +188,7 @@ export class OpenAIAdapter implements AIProviderPort {
     return this.requestWithRetry(params);
   }
 
-  private async requestWithRetry(params: RequestUrlParam) {
+  private async requestWithRetry(params: RequestUrlParam): Promise<Record<string, unknown>> {
     const now = Date.now();
     if (now < this.rateLimitedUntil) {
       throw new RateLimitError(this.rateLimitedUntil - now);
@@ -199,7 +199,7 @@ export class OpenAIAdapter implements AIProviderPort {
     for (let attempt = 0; attempt <= OpenAIAdapter.MAX_RETRIES; attempt++) {
       try {
         const response = await requestUrl(params);
-        if (response.status === 200) return response.json;
+        if (response.status === 200) return response.json as Record<string, unknown>;
 
         if (response.status === 429) {
           lastRetryAfterMs = this.parseRetryAfter(response.headers);

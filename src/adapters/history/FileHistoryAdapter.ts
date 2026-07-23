@@ -86,7 +86,7 @@ export class FileHistoryAdapter implements HistoryPort {
 
         const idx = entries.indexOf(target);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit affectedFiles
-        const { affectedFiles: _af, ...preservedMeta } = target.metadata!;
+        const { affectedFiles: _af, ...preservedMeta } = target.metadata;
         entries[idx] = { ...target, metadata: preservedMeta };
 
         const restored = files.length - failed.length;
