@@ -214,8 +214,8 @@ export class OrganizeFolderResultView extends ItemView {
     const displayFolder = this.targetFolder || '/';
     this.contentEl.createEl('h4', { text: `${t('organizeFolder.viewTitle')}: ${displayFolder}/` });
 
-    // Rescan button + guidance
-    new Setting(this.contentEl)
+    // Rescan / Continue button + guidance
+    const actionSetting = new Setting(this.contentEl)
       .setDesc(t('organizeFolder.noChangesHint'))
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.rescan'))
@@ -224,14 +224,31 @@ export class OrganizeFolderResultView extends ItemView {
           }),
       );
 
+    if (result.remainingCount > 0) {
+      actionSetting.addButton(btn =>
+        btn.setButtonText(t('organizeFolder.continue', { remaining: String(result.remainingCount) }))
+          .setCta()
+          .onClick(() => {
+            if (this.targetFolder !== null) this.triggerScan(this.targetFolder);
+          }),
+      );
+    }
+
     // Summary
     const summaryEl = this.contentEl.createDiv({ cls: 'organize-folder-summary' });
     summaryEl.createEl('span', {
-      text: t('organizeFolder.summary', {
-        processed: String(result.processedCount),
-        skipped: String(result.skippedCount),
-        errors: String(result.errors.length),
-      }),
+      text: result.remainingCount > 0
+        ? t('organizeFolder.batchSummary', {
+            processed: String(result.processedCount),
+            remaining: String(result.remainingCount),
+            skipped: String(result.skippedCount),
+            errors: String(result.errors.length),
+          })
+        : t('organizeFolder.summary', {
+            processed: String(result.processedCount),
+            skipped: String(result.skippedCount),
+            errors: String(result.errors.length),
+          }),
     });
 
     // Skip breakdown (only if there are smart-filtered notes)

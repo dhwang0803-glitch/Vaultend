@@ -52,6 +52,9 @@ export const NOTE_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/note-embeddings.json`
 export const ORGANIZE_MIN_WORD_COUNT = 50;
 export const ORGANIZE_SUFFICIENT_LINKS = 3;
 
+/** Organize Folder 배치 상수 */
+export const ORGANIZE_FOLDER_BATCH_SIZE = 50;
+
 /** Organize Tags 상수 */
 export const TAG_GROUPING_BATCH_SIZE = 200;
 

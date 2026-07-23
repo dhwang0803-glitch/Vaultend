@@ -18,7 +18,7 @@ import { detectContentLanguage } from '../utils/detectContentLanguage';
 import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
 import { stripRelatedNotesSection } from '../utils/relatedNotesSection';
 import { stripFrontmatter } from '../../domain/services/tokenize';
-import { ORGANIZE_MIN_WORD_COUNT, ORGANIZE_SUFFICIENT_LINKS } from '../../constants';
+import { ORGANIZE_MIN_WORD_COUNT, ORGANIZE_SUFFICIENT_LINKS, ORGANIZE_FOLDER_BATCH_SIZE } from '../../constants';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -49,6 +49,8 @@ export interface OrganizeFolderResult {
   readonly errors: ReadonlyArray<{ path: NotePath; error: string }>;
   readonly cancelled?: boolean;
   readonly linkSelectionTokenUsage?: TokenUsage;
+  readonly remainingCount: number;
+  readonly totalUnprocessed: number;
 }
 
 export class OrganizeFolderUseCase {
@@ -105,6 +107,10 @@ export class OrganizeFolderUseCase {
 
       unprocessedNotes.push(notePath);
     }
+
+    const totalUnprocessed = unprocessedNotes.length;
+    const batchNotes = unprocessedNotes.slice(0, ORGANIZE_FOLDER_BATCH_SIZE);
+    const remainingCount = totalUnprocessed - batchNotes.length;
 
     const results: OrganizeResult[] = [];
     const errors: Array<{ path: NotePath; error: string }> = [];
@@ -170,16 +176,16 @@ export class OrganizeFolderUseCase {
     const sessionTags: string[] = [];
 
     // Pass 1: classify + tag (skip link suggestion — handled in Pass 2)
-    for (let i = 0; i < unprocessedNotes.length; i++) {
+    for (let i = 0; i < batchNotes.length; i++) {
       if (options?.signal?.aborted) {
         cancelled = true;
         break;
       }
 
-      const notePath = unprocessedNotes[i];
+      const notePath = batchNotes[i];
       options?.onProgress?.({
         current: i + 1,
-        total: unprocessedNotes.length,
+        total: batchNotes.length,
         currentNotePath: notePath,
       });
 
@@ -385,6 +391,8 @@ export class OrganizeFolderUseCase {
       errors,
       cancelled,
       linkSelectionTokenUsage: batchLinkTokenUsage,
+      remainingCount: cancelled ? remainingCount + (batchNotes.length - results.length - errors.length) : remainingCount,
+      totalUnprocessed,
     };
   }
 
