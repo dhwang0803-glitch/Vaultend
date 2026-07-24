@@ -61,6 +61,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly onOrganizeTagsOnly?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
     private readonly onClearOrganizeCache?: () => void,
+    private readonly onReorganizeNote?: (notePath: NotePath) => Promise<OrganizeResult>,
   ) {
     super(leaf);
   }
@@ -1192,7 +1193,7 @@ export class MaintenanceResultView extends ItemView {
         return;
       }
 
-      new OrganizeBatchPreviewModal(this.app, items, this.batchOrganizeCallbacks, tagsOnly)
+      new OrganizeBatchPreviewModal(this.app, items, this.batchOrganizeCallbacks, tagsOnly, this.onReorganizeNote)
         .setOnApplied((appliedEntries) => this.onBatchOrganizeApplied(appliedEntries, entries))
         .open();
     } catch (err) {

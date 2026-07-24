@@ -2,7 +2,7 @@
 
 > Focus on writing. Let AI handle the organization.
 
-An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag, link, and organize your notes — with full privacy control and undo safety.
+An AI-powered vault maintenance plugin for Obsidian. Automatically tag, link, and organize your notes — with full privacy control and undo safety.
 
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.7.2+-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -62,7 +62,7 @@ This is a deliberate design choice: AI tools should be transparent about resourc
 
 ### Note Organizer
 
-Analyze the active note with AI — classify, tag, link, and move — all from an interactive modal.
+Analyze the active note with AI — tag and link — all from an interactive modal.
 
 ![Organize Current Note](docs/assets/organize-note.gif)
 
@@ -71,10 +71,9 @@ Analyze the active note with AI — classify, tag, link, and move — all from a
 > This command only appears when a note is actively open in the editor.
 
 The AI will:
-1. **Classify** the note into a category (technology, personal, work, etc.)
-2. **Suggest tags** using a hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), and new tags are freely created when no strong match exists. New tags never semantically overlap with existing ones.
-3. **Propose links** via AI analysis with vault existence validation — only notes that actually exist in your vault are suggested, preventing broken links
-4. **Suggest a folder** from your vault's actual folder structure
+1. **Suggest tags** using a hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), and new tags are freely created when no strong match exists. New tags never semantically overlap with existing ones.
+2. **Propose links** via AI analysis with vault existence validation — only notes that actually exist in your vault are suggested, preventing broken links
+3. **Summarize** the note content for quick reference
 
 Results open in an **interactive modal** where you can review and edit everything before applying:
 
@@ -82,8 +81,8 @@ Results open in an **interactive modal** where you can review and edit everythin
 |---------|-------------|
 | Editable tag chips | Remove suggested tags or add your own with the input field |
 | Editable link chips | Remove suggested links or add new ones |
-| Folder dropdown | Pick from existing vault folders, or keep the current location |
-| Apply All | One click to apply tags + links + folder move together |
+| Apply All | One click to apply tags + links together |
+| Re-organize | Re-run AI analysis to get fresh suggestions |
 | Token & cost display | See exactly how many tokens and how much the AI call cost |
 
 **Nothing changes until you click Apply All.** You're always in control.
@@ -92,7 +91,7 @@ Results open in an **interactive modal** where you can review and edit everythin
 
 ### Organize Folder
 
-Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, links, and moves each note — with full per-note review in a side panel.
+Batch-organize any folder in your vault with AI. Pick a folder, and the plugin suggests tags and links for each note — with full per-note review in a side panel.
 
 ![Organize Folder](docs/assets/organize-folder.gif)
 
@@ -103,31 +102,29 @@ Batch-organize any folder in your vault with AI. Pick a folder, and the plugin c
 **How it works**:
 1. Select a target folder (any folder in your vault)
 2. The plugin scans all notes in that folder (progress shown in a side panel with progress bar, counter, and cancel button)
-3. Each note gets sent to AI for classification, tagging, linking, and folder suggestion
+3. Each note gets sent to AI for tagging and link suggestion
 4. Results open in a **side panel** with per-note detail
 
 **Result panel features**:
 
 | Feature | Description |
 |---------|-------------|
-| Per-note detail | Category badge, summary, suggested tags/links/folder for each note |
+| Per-note detail | Summary, suggested tags and links for each note |
 | Tag/link chips | View suggested tags and links as removable chips |
-| Folder suggestion | Proposed destination folder with "(New)" badge for non-existing folders |
 | Apply / Skip | Apply changes per-note or skip individual notes (autoApply=off) |
 | Batch preview | Before batch-apply, preview all suggestions in a modal with per-tag/link chip toggles (× to disable, ↺ to restore) — remove unwanted suggestions without re-calling AI |
 | Batch operations | Select All checkbox + "Apply" / "Skip" buttons |
-| Undo | Revert any applied change (tags, links, folder move) via Undo button |
+| Undo | Revert any applied change (tags, links) via Undo button |
 | Open note | Click to open any note directly from the result panel |
-| Token & cost | Per-note token usage and estimated cost (classification + link suggestion combined) |
+| Token & cost | Per-note token usage and estimated cost |
 
 **Two modes**:
 - **autoApply=off** (default): Review each note's suggestions, check/uncheck, then Apply
 - **autoApply=on**: Changes are applied automatically; use Undo to revert any unwanted change
 
-**How AI decides tags, links, and folders**:
+**How AI decides tags and links**:
 - **Tags**: Hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), new tags are created when no strong match exists. New tags never semantically overlap with existing ones.
 - **Links**: AI analyzes note content and selects related notes from your vault. Every suggested link is validated against actual vault notes — hallucinated links are filtered out.
-- **Folder**: AI classifies the note's category and maps it to an appropriate folder path, inferred from your vault's existing folder structure.
 
 ---
 
@@ -280,7 +277,7 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 | Command | Description | Requires AI |
 |---------|-------------|:-----------:|
 
-| Organize Current Note | Classify and tag the active note | Yes |
+| Organize Current Note | Tag and link the active note | Yes |
 | Organize Folder | Select a folder and batch-organize its notes | Yes |
 | Organize Tags | Find and merge duplicate tags across the vault | Yes |
 | Run Maintenance | Scan entire vault for issues | Partial |

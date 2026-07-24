@@ -666,9 +666,34 @@
   background: var(--background-primary-alt);
 }
 
+.organize-batch-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
 .organize-batch-card-name {
   font-weight: var(--font-semibold);
-  margin-bottom: 6px;
+}
+.organize-batch-reorg-btn {
+  display: inline-flex;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.organize-batch-reorg-btn:hover {
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+}
+.organize-batch-reorg-btn:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+.organize-batch-reorg-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .organize-batch-card-details {

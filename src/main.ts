@@ -450,6 +450,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         (notePaths, onProgress) => this.previewOrganizeNotesTagsOnly(notePaths, onProgress),
         this.buildBatchOrganizeCallbacks(),
         () => this.organizeResultCache.clear(),
+        async (path) => this.organizeNoteUseCase.execute(path, false, { forceRefresh: true }),
       ),
     );
 
