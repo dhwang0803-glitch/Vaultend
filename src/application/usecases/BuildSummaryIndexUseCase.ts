@@ -2,7 +2,7 @@ import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { SummaryIndexService, SummaryBatchItem } from '../../domain/services/SummaryIndexService';
-import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { applyContentRedaction, isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
 import { stripFrontmatter } from '../../domain/services/tokenize';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
@@ -49,6 +49,11 @@ export class BuildSummaryIndexUseCase {
     for (const notePath of textNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
+
+      const tags = note.metadata.tags.map(t => t as string);
+      if (!isNoteAllowedByRules(notePath, tags, note.metadata.frontmatterEntries, privacyRules)) {
+        continue;
+      }
 
       const title = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
       const redactedContent = applyContentRedaction(note.content, privacyRules);

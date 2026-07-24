@@ -13,7 +13,7 @@ function makeRule(overrides: Partial<PrivacyRule> & { type: PrivacyRule['type'];
 describe('isNoteAllowedByRules', () => {
   describe('규칙이 없을 때', () => {
     it('규칙 배열이 비어있으면 true를 반환한다', () => {
-      expect(isNoteAllowedByRules('folder/note.md', [], [], [])).toBe(true);
+      expect(isNoteAllowedByRules('folder/note.md', [], {}, [])).toBe(true);
     });
   });
 
@@ -21,19 +21,19 @@ describe('isNoteAllowedByRules', () => {
     const rule = makeRule({ type: 'folder-exclude', pattern: 'private/' });
 
     it('패턴으로 시작하는 경로를 차단한다', () => {
-      expect(isNoteAllowedByRules('private/secret.md', [], [], [rule])).toBe(false);
+      expect(isNoteAllowedByRules('private/secret.md', [], {}, [rule])).toBe(false);
     });
 
     it('중첩 폴더도 차단한다', () => {
-      expect(isNoteAllowedByRules('private/sub/deep.md', [], [], [rule])).toBe(false);
+      expect(isNoteAllowedByRules('private/sub/deep.md', [], {}, [rule])).toBe(false);
     });
 
     it('패턴과 무관한 경로는 허용한다', () => {
-      expect(isNoteAllowedByRules('public/note.md', [], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('public/note.md', [], {}, [rule])).toBe(true);
     });
 
     it('경로 중간에 포함된 패턴은 차단하지 않는다', () => {
-      expect(isNoteAllowedByRules('docs/private/note.md', [], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('docs/private/note.md', [], {}, [rule])).toBe(true);
     });
   });
 
@@ -41,35 +41,67 @@ describe('isNoteAllowedByRules', () => {
     const rule = makeRule({ type: 'tag-exclude', pattern: '#secret' });
 
     it('정확히 일치하는 태그를 차단한다', () => {
-      expect(isNoteAllowedByRules('note.md', ['#secret'], [], [rule])).toBe(false);
+      expect(isNoteAllowedByRules('note.md', ['#secret'], {}, [rule])).toBe(false);
     });
 
     it('다른 태그만 있으면 허용한다', () => {
-      expect(isNoteAllowedByRules('note.md', ['#public', '#work'], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('note.md', ['#public', '#work'], {}, [rule])).toBe(true);
     });
 
     it('태그가 없으면 허용한다', () => {
-      expect(isNoteAllowedByRules('note.md', [], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('note.md', [], {}, [rule])).toBe(true);
     });
 
     it('부분 매칭은 차단하지 않는다', () => {
-      expect(isNoteAllowedByRules('note.md', ['#secret-project'], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('note.md', ['#secret-project'], {}, [rule])).toBe(true);
     });
   });
 
   describe('frontmatter-exclude', () => {
-    const rule = makeRule({ type: 'frontmatter-exclude', pattern: 'classified' });
+    describe('key-only 패턴 (하위 호환)', () => {
+      const rule = makeRule({ type: 'frontmatter-exclude', pattern: 'classified' });
 
-    it('frontmatter 키가 있으면 차단한다', () => {
-      expect(isNoteAllowedByRules('note.md', [], ['classified', 'tags'], [rule])).toBe(false);
+      it('frontmatter 키가 있으면 차단한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { classified: true, tags: [] }, [rule])).toBe(false);
+      });
+
+      it('frontmatter 키가 없으면 허용한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { tags: [], date: '2024-01-01' }, [rule])).toBe(true);
+      });
+
+      it('빈 frontmatter이면 허용한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], {}, [rule])).toBe(true);
+      });
     });
 
-    it('frontmatter 키가 없으면 허용한다', () => {
-      expect(isNoteAllowedByRules('note.md', [], ['tags', 'date'], [rule])).toBe(true);
-    });
+    describe('key: value 패턴', () => {
+      const rule = makeRule({ type: 'frontmatter-exclude', pattern: 'category: draft' });
 
-    it('빈 frontmatter이면 허용한다', () => {
-      expect(isNoteAllowedByRules('note.md', [], [], [rule])).toBe(true);
+      it('키와 값이 모두 일치하면 차단한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { category: 'draft' }, [rule])).toBe(false);
+      });
+
+      it('키는 있지만 값이 다르면 허용한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { category: 'published' }, [rule])).toBe(true);
+      });
+
+      it('키가 없으면 허용한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { tags: [] }, [rule])).toBe(true);
+      });
+
+      it('대소문자를 무시하고 매칭한다', () => {
+        expect(isNoteAllowedByRules('note.md', [], { category: 'Draft' }, [rule])).toBe(false);
+      });
+
+      it('값 앞뒤 공백을 무시한다', () => {
+        const ruleWithSpaces = makeRule({ type: 'frontmatter-exclude', pattern: 'category:  draft ' });
+        expect(isNoteAllowedByRules('note.md', [], { category: 'draft' }, [ruleWithSpaces])).toBe(false);
+      });
+
+      it('boolean 값도 문자열로 비교한다', () => {
+        const boolRule = makeRule({ type: 'frontmatter-exclude', pattern: 'private: true' });
+        expect(isNoteAllowedByRules('note.md', [], { private: true }, [boolRule])).toBe(false);
+      });
     });
   });
 
@@ -77,14 +109,14 @@ describe('isNoteAllowedByRules', () => {
     const rule = makeRule({ type: 'content-redact', pattern: 'password:.*' });
 
     it('노트 접근 자체는 차단하지 않는다 (전송 시점 처리)', () => {
-      expect(isNoteAllowedByRules('note.md', [], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('note.md', [], {}, [rule])).toBe(true);
     });
   });
 
   describe('disabled 규칙', () => {
     it('비활성화된 규칙은 무시한다', () => {
       const rule = makeRule({ type: 'folder-exclude', pattern: 'private/', enabled: false });
-      expect(isNoteAllowedByRules('private/note.md', [], [], [rule])).toBe(true);
+      expect(isNoteAllowedByRules('private/note.md', [], {}, [rule])).toBe(true);
     });
   });
 
@@ -96,19 +128,19 @@ describe('isNoteAllowedByRules', () => {
     ];
 
     it('첫 번째 규칙에 걸리면 즉시 false', () => {
-      expect(isNoteAllowedByRules('private/note.md', [], [], rules)).toBe(false);
+      expect(isNoteAllowedByRules('private/note.md', [], {}, rules)).toBe(false);
     });
 
     it('두 번째 규칙에 걸려도 false', () => {
-      expect(isNoteAllowedByRules('public/note.md', ['#confidential'], [], rules)).toBe(false);
+      expect(isNoteAllowedByRules('public/note.md', ['#confidential'], {}, rules)).toBe(false);
     });
 
     it('세 번째 규칙에 걸려도 false', () => {
-      expect(isNoteAllowedByRules('public/note.md', [], ['secret'], rules)).toBe(false);
+      expect(isNoteAllowedByRules('public/note.md', [], { secret: true }, rules)).toBe(false);
     });
 
     it('모든 규칙을 통과하면 true', () => {
-      expect(isNoteAllowedByRules('public/note.md', ['#work'], ['tags'], rules)).toBe(true);
+      expect(isNoteAllowedByRules('public/note.md', ['#work'], { tags: [] }, rules)).toBe(true);
     });
   });
 });

@@ -3,8 +3,8 @@ import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult, TagReason } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
-import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
-import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { NoteNotFoundError, PrivacyViolationError } from '../../domain/errors/DomainErrors';
+import { applyContentRedaction, isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
 import { truncateNoteContent, extractHeadings } from '../utils/truncateNoteContent';
 import { scoreLinkCandidates } from '../utils/scoreLinkCandidates';
 import { AIProviderPort } from '../ports/AIProviderPort';
@@ -65,6 +65,17 @@ export class OrganizeNoteUseCase {
 
     const settings = await this.config.getSettings();
     const currentTags = note.metadata.tags.map(t => t as string);
+
+    const privacyRules = [...settings.privacyRules];
+    if (!isNoteAllowedByRules(notePath, currentTags, note.metadata.frontmatterEntries, privacyRules)) {
+      const matchedRule = privacyRules.find(r => {
+        if (!r.enabled || !r.pattern || r.type === 'content-redact') return false;
+        if (r.type === 'folder-exclude') return notePath.startsWith(r.pattern);
+        if (r.type === 'tag-exclude') return currentTags.some(t => t === r.pattern);
+        return false;
+      });
+      throw new PrivacyViolationError(matchedRule?.name ?? 'privacy rule');
+    }
 
     if (this.organizeResultCache && !context?.forceRefresh && !autoApply) {
       const cacheBody = stripFrontmatter(note.content);

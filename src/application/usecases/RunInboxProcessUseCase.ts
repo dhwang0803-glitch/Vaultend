@@ -8,6 +8,7 @@ import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
 import { createTimestamp } from '../../domain/values/Timestamp';
@@ -75,12 +76,18 @@ export class OrganizeFolderUseCase {
 
     const allNotes = await this.vault.listNotes(targetFolder);
     const unprocessedNotes: NotePath[] = [];
+    const privacyRules = [...settings.privacyRules];
     const skipBreakdown: SkipBreakdown = { alreadyProcessed: 0, tooShort: 0, alreadyLinked: 0, alreadyOrganized: 0 };
     const mutableSkip = skipBreakdown as { -readonly [K in keyof SkipBreakdown]: SkipBreakdown[K] };
 
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
+
+      const tags = note.metadata.tags.map(t => t as string);
+      if (!isNoteAllowedByRules(notePath, tags, note.metadata.frontmatterEntries, privacyRules)) {
+        continue;
+      }
 
       if (note.metadata.isProcessed) {
         mutableSkip.alreadyProcessed++;
@@ -158,13 +165,17 @@ export class OrganizeFolderUseCase {
     }
 
     // Collect onelineSummary from cache for LLM link selection (Pass 2)
+    // Filter by privacy rules to prevent cached summaries of excluded notes from leaking
     const noteSummaryMap = new Map<NotePath, string>();
     if (this.noteEmbeddingCache) {
       const allEntries = this.noteEmbeddingCache.getAll();
       for (const [path, entry] of allEntries) {
-        if (entry.onelineSummary) {
-          noteSummaryMap.set(path, entry.onelineSummary);
-        }
+        if (!entry.onelineSummary) continue;
+        const cachedNote = await this.vault.readNote(path);
+        if (!cachedNote) continue;
+        const cachedTags = cachedNote.metadata.tags.map(t => t as string);
+        if (!isNoteAllowedByRules(path, cachedTags, cachedNote.metadata.frontmatterEntries, privacyRules)) continue;
+        noteSummaryMap.set(path, entry.onelineSummary);
       }
     }
 
