@@ -326,11 +326,15 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
   private renderPrivacyRule(container: HTMLElement, rules: PrivacyRule[], index: number): void {
     const rule = rules[index];
+    const isFrontmatter = rule.type === 'frontmatter-exclude';
+    const isRedact = rule.type === 'content-redact';
+    const hasComma = isFrontmatter && rule.pattern.includes(',');
+
     const placeholders: Record<PrivacyRuleType, string> = {
-      'folder-exclude': 'Private/',
-      'tag-exclude': '#secret',
-      'frontmatter-exclude': 'confidential',
-      'content-redact': 'password|token',
+      'folder-exclude': t('settings.rulePlaceholderFolder'),
+      'tag-exclude': t('settings.rulePlaceholderTag'),
+      'frontmatter-exclude': t('settings.rulePlaceholderFrontmatter'),
+      'content-redact': t('settings.rulePlaceholderRedact'),
     };
 
     const setting = new Setting(container)
@@ -348,21 +352,53 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .addOption('content-redact', t('settings.ruleTypeContentRedact'))
           .setValue(rule.type)
           .onChange(async (value) => {
-            rules[index] = { ...rules[index], type: value as PrivacyRuleType };
+            const newType = value as PrivacyRuleType;
+            rules[index] = { ...rules[index], type: newType, pattern: '' };
             await this.config.updateSettings({ privacyRules: rules });
+            this.settings = await this.config.getSettings();
+            this.renderPrivacyRules(container);
           });
       })
       .addText(text => {
-        text.setPlaceholder(placeholders[rule.type]).setValue(rule.pattern).onChange(async (value) => {
-          rules[index] = { ...rules[index], pattern: value };
-          await this.config.updateSettings({ privacyRules: rules });
+        text.setPlaceholder(placeholders[rule.type])
+          .setValue(rule.pattern)
+          .onChange(async (value) => {
+            if (isFrontmatter && value.includes(',')) {
+              rules[index] = { ...rules[index], pattern: value, enabled: false };
+            } else {
+              rules[index] = { ...rules[index], pattern: value };
+            }
+            await this.config.updateSettings({ privacyRules: rules });
+          });
+        text.inputEl.addEventListener('blur', () => {
+          void this.config.getSettings().then((s) => {
+            this.settings = s;
+            this.renderPrivacyRules(container);
+          });
         });
-      })
+        if (hasComma) {
+          text.inputEl.addClass('vaultend-privacy-input-invalid');
+        }
+      });
+
+    if (isFrontmatter) {
+      setting.addExtraButton(btn => {
+        btn.setIcon('help-circle');
+        const el = btn.extraSettingsEl;
+        el.addClass('vaultend-redact-help');
+        el.addEventListener('mouseenter', () => this.showTooltip(el, t('settings.ruleFrontmatterTooltip')));
+        el.addEventListener('mouseleave', () => this.hideTooltip());
+      });
+    }
+
+    setting
       .addToggle(toggle => {
-        toggle.setValue(rule.enabled).onChange(async (value) => {
-          rules[index] = { ...rules[index], enabled: value };
-          await this.config.updateSettings({ privacyRules: rules });
-        });
+        toggle.setValue(hasComma ? false : rule.enabled)
+          .setDisabled(hasComma)
+          .onChange(async (value) => {
+            rules[index] = { ...rules[index], enabled: value };
+            await this.config.updateSettings({ privacyRules: rules });
+          });
       })
       .addExtraButton(btn => {
         btn.setIcon('trash').setTooltip(t('settings.ruleDelete')).onClick(async () => {
@@ -378,7 +414,135 @@ export class PluginSettingTab extends ObsidianSettingTab {
     } else {
       setting.setName(rule.name);
     }
+
+    if (isFrontmatter) {
+      if (hasComma) {
+        setting.setDesc(t('settings.ruleFrontmatterCommaWarning'));
+        setting.descEl.addClass('vaultend-privacy-warning');
+      } else {
+        setting.setDesc(t('settings.ruleFrontmatterGuide'));
+      }
+    }
+
     setting.settingEl.addClass('vaultend-privacy-rule');
+
+    if (isRedact) {
+      this.renderRedactPresets(container, rules, index);
+    }
+  }
+
+  private renderRedactPresets(container: HTMLElement, rules: PrivacyRule[], index: number): void {
+    const PRESET_GROUPS: Array<{ category: string; presets: Array<{ label: string; pattern: string }> }> = [
+      {
+        category: t('settings.redactCategoryContact'),
+        presets: [
+          { label: t('settings.redactPresetEmail'), pattern: '[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}' },
+          { label: t('settings.redactPresetPhoneKR'), pattern: '(?:\\+82[-.\\s]?0?|0)(?:1[016-9]|2|[3-6]\\d)[-.\\s]?\\d{3,4}[-.\\s]?\\d{4}' },
+          { label: t('settings.redactPresetPhoneUS'), pattern: '(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}' },
+        ],
+      },
+      {
+        category: t('settings.redactCategoryIdentity'),
+        presets: [
+          { label: t('settings.redactPresetRRN'), pattern: '\\b\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])[-\\s]?[1-8]\\d{6}\\b' },
+          { label: t('settings.redactPresetSSN'), pattern: '\\b(?!000|666|9\\d{2})\\d{3}[-\\s]?\\d{2}[-\\s]?\\d{4}\\b' },
+        ],
+      },
+      {
+        category: t('settings.redactCategoryFinancial'),
+        presets: [
+          { label: t('settings.redactPresetCard'), pattern: '\\b(?:4\\d{3}|5[1-5]\\d{2}|6(?:011|5\\d{2})|3[47]\\d{2})[-\\s]?\\d{4,6}[-\\s]?\\d{4,5}[-\\s]?\\d{4,5}\\b' },
+          { label: t('settings.redactPresetBankKR'), pattern: '\\b\\d{3,4}-\\d{2,6}-\\d{2,6}(?:-\\d{1,6})?\\b' },
+          { label: t('settings.redactPresetCrypto'), pattern: '\\b(?:0x[0-9a-fA-F]{40}|[13][1-9A-HJ-NP-Za-km-z]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{25,90})\\b' },
+        ],
+      },
+      {
+        category: t('settings.redactCategorySecurity'),
+        presets: [
+          { label: t('settings.redactPresetPassword'), pattern: '(?:password|passwd|pwd|pw|비밀번호|패스워드|비번)\\s*[:=]\\s*[\'"]?[^\\s\'"]{1,64}[\'"]?' },
+          { label: t('settings.redactPresetAPIKey'), pattern: '(?:api[_-]?key|api[_-]?secret|api[_-]?token|secret[_-]?key)\\s*[:=]\\s*[\'"]?[A-Za-z0-9_\\-]{16,}[\'"]?' },
+          { label: t('settings.redactPresetPrivateKey'), pattern: '-----BEGIN\\s(?:RSA\\s|EC\\s|DSA\\s|OPENSSH\\s|ENCRYPTED\\s)?PRIVATE\\sKEY-----[\\s\\S]*?-----END\\s(?:RSA\\s|EC\\s|DSA\\s|OPENSSH\\s|ENCRYPTED\\s)?PRIVATE\\sKEY-----' },
+        ],
+      },
+      {
+        category: t('settings.redactCategoryNetwork'),
+        presets: [
+          { label: t('settings.redactPresetIP'), pattern: '\\b(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b' },
+          { label: t('settings.redactPresetJWT'), pattern: 'eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}' },
+        ],
+      },
+    ];
+
+    const wrapper = container.createDiv({ cls: 'vaultend-redact-presets' });
+
+    const header = wrapper.createDiv({ cls: 'vaultend-redact-presets-header' });
+    header.createSpan({ text: t('settings.redactPresetsTitle') });
+    const chevron = header.createSpan({ cls: 'vaultend-redact-presets-chevron', text: '›' });
+
+    const body = wrapper.createDiv({ cls: 'vaultend-redact-presets-body is-collapsed' });
+
+    header.addEventListener('click', () => {
+      const wasCollapsed = body.hasClass('is-collapsed');
+      body.toggleClass('is-collapsed', !wasCollapsed);
+      chevron.textContent = wasCollapsed ? '‹' : '›';
+      chevron.toggleClass('is-open', wasCollapsed);
+    });
+
+    for (const group of PRESET_GROUPS) {
+      const groupEl = body.createDiv({ cls: 'vaultend-redact-presets-group' });
+      groupEl.createDiv({ cls: 'vaultend-redact-presets-category', text: group.category });
+      const chips = groupEl.createDiv({ cls: 'vaultend-redact-presets-chips' });
+      for (const preset of group.presets) {
+        const chip = chips.createEl('button', { text: preset.label, cls: 'vaultend-redact-preset-chip' });
+        if (rules[index].pattern === preset.pattern) {
+          chip.addClass('is-active');
+        }
+        chip.addEventListener('click', () => {
+          rules[index] = { ...rules[index], pattern: preset.pattern };
+          void this.config.updateSettings({ privacyRules: rules }).then(async () => {
+            this.settings = await this.config.getSettings();
+            this.renderPrivacyRules(container);
+          });
+        });
+      }
+    }
+
+    const desc = body.createDiv({ cls: 'vaultend-redact-presets-desc' });
+    desc.createSpan({ text: t('settings.redactPresetsDesc') });
+
+    const link = body.createEl('a', { text: t('settings.ruleRedactWikiLink'), cls: 'vaultend-redact-presets-link' });
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open('https://github.com/dhwang0803-glitch/Vaultend/wiki/Privacy-Rules#custom-patterns-guide');
+    });
+  }
+
+  private tooltipEl: HTMLElement | null = null;
+
+  private showTooltip(anchor: HTMLElement, content: string): void {
+    this.hideTooltip();
+    const tooltip = createDiv({ cls: 'vaultend-tooltip-balloon' });
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const p = tooltip.createDiv();
+      p.textContent = line;
+      if (line.startsWith('•')) p.addClass('vaultend-tooltip-example');
+    }
+
+    document.body.appendChild(tooltip);
+    this.tooltipEl = tooltip;
+
+    const rect = anchor.getBoundingClientRect();
+    tooltip.style.top = `${rect.bottom + 6}px`;
+    tooltip.style.left = `${Math.max(8, rect.left - 120)}px`;
+  }
+
+  private hideTooltip(): void {
+    if (this.tooltipEl) {
+      this.tooltipEl.remove();
+      this.tooltipEl = null;
+    }
   }
 
   private renderProviderSettings(containerEl: HTMLElement): void {

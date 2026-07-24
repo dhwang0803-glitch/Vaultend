@@ -410,6 +410,9 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       links,
       backlinks,
       frontmatterKeys: Object.keys(frontmatter).filter(k => k !== 'position'),
+      frontmatterEntries: Object.fromEntries(
+        Object.entries(frontmatter).filter(([k]) => k !== 'position'),
+      ),
       fileSize: file.stat.size,
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),

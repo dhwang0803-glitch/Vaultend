@@ -887,6 +887,149 @@
   flex: 0 1 auto;
 }
 
+.vaultend-privacy-input-invalid {
+  border-color: var(--text-error) !important;
+  box-shadow: 0 0 0 1px var(--text-error);
+}
+
+.vaultend-privacy-warning {
+  color: var(--text-error) !important;
+  font-weight: var(--font-semibold);
+}
+
+.vaultend-redact-help {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.vaultend-redact-help:hover {
+  color: var(--text-accent);
+}
+
+/* ── Tooltip balloon (frontmatter help) ── */
+
+.vaultend-tooltip-balloon {
+  position: fixed;
+  z-index: 9999;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-width: 300px;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  color: var(--text-normal);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.vaultend-tooltip-example {
+  padding-left: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+}
+
+/* ── Content-redact preset section ── */
+
+.vaultend-redact-presets {
+  margin: -8px 0 8px 0;
+  padding: 0 12px;
+}
+
+.vaultend-redact-presets-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  padding: 4px 0;
+  user-select: none;
+}
+
+.vaultend-redact-presets-header:hover {
+  color: var(--text-accent);
+}
+
+.vaultend-redact-presets-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  font-size: 12px;
+}
+
+.vaultend-redact-presets-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.vaultend-redact-presets-body {
+  padding: 6px 0 4px;
+}
+
+.vaultend-redact-presets-body.is-collapsed {
+  display: none;
+}
+
+.vaultend-redact-presets-group {
+  margin-bottom: 6px;
+}
+
+.vaultend-redact-presets-category {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.vaultend-redact-presets-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.vaultend-redact-preset-chip {
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 3px 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vaultend-redact-preset-chip:hover {
+  background: var(--background-modifier-border);
+  border-color: var(--text-accent);
+  color: var(--text-accent);
+}
+
+.vaultend-redact-preset-chip.is-active {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.vaultend-redact-presets-desc {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.vaultend-redact-presets-link {
+  font-size: var(--font-smallest);
+  color: var(--text-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.vaultend-redact-presets-link:hover {
+  text-decoration: underline;
+}
+
 /* Chip Setting UI */
 .vaultend-chip-setting {
   display: flex;

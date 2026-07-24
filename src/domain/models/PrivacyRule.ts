@@ -22,7 +22,7 @@ export type PrivacyRuleType =
 export function isNoteAllowedByRules(
   notePath: string,
   noteTags: ReadonlyArray<string>,
-  frontmatterKeys: ReadonlyArray<string>,
+  frontmatterEntries: Readonly<Record<string, unknown>>,
   rules: ReadonlyArray<PrivacyRule>
 ): boolean {
   for (const rule of rules) {
@@ -36,12 +36,26 @@ export function isNoteAllowedByRules(
         if (noteTags.some(t => t === rule.pattern)) return false;
         break;
       case 'frontmatter-exclude':
-        if (frontmatterKeys.includes(rule.pattern)) return false;
+        if (matchFrontmatterPattern(rule.pattern, frontmatterEntries)) return false;
         break;
       // content-redact is applied at send time (note itself is allowed)
     }
   }
   return true;
+}
+
+function matchFrontmatterPattern(
+  pattern: string,
+  entries: Readonly<Record<string, unknown>>,
+): boolean {
+  const colonIdx = pattern.indexOf(':');
+  if (colonIdx === -1) {
+    return Object.hasOwn(entries, pattern);
+  }
+  const key = pattern.slice(0, colonIdx).trim();
+  const value = pattern.slice(colonIdx + 1).trim();
+  if (!Object.hasOwn(entries, key)) return false;
+  return String(entries[key]).trim().toLowerCase() === value.toLowerCase();
 }
 
 /**

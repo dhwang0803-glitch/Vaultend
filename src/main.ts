@@ -416,7 +416,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.syncEmbeddingsUseCase = new SyncEmbeddingsUseCase(
       this.embeddingAdapter, this.vectorStoreAdapter,
-      this.vaultAdapter, this.changeTracker,
+      this.vaultAdapter, this.changeTracker, this.configPort,
     );
 
   }

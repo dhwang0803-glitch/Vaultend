@@ -11,6 +11,7 @@ export interface NoteMetadata {
   readonly links: ReadonlyArray<NotePath>;
   readonly backlinks: ReadonlyArray<NotePath>;
   readonly frontmatterKeys: ReadonlyArray<string>;
+  readonly frontmatterEntries: Readonly<Record<string, unknown>>;
   readonly createdAt: Timestamp;
   readonly modifiedAt: Timestamp;
   readonly fileSize: number;
