@@ -13,9 +13,12 @@ export interface OrganizeApplyActions {
   addLinks(notePath: NotePath, links: NotePath[]): Promise<void>;
 }
 
+interface TagItem { name: string; enabled: boolean }
+interface LinkItem { path: NotePath; enabled: boolean }
+
 export class OrganizeResultModal extends Modal {
-  private selectedTags: string[];
-  private selectedLinks: NotePath[];
+  private tagItems: TagItem[];
+  private linkItems: LinkItem[];
 
   constructor(
     app: App,
@@ -26,8 +29,8 @@ export class OrganizeResultModal extends Modal {
     private readonly vault: VaultAccessPort,
   ) {
     super(app);
-    this.selectedTags = [...result.addedTags];
-    this.selectedLinks = [...result.suggestedLinks];
+    this.tagItems = result.addedTags.map(name => ({ name, enabled: true }));
+    this.linkItems = result.suggestedLinks.map(path => ({ path, enabled: true }));
   }
 
   onOpen(): void {
@@ -85,29 +88,33 @@ export class OrganizeResultModal extends Modal {
 
   private rebuildTagList(tagListEl: HTMLElement): void {
     tagListEl.empty();
-    if (this.selectedTags.length === 0) {
+    if (this.tagItems.length === 0) {
       tagListEl.createSpan({ text: t('organize.noTags'), cls: 'organize-empty' });
       return;
     }
-    for (const tag of this.selectedTags) {
-      const reason = this.result.tagReasons?.get(tag) ?? this.result.tagReasons?.get(`#${tag}`);
+    for (const item of this.tagItems) {
+      const reason = this.result.tagReasons?.get(item.name) ?? this.result.tagReasons?.get(`#${item.name}`);
       const chipClasses = ['organize-chip'];
       if (reason?.isNew) chipClasses.push('organize-chip-new');
+      if (!item.enabled) chipClasses.push('organize-chip-disabled');
 
       const chip = tagListEl.createDiv(chipClasses.join(' '));
       if (reason?.reason) {
         chip.setAttribute('title', reason.reason);
       }
-      chip.createSpan({ text: `#${tag}` });
+      chip.createSpan({ text: `#${item.name}` });
       if (reason) {
         chip.createSpan({
           text: String(reason.score),
           cls: 'organize-chip-score',
         });
       }
-      const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
-      removeBtn.addEventListener('click', () => {
-        this.selectedTags = this.selectedTags.filter(t2 => t2 !== tag);
+      const action = chip.createSpan({
+        text: item.enabled ? '×' : '↺',
+        cls: item.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
+      });
+      action.addEventListener('click', () => {
+        item.enabled = !item.enabled;
         this.rebuildTagList(tagListEl);
       });
     }
@@ -117,8 +124,9 @@ export class OrganizeResultModal extends Modal {
     const raw = input.getValue().trim();
     if (!raw) return;
     const tag = raw.startsWith('#') ? raw.slice(1) : raw;
-    if (tag && !this.selectedTags.includes(tag)) {
-      this.selectedTags.push(tag);
+    if (!tag) return;
+    if (!this.tagItems.some(item => item.name === tag)) {
+      this.tagItems.push({ name: tag, enabled: true });
       this.rebuildTagList(tagListEl);
     }
     input.setValue('');
@@ -148,17 +156,23 @@ export class OrganizeResultModal extends Modal {
 
   private rebuildLinkList(linkListEl: HTMLElement): void {
     linkListEl.empty();
-    if (this.selectedLinks.length === 0) {
+    if (this.linkItems.length === 0) {
       linkListEl.createSpan({ text: t('organize.noLinks'), cls: 'organize-empty' });
       return;
     }
-    for (const link of this.selectedLinks) {
-      const linkPath = link.replace('.md', '');
-      const chip = linkListEl.createDiv('organize-chip');
+    for (const item of this.linkItems) {
+      const linkPath = item.path.replace('.md', '');
+      const chipClasses = ['organize-chip'];
+      if (!item.enabled) chipClasses.push('organize-chip-disabled');
+
+      const chip = linkListEl.createDiv(chipClasses.join(' '));
       chip.createSpan({ text: `[[${linkPath}]]` });
-      const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
-      removeBtn.addEventListener('click', () => {
-        this.selectedLinks = this.selectedLinks.filter(l => l !== link);
+      const action = chip.createSpan({
+        text: item.enabled ? '×' : '↺',
+        cls: item.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
+      });
+      action.addEventListener('click', () => {
+        item.enabled = !item.enabled;
         this.rebuildLinkList(linkListEl);
       });
     }
@@ -167,11 +181,12 @@ export class OrganizeResultModal extends Modal {
   private addLinkFromInput(input: TextComponent, linkListEl: HTMLElement): void {
     const raw = input.getValue().trim();
     if (!raw) return;
-    const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '');
+    const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
+    if (!cleaned) return;
     const path = cleaned.endsWith('.md') ? cleaned : `${cleaned}.md`;
     const asNotePath = path as unknown as NotePath;
-    if (!this.selectedLinks.some(l => l === path)) {
-      this.selectedLinks.push(asNotePath);
+    if (!this.linkItems.some(item => item.path === path)) {
+      this.linkItems.push({ path: asNotePath, enabled: true });
       this.rebuildLinkList(linkListEl);
     }
     input.setValue('');
@@ -206,8 +221,8 @@ export class OrganizeResultModal extends Modal {
   }
 
   private async applyAll(): Promise<void> {
-    const tagsToApply = [...this.selectedTags];
-    const linksToApply = [...this.selectedLinks];
+    const tagsToApply = this.tagItems.filter(i => i.enabled).map(i => i.name);
+    const linksToApply = this.linkItems.filter(i => i.enabled).map(i => i.path);
 
     if (tagsToApply.length === 0 && linksToApply.length === 0) {
       new Notice(t('organize.nothingToApply'));
@@ -243,8 +258,8 @@ export class OrganizeResultModal extends Modal {
       }
 
       this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
-      this.selectedTags = [];
-      this.selectedLinks = [];
+      this.tagItems = [];
+      this.linkItems = [];
       this.close();
 
       this.showUndoNotice(tagsToApply, linksToApply, entryId);
