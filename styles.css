@@ -747,7 +747,6 @@
 .organize-chip-disabled {
   opacity: 0.45;
   text-decoration: line-through;
-  text-decoration-color: var(--text-muted);
   background-color: var(--background-modifier-hover);
 }
 
