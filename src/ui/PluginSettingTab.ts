@@ -38,14 +38,42 @@ const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = 
   ],
 };
 
+const EMBEDDING_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = {
+  openai: [
+    { id: 'text-embedding-3-small', label: 'text-embedding-3-small (Recommended)' },
+    { id: 'text-embedding-3-large', label: 'text-embedding-3-large' },
+    { id: 'text-embedding-ada-002', label: 'text-embedding-ada-002' },
+  ],
+  gemini: [
+    { id: 'gemini-embedding-001', label: 'gemini-embedding-001 (Recommended)' },
+    { id: 'text-embedding-004', label: 'text-embedding-004' },
+  ],
+  ollama: [
+    { id: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },
+    { id: 'mxbai-embed-large', label: 'mxbai-embed-large' },
+    { id: 'bge-m3', label: 'bge-m3 (Multilingual)' },
+    { id: 'snowflake-arctic-embed', label: 'snowflake-arctic-embed' },
+    { id: 'all-minilm', label: 'all-minilm' },
+  ],
+};
+
+const DEFAULT_EMBEDDING_MODEL: Record<string, string> = {
+  openai: 'text-embedding-3-small',
+  gemini: 'gemini-embedding-001',
+  ollama: 'nomic-embed-text',
+};
+
 const CUSTOM_MODEL_VALUE = '__custom__';
 
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
   private modelSettingEl: HTMLElement | null = null;
   private modelAnchorEl: HTMLElement | null = null;
+  private embeddingModelSettingEl: HTMLElement | null = null;
+  private embeddingModelAnchorEl: HTMLElement | null = null;
   private providerSettingsContainerEl: HTMLElement | null = null;
   private isCustomMode = false;
+  private isEmbeddingCustomMode = false;
   private aiConfigDebounceTimer: number | null = null;
 
   constructor(
@@ -113,11 +141,14 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .addOption('custom', 'Custom (OpenAI-compatible)')
           .setValue(this.settings!.aiProvider)
           .onChange(async (value) => {
+            const newProvider = value as PluginSettings['aiProvider'];
             await this.config.updateSettings({
-              aiProvider: value as PluginSettings['aiProvider'],
+              aiProvider: newProvider,
+              embeddingsModel: DEFAULT_EMBEDDING_MODEL[newProvider] ?? '',
             });
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
+            this.isEmbeddingCustomMode = false;
             this.scheduleAIConfigChanged();
             void this.render();
           });
@@ -131,6 +162,13 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.isCustomMode = false;
     if (this.settings.aiProvider !== 'custom') {
       this.renderModelSetting(containerEl);
+    }
+
+    this.embeddingModelAnchorEl = containerEl.createDiv();
+    this.embeddingModelAnchorEl.addClass('vaultend-embedding-model-anchor');
+    this.isEmbeddingCustomMode = false;
+    if (this.settings.aiProvider !== 'custom') {
+      this.renderEmbeddingModelSetting(containerEl);
     }
 
     // --- Organize Folder ---
@@ -470,6 +508,61 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     if (this.modelAnchorEl && this.modelAnchorEl.parentElement === parentEl) {
       parentEl.insertBefore(this.modelSettingEl, this.modelAnchorEl);
+    }
+  }
+
+  private renderEmbeddingModelSetting(parentEl: HTMLElement): void {
+    if (this.embeddingModelSettingEl) {
+      this.embeddingModelSettingEl.remove();
+    }
+    this.embeddingModelSettingEl = parentEl.createDiv();
+
+    const provider = this.settings!.aiProvider;
+    const models = EMBEDDING_MODELS[provider] ?? [];
+    const currentModel = this.settings!.embeddingsModel
+      || DEFAULT_EMBEDDING_MODEL[provider]
+      || '';
+    const isKnownModel = models.some(m => m.id === currentModel);
+    const showCustomInput = this.isEmbeddingCustomMode || (!isKnownModel && currentModel !== '');
+
+    const setting = new Setting(this.embeddingModelSettingEl)
+      .setName(t('settings.embeddingModel'))
+      .setDesc(t('settings.embeddingModelDesc'));
+
+    setting.addDropdown(dropdown => {
+      for (const model of models) {
+        dropdown.addOption(model.id, model.label);
+      }
+      dropdown.addOption(CUSTOM_MODEL_VALUE, t('settings.modelCustom'));
+      dropdown.setValue(showCustomInput ? CUSTOM_MODEL_VALUE : currentModel || models[0]?.id || '');
+      dropdown.onChange(async (value) => {
+        if (value === CUSTOM_MODEL_VALUE) {
+          this.isEmbeddingCustomMode = true;
+          this.renderEmbeddingModelSetting(parentEl);
+          return;
+        }
+        this.isEmbeddingCustomMode = false;
+        await this.config.updateSettings({ embeddingsModel: value });
+        this.settings = await this.config.getSettings();
+        this.scheduleAIConfigChanged();
+        this.renderEmbeddingModelSetting(parentEl);
+      });
+    });
+
+    if (showCustomInput) {
+      setting.addText(text => {
+        text
+          .setPlaceholder(provider === 'ollama' ? 'ollama-model-name' : 'model-id')
+          .setValue(isKnownModel ? '' : currentModel)
+          .onChange(async (value) => {
+            await this.config.updateSettings({ embeddingsModel: value });
+            this.scheduleAIConfigChanged();
+          });
+      });
+    }
+
+    if (this.embeddingModelAnchorEl && this.embeddingModelAnchorEl.parentElement === parentEl) {
+      parentEl.insertBefore(this.embeddingModelSettingEl, this.embeddingModelAnchorEl);
     }
   }
 

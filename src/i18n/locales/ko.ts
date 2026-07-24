@@ -22,6 +22,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.noRelatedNotes': '관련 노트를 찾을 수 없습니다',
   'untagged.noMatchingTags': '관련 태그 없음',
   'notice.actionFailed': '적용 실패: {{error}}',
+  'notice.embeddingInitFailed': '임베딩 모델 초기화 실패: {{error}}. 링크 제안이 비활성화됩니다. API 키와 모델 설정을 확인하세요.',
+  'notice.maintenanceFailed': '자동 유지보수 실패: {{error}}',
   'notice.noSelection': '선택된 항목이 없습니다',
   'notice.batchResult': '{{success}}건 적용, {{failed}}건 실패',
   'notice.batchComplete': '{{count}}건 적용 완료',
@@ -285,6 +287,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.model': '모델',
   'settings.modelDesc': '사용할 AI 모델을 선택합니다.',
   'settings.modelCustom': '직접 입력',
+  'settings.embeddingModel': '임베딩 모델',
+  'settings.embeddingModelDesc': '시맨틱 유사도(링크 제안, 중복 탐지)에 사용할 모델입니다. Ollama 사용자: "ollama pull <모델명>"으로 먼저 설치하세요.',
 
   'settings.ollamaBaseUrl': 'Ollama 서버 URL',
   'settings.ollamaBaseUrlDesc': 'Ollama 서버 주소 (기본: http://localhost:11434).',

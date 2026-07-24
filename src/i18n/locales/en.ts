@@ -20,6 +20,8 @@ const en = {
   'notice.noRelatedNotes': 'No related notes found',
   'untagged.noMatchingTags': 'No matching tags',
   'notice.actionFailed': 'Action failed: {{error}}',
+  'notice.embeddingInitFailed': 'Embedding model failed to initialize: {{error}}. Link suggestions may be unavailable. Check your API key and model settings.',
+  'notice.maintenanceFailed': 'Scheduled maintenance failed: {{error}}',
   'notice.noSelection': 'No items selected',
   'notice.batchResult': '{{success}} applied, {{failed}} failed',
   'notice.batchComplete': '{{count}} applied',
@@ -285,6 +287,8 @@ const en = {
   'settings.model': 'Model',
   'settings.modelDesc': 'Select the AI model to use.',
   'settings.modelCustom': 'Custom',
+  'settings.embeddingModel': 'Embedding Model',
+  'settings.embeddingModelDesc': 'Model used for semantic similarity (link suggestions, duplicate detection). Ollama users: run "ollama pull <model>" first.',
 
   'settings.ollamaBaseUrl': 'Ollama Base URL',
   'settings.ollamaBaseUrlDesc': 'URL of the Ollama server (default: http://localhost:11434).',

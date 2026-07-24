@@ -4,15 +4,21 @@ import { AIProviderPort } from '../../application/ports/AIProviderPort';
 export class AIEmbeddingAdapter implements EmbeddingPort {
   private ready = false;
   private dimension = 0;
+  private model: string | undefined;
 
   constructor(
     private readonly aiProvider: AIProviderPort,
   ) {}
 
+  setModel(model: string): void {
+    this.model = model || undefined;
+  }
+
   async initialize(): Promise<boolean> {
     try {
       const response = await this.aiProvider.callEmbedding({
         texts: ['test'],
+        model: this.model,
       });
 
       if (response.dimension <= 0 || response.embeddings.length === 0) {
@@ -26,7 +32,7 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
     } catch (err) {
       console.error('Vaultend: embedding initialization failed', err);
       this.ready = false;
-      return false;
+      throw err;
     }
   }
 
@@ -47,6 +53,7 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
     if (!this.ready) throw new Error('Embedding not initialized');
     const response = await this.aiProvider.callEmbedding({
       texts: [text],
+      model: this.model,
     });
     return response.embeddings[0];
   }
@@ -55,6 +62,7 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
     if (!this.ready) throw new Error('Embedding not initialized');
     const response = await this.aiProvider.callEmbedding({
       texts,
+      model: this.model,
     });
     return [...response.embeddings];
   }

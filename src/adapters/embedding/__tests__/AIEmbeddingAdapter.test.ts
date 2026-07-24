@@ -24,6 +24,7 @@ describe('AIEmbeddingAdapter', () => {
     expect(adapter.getDimension()).toBe(3);
     expect(mockAI.callEmbedding).toHaveBeenCalledWith({
       texts: ['test'],
+      model: undefined,
     });
   });
 
@@ -39,10 +40,9 @@ describe('AIEmbeddingAdapter', () => {
     expect(adapter.getDimension()).toBe(0);
   });
 
-  it('returns false when API call fails', async () => {
+  it('throws when API call fails', async () => {
     mockAI.callEmbedding.mockRejectedValue(new Error('network error'));
-    const result = await adapter.initialize();
-    expect(result).toBe(false);
+    await expect(adapter.initialize()).rejects.toThrow('network error');
     expect(adapter.isReady()).toBe(false);
   });
 

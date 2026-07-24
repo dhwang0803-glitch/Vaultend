@@ -181,6 +181,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           }
         } catch (err) {
           console.error('Vaultend: AI config change re-initialization failed', err);
+          new Notice(t('notice.embeddingInitFailed', { error: localizeError(err) }));
         }
       })();
     }));
@@ -250,17 +251,19 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private getEmbeddingModelId(): string {
     const s = this.settings;
     if (s.embeddingsModel) return s.embeddingsModel;
-    switch (s.aiProvider) {
-      case 'gemini': return 'gemini-embedding-001';
-      case 'ollama': return 'nomic-embed-text';
-      case 'custom': return s.customModel || 'default';
-      default: return 'text-embedding-3-small';
-    }
+    const defaults: Record<string, string> = {
+      openai: 'text-embedding-3-small',
+      gemini: 'gemini-embedding-001',
+      ollama: 'nomic-embed-text',
+      custom: s.customModel || 'default',
+    };
+    return defaults[s.aiProvider] ?? 'text-embedding-3-small';
   }
 
   private async reinitializeEmbeddings(generation?: number): Promise<void> {
     const provider = this.settings.aiProvider;
     const model = this.getEmbeddingModelId();
+    this.embeddingAdapter.setModel(model);
 
     const vsMeta = this.vectorStoreAdapter.getMeta();
     const tcMeta = this.tagEmbeddingCacheAdapter.getMeta();
@@ -270,7 +273,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     if (cachedMeta && cachedMeta.dimension > 0) {
       this.embeddingAdapter.initializeWithKnownDimension(cachedMeta.dimension);
     } else {
-      await this.embeddingAdapter.initialize();
+      try {
+        const ok = await this.embeddingAdapter.initialize();
+        if (!ok) {
+          new Notice(t('notice.embeddingInitFailed', { error: `${provider} / ${model}` }));
+        }
+      } catch (err) {
+        new Notice(t('notice.embeddingInitFailed', { error: localizeError(err) }));
+        return;
+      }
     }
 
     if (!this.embeddingAdapter.isReady()) return;
@@ -711,6 +722,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           void this.showMaintenancePlanIfNeeded(plan);
         } catch (err) {
           console.error('Vaultend: scheduled maintenance failed', err);
+          new Notice(t('notice.maintenanceFailed', { error: localizeError(err) }));
         } finally {
           this.isMaintenanceRunning = false;
         }
