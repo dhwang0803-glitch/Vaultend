@@ -23,10 +23,11 @@ export class OrganizeResultModal extends Modal {
   constructor(
     app: App,
     private readonly notePath: NotePath,
-    private readonly result: OrganizeResult,
+    private result: OrganizeResult,
     private readonly actions: OrganizeApplyActions,
     private readonly historyPort: HistoryPort,
     private readonly vault: VaultAccessPort,
+    private readonly onRescan?: (notePath: NotePath) => Promise<OrganizeResult>,
   ) {
     super(app);
     this.tagItems = result.addedTags.map(name => ({ name, enabled: true }));
@@ -239,6 +240,14 @@ export class OrganizeResultModal extends Modal {
         await this.applyAll();
       });
 
+    if (this.onRescan) {
+      new ButtonComponent(footer)
+        .setButtonText(t('organize.rescan'))
+        .onClick(async () => {
+          await this.executeRescan();
+        });
+    }
+
     new ButtonComponent(footer)
       .setButtonText(t('btn.close'))
       .onClick(() => this.close());
@@ -326,6 +335,25 @@ export class OrganizeResultModal extends Modal {
         }
       })();
     });
+  }
+
+  private async executeRescan(): Promise<void> {
+    if (!this.onRescan) return;
+    const { contentEl } = this;
+    const prevChildren = Array.from(contentEl.childNodes);
+    contentEl.empty();
+    contentEl.createEl('p', { text: t('organize.rescanning'), cls: 'organize-rescanning' });
+
+    try {
+      this.result = await this.onRescan(this.notePath);
+      this.tagItems = this.result.addedTags.map(name => ({ name, enabled: true }));
+      this.linkItems = this.result.suggestedLinks.map(path => ({ path, enabled: true }));
+      this.onOpen();
+    } catch (err) {
+      contentEl.empty();
+      for (const child of prevChildren) contentEl.appendChild(child);
+      new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
+    }
   }
 
   onClose(): void {

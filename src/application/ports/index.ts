@@ -31,3 +31,4 @@ export type {
 
 export type { ClockPort } from './ClockPort';
 export type { TagEmbeddingCachePort, TagEmbeddingCacheMeta } from './TagEmbeddingCachePort';
+export type { OrganizeResultCachePort, CachedOrganizeEntry } from './OrganizeResultCachePort';

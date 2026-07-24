@@ -621,8 +621,7 @@
 }
 
 .organize-chip-new {
-  border: 1px dashed var(--text-accent);
-  background: transparent;
+  background: rgba(var(--color-accent-1), 0.08);
 }
 
 .organize-add-row {
