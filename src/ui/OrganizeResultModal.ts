@@ -27,7 +27,7 @@ export class OrganizeResultModal extends Modal {
     private readonly actions: OrganizeApplyActions,
     private readonly historyPort: HistoryPort,
     private readonly vault: VaultAccessPort,
-    private readonly onRescan?: (notePath: NotePath) => Promise<OrganizeResult>,
+    private readonly onReorganize?: (notePath: NotePath) => Promise<OrganizeResult>,
   ) {
     super(app);
     this.tagItems = result.addedTags.map(name => ({ name, enabled: true }));
@@ -240,11 +240,11 @@ export class OrganizeResultModal extends Modal {
         await this.applyAll();
       });
 
-    if (this.onRescan) {
+    if (this.onReorganize) {
       new ButtonComponent(footer)
-        .setButtonText(t('organize.rescan'))
+        .setButtonText(t('organize.reorganize'))
         .onClick(async () => {
-          await this.executeRescan();
+          await this.executeReorganize();
         });
     }
 
@@ -337,15 +337,15 @@ export class OrganizeResultModal extends Modal {
     });
   }
 
-  private async executeRescan(): Promise<void> {
-    if (!this.onRescan) return;
+  private async executeReorganize(): Promise<void> {
+    if (!this.onReorganize) return;
     const { contentEl } = this;
     const prevChildren = Array.from(contentEl.childNodes);
     contentEl.empty();
-    contentEl.createEl('p', { text: t('organize.rescanning'), cls: 'organize-rescanning' });
+    contentEl.createEl('p', { text: t('organize.reorganizing'), cls: 'organize-reorganizing' });
 
     try {
-      this.result = await this.onRescan(this.notePath);
+      this.result = await this.onReorganize(this.notePath);
       this.tagItems = this.result.addedTags.map(name => ({ name, enabled: true }));
       this.linkItems = this.result.suggestedLinks.map(path => ({ path, enabled: true }));
       this.onOpen();

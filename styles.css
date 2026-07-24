@@ -675,7 +675,7 @@
 .organize-batch-card-name {
   font-weight: var(--font-semibold);
 }
-.organize-batch-rescan-btn {
+.organize-batch-reorg-btn {
   display: inline-flex;
   cursor: pointer;
   color: var(--text-muted);
@@ -683,15 +683,15 @@
   padding: 2px;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
-.organize-batch-rescan-btn:hover {
+.organize-batch-reorg-btn:hover {
   color: var(--text-accent);
   background: var(--background-modifier-hover);
 }
-.organize-batch-rescan-btn:focus-visible {
+.organize-batch-reorg-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
-.organize-batch-rescan-btn svg {
+.organize-batch-reorg-btn svg {
   width: 14px;
   height: 14px;
 }

@@ -41,7 +41,7 @@ interface EditableItem {
 export class OrganizeBatchPreviewModal extends Modal {
   private onApplied?: (entries: ReadonlyArray<BatchAppliedEntry>) => void;
   private editableItems: EditableItem[];
-  private activeRescanCount = 0;
+  private activeReorgCount = 0;
   private applyAllBtn?: ButtonComponent;
 
   constructor(
@@ -49,7 +49,7 @@ export class OrganizeBatchPreviewModal extends Modal {
     private readonly items: ReadonlyArray<BatchPreviewItem>,
     private readonly callbacks: BatchOrganizeCallbacks,
     private readonly tagsOnly: boolean = false,
-    private readonly onRescanNote?: (notePath: NotePath) => Promise<OrganizeResult>,
+    private readonly onReorganizeNote?: (notePath: NotePath) => Promise<OrganizeResult>,
   ) {
     super(app);
     this.editableItems = items.map(item => ({
@@ -93,21 +93,21 @@ export class OrganizeBatchPreviewModal extends Modal {
     const header = card.createDiv({ cls: 'organize-batch-card-header' });
     header.createDiv({ text: noteName, cls: 'organize-batch-card-name' });
 
-    if (this.onRescanNote) {
-      const rescanBtn = header.createSpan({
-        cls: 'organize-batch-rescan-btn',
+    if (this.onReorganizeNote) {
+      const reorgBtn = header.createSpan({
+        cls: 'organize-batch-reorg-btn',
         attr: {
-          'aria-label': t('organize.rescan'),
+          'aria-label': t('organize.reorganize'),
           'tabindex': '0',
           'role': 'button',
         },
       });
-      setIcon(rescanBtn, 'refresh-cw');
-      rescanBtn.addEventListener('click', () => { void this.rescanItem(card, editable); });
-      rescanBtn.addEventListener('keydown', (e: KeyboardEvent) => {
+      setIcon(reorgBtn, 'refresh-cw');
+      reorgBtn.addEventListener('click', () => { void this.reorganizeItem(card, editable); });
+      reorgBtn.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          rescanBtn.click();
+          reorgBtn.click();
         }
       });
     }
@@ -253,17 +253,17 @@ export class OrganizeBatchPreviewModal extends Modal {
     }
   }
 
-  private async rescanItem(card: HTMLElement, editable: EditableItem): Promise<void> {
-    if (!this.onRescanNote) return;
+  private async reorganizeItem(card: HTMLElement, editable: EditableItem): Promise<void> {
+    if (!this.onReorganizeNote) return;
     const prevChildren = Array.from(card.childNodes);
     card.empty();
-    card.createEl('p', { text: t('organize.rescanning'), cls: 'organize-rescanning' });
+    card.createEl('p', { text: t('organize.reorganizing'), cls: 'organize-reorganizing' });
 
-    this.activeRescanCount++;
+    this.activeReorgCount++;
     this.applyAllBtn?.setDisabled(true);
 
     try {
-      const newResult = await this.onRescanNote(editable.notePath);
+      const newResult = await this.onReorganizeNote(editable.notePath);
       editable.tags = newResult.addedTags.map(name => ({ name, enabled: true }));
       editable.links = this.tagsOnly
         ? []
@@ -275,8 +275,8 @@ export class OrganizeBatchPreviewModal extends Modal {
       for (const child of prevChildren) card.appendChild(child);
       new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
     } finally {
-      this.activeRescanCount--;
-      if (this.activeRescanCount === 0) {
+      this.activeReorgCount--;
+      if (this.activeReorgCount === 0) {
         this.applyAllBtn?.setDisabled(false);
       }
     }
