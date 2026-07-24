@@ -37,6 +37,7 @@ import { OrganizeTagsView, ORGANIZE_TAGS_VIEW_TYPE } from './ui/OrganizeTagsView
 import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
 import { FileTagGroupCacheAdapter } from './adapters/tag-group-cache/FileTagGroupCacheAdapter';
 import { FileNoteEmbeddingCacheAdapter } from './adapters/note-embedding-cache/FileNoteEmbeddingCacheAdapter';
+import { InMemoryOrganizeResultCacheAdapter } from './adapters/organize-result-cache/InMemoryOrganizeResultCacheAdapter';
 import { NoteEmbeddingService } from './domain/services/NoteEmbeddingService';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
@@ -122,6 +123,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
   private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
   private tagGroupCacheAdapter!: FileTagGroupCacheAdapter;
+  private organizeResultCache!: InMemoryOrganizeResultCacheAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -355,6 +357,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
     this.noteEmbeddingCacheAdapter = new FileNoteEmbeddingCacheAdapter(this.vaultAdapter);
     this.tagGroupCacheAdapter = new FileTagGroupCacheAdapter(this.vaultAdapter);
+    this.organizeResultCache = new InMemoryOrganizeResultCacheAdapter();
   }
 
   private wireUseCases(): void {
@@ -375,6 +378,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.tagEmbeddingCacheAdapter,
       this.noteEmbeddingCacheAdapter,
       buildSummaryIndex,
+      this.organizeResultCache,
     );
 
     this.organizeFolderUseCase = new OrganizeFolderUseCase(
@@ -445,6 +449,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         (notePaths, onProgress) => this.previewOrganizeNotes(notePaths, onProgress),
         (notePaths, onProgress) => this.previewOrganizeNotesTagsOnly(notePaths, onProgress),
         this.buildBatchOrganizeCallbacks(),
+        () => this.organizeResultCache.clear(),
       ),
     );
 
@@ -498,7 +503,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           .execute(notePath, false)
           .then(async result => {
             const actions = this.buildOrganizeApplyActions();
-            new OrganizeResultModal(this.app, notePath, result, actions, this.historyAdapter, this.vaultAdapter).open();
+            new OrganizeResultModal(
+              this.app, notePath, result, actions,
+              this.historyAdapter, this.vaultAdapter,
+              async (path) => this.organizeNoteUseCase.execute(path, false, { forceRefresh: true }),
+            ).open();
           })
           .catch(err => {
             new Notice(t('notice.organizeFailed', { error: localizeError(err) }));

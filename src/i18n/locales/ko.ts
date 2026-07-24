@@ -220,6 +220,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.addLinkPlaceholder': '링크 추가 (노트 이름)...',
   'organize.addBtn': '추가',
   'organize.applyAll': '전체 적용',
+  'organize.rescan': '다시 스캔',
+  'organize.rescanning': 'AI로 다시 분석 중...',
   'organize.nothingToApply': '적용할 항목이 없습니다.',
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',

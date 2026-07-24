@@ -60,6 +60,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly onOrganizePreview?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly onOrganizeTagsOnly?: (notePaths: NotePath[], onProgress?: (current: number, total: number) => void) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
+    private readonly onClearOrganizeCache?: () => void,
   ) {
     super(leaf);
   }
@@ -121,6 +122,7 @@ export class MaintenanceResultView extends ItemView {
   async triggerScan(): Promise<void> {
     if (this.scanInProgress) return;
     this.scanInProgress = true;
+    this.onClearOrganizeCache?.();
 
     const { contentEl } = this;
     contentEl.empty();

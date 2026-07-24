@@ -14,6 +14,7 @@ import { ConfigPort } from '../ports/ConfigPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
+import type { OrganizeResultCachePort } from '../ports/OrganizeResultCachePort';
 import { getLocale } from '../../i18n';
 import {
   TagNormalizationService,
@@ -37,6 +38,7 @@ export interface OrganizeContext {
   readonly cachedNoteEmbeddings?: Map<NotePath, Float32Array>;
   readonly skipLinkSuggestion?: boolean;
   readonly cachedNoteSummaries?: ReadonlyMap<NotePath, string>;
+  readonly forceRefresh?: boolean;
 }
 
 export class OrganizeNoteUseCase {
@@ -48,6 +50,7 @@ export class OrganizeNoteUseCase {
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
     private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
     private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
+    private readonly organizeResultCache?: OrganizeResultCachePort,
   ) {}
 
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
@@ -62,6 +65,18 @@ export class OrganizeNoteUseCase {
 
     const settings = await this.config.getSettings();
     const currentTags = note.metadata.tags.map(t => t as string);
+
+    if (this.organizeResultCache && !context?.forceRefresh && !autoApply) {
+      const cacheBody = stripFrontmatter(note.content);
+      const tagsFingerprint = [...currentTags].sort().join(',');
+      const skipLinks = context?.skipLinkSuggestion ? '1' : '0';
+      const cacheInput = `${note.title}\n${cacheBody}\n${tagsFingerprint}\n${skipLinks}`;
+      const contentHash = await NoteEmbeddingService.computeContentHash('', cacheInput);
+      const cached = this.organizeResultCache.get(notePath);
+      if (cached && cached.contentHash === contentHash) {
+        return cached.result;
+      }
+    }
 
     // Note list — use cache or fetch
     const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
@@ -132,7 +147,7 @@ export class OrganizeNoteUseCase {
     // Confidence gating — if below threshold, return minimal result
     const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
     if (confidenceThreshold > 0 && classification.confidence < confidenceThreshold) {
-      return {
+      const lowConfResult: OrganizeResult = {
         noteId: note.id,
         notePath,
         classifiedCategory: classification.category ?? '',
@@ -142,6 +157,15 @@ export class OrganizeNoteUseCase {
         tokenUsage: classification.tokenUsage,
         lowConfidence: true,
       };
+      if (this.organizeResultCache && !autoApply) {
+        const cacheBody = stripFrontmatter(note.content);
+        const tagsFingerprint = [...currentTags].sort().join(',');
+        const skipLinks = context?.skipLinkSuggestion ? '1' : '0';
+        const cacheInput = `${note.title}\n${cacheBody}\n${tagsFingerprint}\n${skipLinks}`;
+        const contentHash = await NoteEmbeddingService.computeContentHash('', cacheInput);
+        this.organizeResultCache.put(notePath, contentHash, lowConfResult);
+      }
+      return lowConfResult;
     }
 
     // Build reason lookup from tagDetails
@@ -238,7 +262,18 @@ export class OrganizeNoteUseCase {
       historyEntryId = await this.applyOrganization(notePath, result);
     }
 
-    return historyEntryId ? { ...result, historyEntryId } : result;
+    const finalResult = historyEntryId ? { ...result, historyEntryId } : result;
+
+    if (this.organizeResultCache && !autoApply) {
+      const cacheBody = stripFrontmatter(note.content);
+      const tagsFingerprint = [...currentTags].sort().join(',');
+      const skipLinks = context?.skipLinkSuggestion ? '1' : '0';
+      const cacheInput = `${note.title}\n${cacheBody}\n${tagsFingerprint}\n${skipLinks}`;
+      const contentHash = await NoteEmbeddingService.computeContentHash('', cacheInput);
+      this.organizeResultCache.put(notePath, contentHash, finalResult);
+    }
+
+    return finalResult;
   }
 
   private async selectRelevantTagsByContent(
