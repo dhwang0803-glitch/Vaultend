@@ -128,6 +128,20 @@ export class OrganizeBatchPreviewModal extends Modal {
       setIcon(iconEl, 'check-circle');
       emptyEl.createSpan({ text: t('organize.noChanges') });
     }
+
+    const item = this.items.find(i => i.notePath === editable.notePath);
+    if (item && item.result.tokenUsage.totalTokens > 0) {
+      const costAvailable = item.result.tokenUsage.estimatedCostUsd >= 0;
+      const text = costAvailable
+        ? t('organizeFolder.tokenNote', {
+            count: item.result.tokenUsage.totalTokens,
+            cost: item.result.tokenUsage.estimatedCostUsd.toFixed(4),
+          })
+        : t('organizeFolder.tokenNoteUnavailable', {
+            count: item.result.tokenUsage.totalTokens,
+          });
+      card.createDiv({ text, cls: 'organize-batch-token-info' });
+    }
   }
 
   private renderEditableTags(container: HTMLElement, editable: EditableItem): void {
@@ -285,6 +299,18 @@ export class OrganizeBatchPreviewModal extends Modal {
   }
 
   private renderFooter(container: HTMLElement): void {
+    const totalTokens = this.items.reduce((sum, i) => sum + i.result.tokenUsage.totalTokens, 0);
+    const totalCost = this.items.reduce((sum, i) => sum + i.result.tokenUsage.estimatedCostUsd, 0);
+    if (totalTokens > 0) {
+      const hasCostData = totalCost >= 0;
+      container.createDiv({
+        text: hasCostData
+          ? t('organizeFolder.tokenTotal', { count: totalTokens.toLocaleString(), cost: totalCost.toFixed(4) })
+          : t('organizeFolder.tokenTotalUnavailable', { count: totalTokens.toLocaleString() }),
+        cls: 'organize-batch-token-total',
+      });
+    }
+
     const footer = container.createDiv('organize-footer');
 
     this.applyAllBtn = new ButtonComponent(footer)
