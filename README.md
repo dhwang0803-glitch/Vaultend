@@ -6,6 +6,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically tag, link, an
 
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.7.2+-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi)](https://ko-fi.com/vaultend)
 
 ![Vault Maintenance Results](docs/assets/hero.gif)
 
