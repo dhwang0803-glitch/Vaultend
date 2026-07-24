@@ -702,6 +702,18 @@
 .organize-batch-card-details {
   padding-left: 4px;
 }
+.organize-batch-token-info {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+.organize-batch-token-total {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  text-align: right;
+  padding: 4px 0;
+  margin-top: 4px;
+}
 
 .organize-batch-tags {
   display: flex;
