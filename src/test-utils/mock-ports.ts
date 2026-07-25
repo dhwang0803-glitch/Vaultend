@@ -6,6 +6,7 @@ import type { HistoryPort } from '../application/ports/HistoryPort';
 import type { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import type { ClockPort } from '../application/ports/ClockPort';
 import type { TagEmbeddingCachePort } from '../application/ports/TagEmbeddingCachePort';
+import type { OrganizeHashPort } from '../application/ports/OrganizeHashPort';
 
 import type { Timestamp } from '../domain/values/Timestamp';
 import { createDefaultSettings } from './fixtures';
@@ -108,6 +109,16 @@ export function createMockTagEmbeddingCache(overrides?: Partial<TagEmbeddingCach
     isCompatible: vi.fn().mockReturnValue(false),
     clear: vi.fn().mockResolvedValue(undefined),
     size: vi.fn().mockReturnValue(0),
+    ...overrides,
+  };
+}
+
+export function createMockOrganizeHash(overrides?: Partial<OrganizeHashPort>): OrganizeHashPort {
+  return {
+    getHash: vi.fn().mockResolvedValue(null),
+    setHash: vi.fn().mockResolvedValue(undefined),
+    removeHash: vi.fn().mockResolvedValue(undefined),
+    persist: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

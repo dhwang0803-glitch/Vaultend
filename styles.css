@@ -353,6 +353,15 @@
   text-decoration: line-through;
 }
 
+.maintenance-result-destructed {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.maintenance-result-destructed .setting-item-name {
+  text-decoration: line-through;
+}
+
 /* Batch controls */
 .maintenance-batch-controls {
   border-bottom: none;
@@ -1495,4 +1504,89 @@
 @keyframes vaultend-timer-shrink {
   from { width: 100%; }
   to { width: 0%; }
+}
+
+/* What's New Modal */
+.vaultend-whats-new {
+  max-width: 480px;
+}
+.vaultend-wn-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.vaultend-wn-header-icon {
+  color: var(--interactive-accent);
+  display: flex;
+  align-items: center;
+}
+.vaultend-wn-header-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.vaultend-wn-header h2 {
+  margin: 0;
+  font-size: var(--font-ui-large);
+}
+.vaultend-wn-version {
+  margin-bottom: 12px;
+}
+.vaultend-wn-version span {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+.vaultend-wn-section {
+  margin-bottom: 14px;
+}
+.vaultend-wn-section-label {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.vaultend-wn-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+.vaultend-wn-card-icon {
+  flex-shrink: 0;
+  color: var(--interactive-accent);
+  margin-top: 2px;
+  display: flex;
+  align-items: flex-start;
+}
+.vaultend-wn-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.vaultend-wn-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.vaultend-wn-card-body strong {
+  display: block;
+  font-size: var(--font-ui-small);
+  margin-bottom: 2px;
+}
+.vaultend-wn-card-body p {
+  margin: 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.vaultend-wn-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }

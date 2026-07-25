@@ -32,7 +32,6 @@ export function createTestMetadata(overrides?: Partial<NoteMetadata>): NoteMetad
     fileSize: 1024,
     createdAt: 1720000000000 as unknown as Timestamp,
     modifiedAt: 1720000000000 as unknown as Timestamp,
-    isProcessed: false,
     ...overrides,
   };
 }

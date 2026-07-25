@@ -416,7 +416,6 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       fileSize: file.stat.size,
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),
-      isProcessed: frontmatter['processed'] === true,
       category: frontmatter.category as string | undefined,
     };
   }

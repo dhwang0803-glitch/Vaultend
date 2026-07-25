@@ -48,6 +48,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'maintenance.lastScan': '마지막 스캔: {{time}}',
   'maintenance.vaultClean': 'Vault 상태가 양호합니다.',
   'maintenance.applied': '적용됨',
+  'maintenance.noteUnavailable': '삭제 또는 보관된 노트',
   'maintenance.restored': '복원됨',
   'maintenance.tokenTotal': 'AI 토큰: {{count}} · 비용: ${{cost}}',
   'maintenance.tokenTotalUnavailable': 'AI 토큰: {{count}} · 비용: 추정 불가 (미등록 모델)',
@@ -390,6 +391,10 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.redactPresetJWT': 'JWT 토큰',
   'settings.redactPresetsDesc': '매칭된 텍스트는 AI 전송 전 [REDACTED]로 치환됩니다.',
   'settings.ruleRedactWikiLink': '커스텀 패턴 가이드 →',
+
+  // ─── What's New ───
+  'whatsNew.title': 'Vaultend 업데이트 안내',
+  'whatsNew.dismiss': '확인',
 };
 
 export default ko;

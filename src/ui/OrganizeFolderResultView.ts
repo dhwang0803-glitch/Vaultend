@@ -5,9 +5,13 @@ import { OrganizeApplyActions } from './OrganizeResultModal';
 import { ConfigPort } from '../application/ports/ConfigPort';
 import { HistoryPort } from '../application/ports/HistoryPort';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
+import type { OrganizeHashPort } from '../application/ports/OrganizeHashPort';
 import { NotePath } from '../domain/values/NotePath';
 import { createTimestamp } from '../domain/values/Timestamp';
 import { ORGANIZE_FOLDER_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
+import { NoteEmbeddingService } from '../domain/services/NoteEmbeddingService';
+import { stripFrontmatter } from '../domain/services/tokenize';
+import { stripRelatedNotesSection } from '../application/utils/relatedNotesSection';
 import { t } from '../i18n';
 import { localizeError } from './localizeError';
 
@@ -43,6 +47,7 @@ export class OrganizeFolderResultView extends ItemView {
     private readonly vault: VaultAccessPort,
     private readonly openFile: (path: string) => void,
     private readonly onProcessingStateChange: (isProcessing: boolean) => void,
+    private readonly organizeHash?: OrganizeHashPort,
   ) {
     super(leaf);
   }
@@ -605,10 +610,17 @@ export class OrganizeFolderResultView extends ItemView {
       if (entry.selectedLinks.length > 0) {
         await this.applyActions.addLinks(entry.result.notePath, entry.selectedLinks);
       }
-      // Mark as processed
-      const stillExists = await this.vault.exists(entry.result.notePath);
-      if (stillExists) {
-        await this.vault.updateFrontmatter(entry.result.notePath, { processed: true });
+      if (this.organizeHash) {
+        const stillExists = await this.vault.exists(entry.result.notePath);
+        if (stillExists) {
+          const applied = await this.vault.readNote(entry.result.notePath);
+          if (applied) {
+            const hashBody = stripFrontmatter(stripRelatedNotesSection(applied.content));
+            const hash = await NoteEmbeddingService.computeContentHash('', hashBody);
+            await this.organizeHash.setHash(entry.result.notePath, hash);
+            await this.organizeHash.persist();
+          }
+        }
       }
 
       entry.status = 'applied';

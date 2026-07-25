@@ -6,6 +6,22 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.20] - 2026-07-26
+
+### Added
+- **What's New modal**: In-app update notification shown once after each version upgrade, with card-style changelog UI.
+- **Content-aware organize hash**: Internal `.vaultend/organize-hashes.json` tracks note body hashes for change detection.
+
+### Fixed
+- **Maintenance cross-category sync**: Deleting or archiving a note in one maintenance category now instantly disables it across all other categories (orphan, untagged, missing-tags, broken-link, duplicate, duplicate-tags). Undo restores it everywhere.
+- **Organize Folder re-processing**: Organized notes were permanently skipped due to `processed` frontmatter or link count. Now uses content hash — editing a note's body after organizing makes it eligible for re-processing on the next run.
+- **ESLint clean**: Fixed 18 `@typescript-eslint/no-unnecessary-type-assertion` errors in new/modified files.
+
+### Removed
+- **`processed` frontmatter property**: No longer written or checked. Existing `processed: true` in notes is harmless dead metadata.
+
+---
+
 ## [1.0.10] - 2026-07-24
 
 ### Added

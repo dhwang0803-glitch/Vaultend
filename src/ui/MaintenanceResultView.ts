@@ -41,6 +41,8 @@ export class MaintenanceResultView extends ItemView {
   private scanInProgress = false;
   private readonly dismissedIds = new Set<string>();
   private readonly appliedEntries = new Map<string, string>();
+  private readonly destructedPaths = new Set<string>();
+  private readonly destructionHistory = new Map<string, string>();
   private restoreInProgress = false;
   private filterState: FilterState = {
     issueTypes: new Set(ALL_ISSUE_TYPES),
@@ -88,6 +90,11 @@ export class MaintenanceResultView extends ItemView {
 
   private onHistoryChanged(undoneId?: string): void {
     if (!undoneId || !this.currentPlan) return;
+    const np = this.destructionHistory.get(undoneId);
+    if (np) {
+      this.destructedPaths.delete(np);
+      this.destructionHistory.delete(undoneId);
+    }
     for (const [key, id] of this.appliedEntries) {
       if (id === undoneId) {
         this.appliedEntries.delete(key);
@@ -117,6 +124,8 @@ export class MaintenanceResultView extends ItemView {
     if (this.restoreInProgress) return;
     this.currentPlan = plan;
     this.appliedEntries.clear();
+    this.destructedPaths.clear();
+    this.destructionHistory.clear();
     this.render();
   }
 
@@ -133,6 +142,8 @@ export class MaintenanceResultView extends ItemView {
     try {
       this.currentPlan = await this.runMaintenance.execute();
       this.appliedEntries.clear();
+      this.destructedPaths.clear();
+      this.destructionHistory.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -158,6 +169,8 @@ export class MaintenanceResultView extends ItemView {
     try {
       this.currentPlan = await this.runMaintenance.execute({ folder: folderPath });
       this.appliedEntries.clear();
+      this.destructedPaths.clear();
+      this.destructionHistory.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -420,6 +433,22 @@ export class MaintenanceResultView extends ItemView {
         .setName(this.basename(item.notePath))
         .setDesc(item.notePath);
       this.applyCardClass(settingEl, 'empty');
+      settingEl.settingEl.dataset.notePath = item.notePath;
+
+      entries.push({
+        checkbox: this.prependCheckbox(settingEl),
+        action: { kind: 'archive-note', notePath: item.notePath, targetFolder: '' },
+        setting: settingEl,
+        issueType: 'empty',
+        identifier: item.notePath,
+        status: 'pending',
+      });
+      const emptyEntry = entries[entries.length - 1];
+
+      if (this.destructedPaths.has(item.notePath)) {
+        this.applyDestructedState(emptyEntry);
+        continue;
+      }
 
       if (item.backlinkCount > 0) {
         const warningEl = settingEl.settingEl.createDiv('maintenance-impact-warning');
@@ -433,16 +462,6 @@ export class MaintenanceResultView extends ItemView {
           suffix,
         });
       }
-
-      entries.push({
-        checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'archive-note', notePath: item.notePath, targetFolder: '' },
-        setting: settingEl,
-        issueType: 'empty',
-        identifier: item.notePath,
-        status: 'pending',
-      });
-      const emptyEntry = entries[entries.length - 1];
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -489,6 +508,7 @@ export class MaintenanceResultView extends ItemView {
         .setName(this.basename(notePath));
       settingEl.descEl.createDiv({ text: notePath, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'untagged');
+      settingEl.settingEl.dataset.notePath = notePath;
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -498,6 +518,12 @@ export class MaintenanceResultView extends ItemView {
         identifier: notePath,
         status: 'pending',
       });
+      const untaggedEntry = entries[entries.length - 1];
+
+      if (this.destructedPaths.has(notePath)) {
+        this.applyDestructedState(untaggedEntry);
+        continue;
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -505,7 +531,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'untagged', notePath);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(untaggedEntry);
     }
   }
 
@@ -527,6 +553,7 @@ export class MaintenanceResultView extends ItemView {
         .setName(this.basename(item.notePath));
       settingEl.descEl.createDiv({ text: item.notePath, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'missing-tags');
+      settingEl.settingEl.dataset.notePath = item.notePath;
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -536,6 +563,12 @@ export class MaintenanceResultView extends ItemView {
         identifier: item.notePath,
         status: 'pending',
       });
+      const missingEntry = entries[entries.length - 1];
+
+      if (this.destructedPaths.has(item.notePath)) {
+        this.applyDestructedState(missingEntry);
+        continue;
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -543,7 +576,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'missing-tags', item.notePath);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(missingEntry);
     }
   }
 
@@ -573,6 +606,7 @@ export class MaintenanceResultView extends ItemView {
         .setName(`${this.basename(item.sourcePath)}:${item.lineNumber}`)
         .setDesc(desc);
       this.applyCardClass(settingEl, 'broken-link');
+      settingEl.settingEl.dataset.notePath = item.sourcePath;
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -587,6 +621,11 @@ export class MaintenanceResultView extends ItemView {
       const linkEntry = entries[entries.length - 1];
 
       const brokenLinkKey = `broken-link:${item.sourcePath}:${item.lineNumber}:${item.targetLink}`;
+
+      if (this.destructedPaths.has(item.sourcePath)) {
+        this.applyDestructedState(linkEntry);
+        continue;
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -647,6 +686,7 @@ export class MaintenanceResultView extends ItemView {
         .setName(this.basename(entry.notePath));
       settingEl.descEl.createDiv({ text: `${entry.notePath} · ${sizeStr}`, cls: 'maintenance-card-path' });
       this.applyCardClass(settingEl, 'orphan');
+      settingEl.settingEl.dataset.notePath = entry.notePath;
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -657,6 +697,11 @@ export class MaintenanceResultView extends ItemView {
         status: 'pending',
       });
       const orphanEntry = entries[entries.length - 1];
+
+      if (this.destructedPaths.has(entry.notePath)) {
+        this.applyDestructedState(orphanEntry);
+        continue;
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -700,6 +745,8 @@ export class MaintenanceResultView extends ItemView {
         .setName(`${this.basename(pair.noteA)} ↔ ${this.basename(pair.noteB)}`)
         .setDesc(t('duplicate.similarity', { score }));
       this.applyCardClass(settingEl, 'duplicate');
+      settingEl.settingEl.dataset.notePathA = pair.noteA;
+      settingEl.settingEl.dataset.notePathB = pair.noteB;
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -709,6 +756,12 @@ export class MaintenanceResultView extends ItemView {
         identifier: `${pair.noteA}|${pair.noteB}`,
         status: 'pending',
       });
+      const dupEntry = entries[entries.length - 1];
+
+      if (this.destructedPaths.has(pair.noteA) || this.destructedPaths.has(pair.noteB)) {
+        this.applyDestructedState(dupEntry);
+        continue;
+      }
 
       this.addNoteSelect(settingEl, [pair.noteA, pair.noteB]);
 
@@ -718,7 +771,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA}|${pair.noteB}`);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(dupEntry);
     }
   }
 
@@ -923,6 +976,12 @@ export class MaintenanceResultView extends ItemView {
       }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
+      if ((action.kind === 'delete-orphan' || action.kind === 'archive-note') && result) {
+        const np = action.notePath as string;
+        this.destructedPaths.add(np);
+        this.destructionHistory.set(result.entryId, np);
+        this.disableDestructedCards(np);
+      }
       this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
@@ -938,6 +997,11 @@ export class MaintenanceResultView extends ItemView {
         try {
           await this.historyPort.undo(historyEntryId);
           this.appliedEntries.delete(appliedKey);
+          const np = this.destructionHistory.get(historyEntryId);
+          if (np) {
+            this.destructedPaths.delete(np);
+            this.destructionHistory.delete(historyEntryId);
+          }
           this.render();
           new Notice(t('undo.success'));
           this.app.workspace.trigger(HISTORY_CHANGED_EVENT, historyEntryId);
@@ -960,6 +1024,34 @@ export class MaintenanceResultView extends ItemView {
     entry.checkbox.checked = false;
     entry.setting.setDesc(t('maintenance.applied'));
     this.addRestoreButton(entry.setting, historyEntryId, key);
+  }
+
+  private applyDestructedState(entry: BatchEntry): void {
+    entry.status = 'applied';
+    entry.setting.settingEl.addClass('maintenance-result-destructed');
+    entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+    entry.checkbox.checked = false;
+    entry.checkbox.disabled = true;
+    entry.setting.setDesc(t('maintenance.noteUnavailable'));
+  }
+
+  private disableDestructedCards(notePath: string): void {
+    const escaped = CSS.escape(notePath);
+    const els = Array.from(this.contentEl.querySelectorAll(
+      `[data-note-path="${escaped}"],` +
+      `[data-note-path-a="${escaped}"],` +
+      `[data-note-path-b="${escaped}"]`,
+    ));
+    for (const el of els) {
+      if (el.classList.contains('maintenance-result-destructed')) continue;
+      if (el.classList.contains('maintenance-result-applied')) continue;
+      el.classList.add('maintenance-result-destructed');
+      el.querySelectorAll('button').forEach((btn: Element) => btn.remove());
+      const cb = el.querySelector<HTMLInputElement>('.maintenance-batch-checkbox');
+      if (cb) { cb.checked = false; cb.disabled = true; }
+      const descEl = el.querySelector('.setting-item-description');
+      if (descEl) descEl.textContent = t('maintenance.noteUnavailable');
+    }
   }
 
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
@@ -996,6 +1088,12 @@ export class MaintenanceResultView extends ItemView {
           entry.checkbox.disabled = true;
         }
         entry.setting.setDesc(t('maintenance.applied'));
+        if ((action.kind === 'delete-orphan' || action.kind === 'archive-note') && result) {
+          const np = action.notePath as string;
+          this.destructedPaths.add(np);
+          this.destructionHistory.set(result.entryId, np);
+          this.disableDestructedCards(np);
+        }
         success++;
       } catch {
         failed++;
