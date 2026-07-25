@@ -48,6 +48,9 @@ export const TAG_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/tag-embeddings.json`;
 /** Note Embedding Cache */
 export const NOTE_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/note-embeddings.json`;
 
+/** Organize Hash (content-change detection for re-organize) */
+export const ORGANIZE_HASH_PATH = `${PLUGIN_DATA_FOLDER}/organize-hashes.json`;
+
 /** Organize Folder 스마트 필터링 상수 */
 export const ORGANIZE_MIN_WORD_COUNT = 50;
 export const ORGANIZE_SUFFICIENT_LINKS = 3;

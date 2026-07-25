@@ -9,6 +9,7 @@ import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
 import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackingAdapter';
+import { FileOrganizeHashAdapter } from './adapters/tracking/FileOrganizeHashAdapter';
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
 import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
@@ -33,6 +34,7 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
+import { WhatsNewModal } from './ui/WhatsNewModal';
 import { OrganizeTagsView, ORGANIZE_TAGS_VIEW_TYPE } from './ui/OrganizeTagsView';
 import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
 import { FileTagGroupCacheAdapter } from './adapters/tag-group-cache/FileTagGroupCacheAdapter';
@@ -124,6 +126,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
   private tagGroupCacheAdapter!: FileTagGroupCacheAdapter;
   private organizeResultCache!: InMemoryOrganizeResultCacheAdapter;
+  private organizeHashAdapter!: FileOrganizeHashAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -145,6 +148,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private isMaintenanceRunning = false;
   private isOrganizing = false;
   private embeddingInitGeneration = 0;
+  private lastSeenVersion: string | null = null;
 
   async onload(): Promise<void> {
 
@@ -156,6 +160,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       ? detectObsidianLocale()
       : this.settings.locale;
     setLocale(resolvedLocale);
+
+    // 1c. What's New check
+    void this.checkWhatsNew();
 
     // 2. Initialize adapters
     this.wireAdapters();
@@ -328,6 +335,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     }
 
     this.settings = { ...DEFAULT_SETTINGS, ...data };
+    this.lastSeenVersion = (data._lastSeenVersion as string) ?? null;
+  }
+
+  private async checkWhatsNew(): Promise<void> {
+    const currentVersion = this.manifest.version;
+    if (this.lastSeenVersion !== currentVersion) {
+      this.app.workspace.onLayoutReady(() => {
+        new WhatsNewModal(this.app, this.lastSeenVersion).open();
+      });
+      await this.saveData({ ...this.settings, _lastSeenVersion: currentVersion });
+      this.lastSeenVersion = currentVersion;
+    }
   }
 
   private wireAdapters(): void {
@@ -337,6 +356,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
 
     this.changeTracker = new FileChangeTrackingAdapter(this.vaultAdapter);
+    this.organizeHashAdapter = new FileOrganizeHashAdapter(this.vaultAdapter);
     this.corpusStatsAdapter = new FileCorpusStatsAdapter(this.vaultAdapter);
     this.vectorStoreAdapter = new JsonVectorStoreAdapter(this.vaultAdapter);
 
@@ -388,6 +408,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.tagEmbeddingCacheAdapter,
       this.noteEmbeddingCacheAdapter,
       buildSummaryIndex,
+      this.organizeHashAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
@@ -468,6 +489,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
         },
         (v: boolean) => { this.isOrganizing = v; },
+        this.organizeHashAdapter,
       ),
     );
 

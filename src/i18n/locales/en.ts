@@ -46,6 +46,7 @@ const en = {
   'maintenance.lastScan': 'Last scan: {{time}}',
   'maintenance.vaultClean': 'Vault is in good shape.',
   'maintenance.applied': 'Applied',
+  'maintenance.noteUnavailable': 'Note deleted or archived',
   'maintenance.restored': 'Restored',
   'maintenance.tokenTotal': 'AI tokens: {{count}} · Cost: ${{cost}}',
   'maintenance.tokenTotalUnavailable': 'AI tokens: {{count}} · Cost: N/A (unregistered model)',
@@ -390,6 +391,10 @@ const en = {
   'settings.redactPresetJWT': 'JWT token',
   'settings.redactPresetsDesc': 'Matched text is replaced with [REDACTED] before sending to AI.',
   'settings.ruleRedactWikiLink': 'Custom patterns guide →',
+
+  // ─── What's New ───
+  'whatsNew.title': "What's New in Vaultend",
+  'whatsNew.dismiss': 'Got it',
 } as const;
 
 export default en;

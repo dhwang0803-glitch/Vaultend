@@ -7,8 +7,10 @@ import { AIProviderPort } from '../ports/AIProviderPort';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import type { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
 import type { BuildSummaryIndexUseCase } from './BuildSummaryIndexUseCase';
+import type { OrganizeHashPort } from '../ports/OrganizeHashPort';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
+import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NotePath } from '../../domain/values/NotePath';
 import { createTimestamp } from '../../domain/values/Timestamp';
@@ -36,7 +38,6 @@ export interface OrganizeFolderOptions {
 }
 
 export interface SkipBreakdown {
-  readonly alreadyProcessed: number;
   readonly tooShort: number;
   readonly alreadyLinked: number;
   readonly alreadyOrganized: number;
@@ -65,6 +66,7 @@ export class OrganizeFolderUseCase {
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
     private readonly noteEmbeddingCache?: NoteEmbeddingCachePort,
     private readonly buildSummaryIndex?: BuildSummaryIndexUseCase,
+    private readonly organizeHash?: OrganizeHashPort,
   ) {}
 
   async execute(options?: OrganizeFolderOptions): Promise<OrganizeFolderResult> {
@@ -77,7 +79,7 @@ export class OrganizeFolderUseCase {
     const allNotes = await this.vault.listNotes(targetFolder);
     const unprocessedNotes: NotePath[] = [];
     const privacyRules = [...settings.privacyRules];
-    const skipBreakdown: SkipBreakdown = { alreadyProcessed: 0, tooShort: 0, alreadyLinked: 0, alreadyOrganized: 0 };
+    const skipBreakdown: SkipBreakdown = { tooShort: 0, alreadyLinked: 0, alreadyOrganized: 0 };
     const mutableSkip = skipBreakdown as { -readonly [K in keyof SkipBreakdown]: SkipBreakdown[K] };
 
     for (const notePath of allNotes) {
@@ -89,11 +91,6 @@ export class OrganizeFolderUseCase {
         continue;
       }
 
-      if (note.metadata.isProcessed) {
-        mutableSkip.alreadyProcessed++;
-        continue;
-      }
-
       const bodyText = stripFrontmatter(stripRelatedNotesSection(note.content));
       const wordCount = bodyText.trim().split(/\s+/).filter(w => w.length > 0).length;
       if (wordCount < ORGANIZE_MIN_WORD_COUNT) {
@@ -101,15 +98,37 @@ export class OrganizeFolderUseCase {
         continue;
       }
 
-      if (note.metadata.links.length >= ORGANIZE_SUFFICIENT_LINKS) {
-        mutableSkip.alreadyLinked++;
-        continue;
-      }
+      if (this.organizeHash) {
+        const currentHash = await NoteEmbeddingService.computeContentHash('', bodyText);
+        const storedHash = await this.organizeHash.getHash(notePath);
+        if (storedHash !== null) {
+          if (storedHash === currentHash) {
+            mutableSkip.alreadyOrganized++;
+            continue;
+          }
+        } else {
+          await this.organizeHash.setHash(notePath, currentHash);
 
-      const hasRelatedSection = /\n## Related Notes\n/.test(note.content);
-      if (hasRelatedSection) {
-        mutableSkip.alreadyOrganized++;
-        continue;
+          if (note.metadata.links.length >= ORGANIZE_SUFFICIENT_LINKS) {
+            mutableSkip.alreadyLinked++;
+            continue;
+          }
+          const hasRelatedSection = /\n## Related Notes\n/.test(note.content);
+          if (hasRelatedSection) {
+            mutableSkip.alreadyOrganized++;
+            continue;
+          }
+        }
+      } else {
+        if (note.metadata.links.length >= ORGANIZE_SUFFICIENT_LINKS) {
+          mutableSkip.alreadyLinked++;
+          continue;
+        }
+        const hasRelatedSection = /\n## Related Notes\n/.test(note.content);
+        if (hasRelatedSection) {
+          mutableSkip.alreadyOrganized++;
+          continue;
+        }
       }
 
       unprocessedNotes.push(notePath);
@@ -253,10 +272,15 @@ export class OrganizeFolderUseCase {
           }
         }
 
-        if (settings.autoApplyOrganize) {
+        if (settings.autoApplyOrganize && this.organizeHash) {
           const stillExists = await this.vault.exists(notePath);
           if (stillExists) {
-            await this.vault.updateFrontmatter(notePath, { processed: true });
+            const applied = await this.vault.readNote(notePath);
+            if (applied) {
+              const hashBody = stripFrontmatter(stripRelatedNotesSection(applied.content));
+              const hash = await NoteEmbeddingService.computeContentHash('', hashBody);
+              await this.organizeHash.setHash(notePath, hash);
+            }
           }
         }
       } catch (err) {
@@ -388,7 +412,11 @@ export class OrganizeFolderUseCase {
       await this.tagEmbeddingCache.flush();
     }
 
-    const totalSkipped = mutableSkip.alreadyProcessed + mutableSkip.tooShort + mutableSkip.alreadyLinked + mutableSkip.alreadyOrganized;
+    if (this.organizeHash) {
+      try { await this.organizeHash.persist(); } catch { /* persist failure is non-fatal */ }
+    }
+
+    const totalSkipped = mutableSkip.tooShort + mutableSkip.alreadyLinked + mutableSkip.alreadyOrganized;
     return {
       processedCount: results.length,
       skippedCount: totalSkipped,

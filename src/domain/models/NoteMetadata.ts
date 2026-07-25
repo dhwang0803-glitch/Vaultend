@@ -15,6 +15,5 @@ export interface NoteMetadata {
   readonly createdAt: Timestamp;
   readonly modifiedAt: Timestamp;
   readonly fileSize: number;
-  readonly isProcessed: boolean;
   readonly category?: string;
 }
