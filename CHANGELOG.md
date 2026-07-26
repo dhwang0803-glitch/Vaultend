@@ -6,6 +6,20 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.21] - 2026-07-26
+
+### Added
+- **Tag language consistency**: Classification prompt now enforces same-language tags — prevents cross-language duplicates (e.g. `#뱀파이어` vs `#vampire`).
+- **What's New localization**: Modal body content now displays in the user's configured language (EN/KO).
+- **Organize contextual messages**: Shows "Already has sufficient tags/links" instead of generic "No related notes found" when content is already well-organized.
+
+### Fixed
+- **GPT-5.x / o-series 400 error**: Reasoning models now use `json_schema` response format, `max_completion_tokens` with 4x budget, and `reasoning_effort: low` (no `temperature`).
+- **Reasoning model prefix matching**: Extended from `gpt-5.` to `gpt-5` to cover hyphenated model IDs (`gpt-5-mini`, `gpt-5-nano`).
+- **skipLinkSuggestion false reason**: When link suggestion is skipped (tags-only mode), `noLinksReason` is no longer incorrectly set to `sufficient` or `no-similar`.
+
+---
+
 ## [1.0.20] - 2026-07-26
 
 ### Added
