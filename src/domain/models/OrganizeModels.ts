@@ -25,6 +25,8 @@ export interface OrganizeResult {
   readonly lowConfidence?: boolean;
   readonly historyEntryId?: string;
   readonly tagReasons?: ReadonlyMap<string, TagReason>;
+  readonly noTagsReason?: 'sufficient';
+  readonly noLinksReason?: 'sufficient' | 'no-similar';
 }
 
 /**

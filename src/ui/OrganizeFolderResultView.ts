@@ -425,7 +425,12 @@ export class OrganizeFolderResultView extends ItemView {
       const emptyEl = detailsEl.createDiv({ cls: 'vaultend-empty-state' });
       const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
       setIcon(iconEl, 'check-circle');
-      emptyEl.createSpan({ text: t('organizeFolder.noChanges') });
+      const hasSufficientTags = result.noTagsReason === 'sufficient';
+      const hasSufficientLinks = result.noLinksReason === 'sufficient';
+      const msg = (hasSufficientTags || hasSufficientLinks)
+        ? (hasSufficientTags ? t('organize.noTagsSufficient') : t('organize.noLinksSufficient'))
+        : t('organizeFolder.noChanges');
+      emptyEl.createSpan({ text: msg });
     }
 
     // Tags section — always render in review mode so users can manually add tags

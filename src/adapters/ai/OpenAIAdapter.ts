@@ -12,12 +12,39 @@ export class OpenAIAdapter implements AIProviderPort {
   private static readonly BASE_URL = 'https://api.openai.com/v1';
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_BASE_MS = 2000;
+
+  private static readonly REASONING_MODEL_PREFIXES = [
+    'gpt-5', 'o1', 'o3', 'o4',
+  ];
+
   private rateLimitedUntil = 0;
 
   constructor(
     private readonly apiKey: string,
     private readonly model: string,
   ) {}
+
+  private isReasoningModel(): boolean {
+    const m = this.model.toLowerCase();
+    return OpenAIAdapter.REASONING_MODEL_PREFIXES.some(p => m.startsWith(p));
+  }
+
+  private buildResponseFormat(): Record<string, unknown> {
+    if (this.isReasoningModel()) {
+      return {
+        type: 'json_schema',
+        json_schema: {
+          name: 'json_response',
+          strict: false,
+          schema: {
+            type: 'object',
+            additionalProperties: true,
+          },
+        },
+      };
+    }
+    return { type: 'json_object' };
+  }
 
   async callCompletion(request: CompletionRequest): Promise<CompletionResponse> {
     const messages = request.messages
@@ -29,12 +56,15 @@ export class OpenAIAdapter implements AIProviderPort {
           { role: 'user' as const, content: request.prompt },
         ];
 
-    const body = {
+    const reasoning = this.isReasoningModel();
+
+    const body: Record<string, unknown> = {
       model: this.model,
       messages,
-      max_tokens: request.maxTokens,
-      temperature: request.temperature,
-      ...(request.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      ...(reasoning
+        ? { max_completion_tokens: request.maxTokens * 4, reasoning_effort: 'low' }
+        : { max_tokens: request.maxTokens, temperature: request.temperature }),
+      ...(request.jsonMode ? { response_format: this.buildResponseFormat() } : {}),
     };
 
     const response = await this.makeRequest('/chat/completions', body) as {

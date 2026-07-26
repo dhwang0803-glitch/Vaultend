@@ -126,7 +126,13 @@ export class OrganizeBatchPreviewModal extends Modal {
       const emptyEl = details.createDiv({ cls: 'vaultend-empty-state' });
       const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
       setIcon(iconEl, 'check-circle');
-      emptyEl.createSpan({ text: t('organize.noChanges') });
+      const matchItem = this.items.find(i => i.notePath === editable.notePath);
+      const hasSufficientTags = matchItem?.result.noTagsReason === 'sufficient';
+      const hasSufficientLinks = matchItem?.result.noLinksReason === 'sufficient';
+      const msg = (hasSufficientTags || hasSufficientLinks)
+        ? (hasSufficientTags ? t('organize.noTagsSufficient') : t('organize.noLinksSufficient'))
+        : t('organize.noChanges');
+      emptyEl.createSpan({ text: msg });
     }
 
     const item = this.items.find(i => i.notePath === editable.notePath);

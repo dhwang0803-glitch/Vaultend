@@ -93,7 +93,10 @@ export class OrganizeResultModal extends Modal {
       const emptyEl = tagListEl.createDiv({ cls: 'vaultend-empty-state' });
       const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
       setIcon(iconEl, 'tag');
-      emptyEl.createSpan({ text: t('organize.noTags') });
+      const msg = this.result.noTagsReason === 'sufficient'
+        ? t('organize.noTagsSufficient')
+        : t('organize.noTags');
+      emptyEl.createSpan({ text: msg });
       return;
     }
     for (const item of this.tagItems) {
@@ -173,7 +176,10 @@ export class OrganizeResultModal extends Modal {
       const emptyEl = linkListEl.createDiv({ cls: 'vaultend-empty-state' });
       const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
       setIcon(iconEl, 'link');
-      emptyEl.createSpan({ text: t('organize.noLinks') });
+      const msg = this.result.noLinksReason === 'sufficient'
+        ? t('organize.noLinksSufficient')
+        : t('organize.noLinks');
+      emptyEl.createSpan({ text: msg });
       return;
     }
     for (const item of this.linkItems) {
