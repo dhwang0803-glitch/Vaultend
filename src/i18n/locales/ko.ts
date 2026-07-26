@@ -407,6 +407,17 @@ const ko: { [K in keyof typeof en]: string } = {
   'whatsNew.v1020.reprocess.desc': '수정된 노트는 다음 폴더 정리 실행 시 다시 처리됩니다. 이전에는 한번 처리된 노트가 영구적으로 건너뛰어졌습니다.',
   'whatsNew.v1020.processed.title': '"processed" 프론트매터 제거',
   'whatsNew.v1020.processed.desc': '더 이상 작성하거나 확인하지 않습니다. 기존 노트에 남아 있는 값은 무해하며, 편할 때 삭제하시면 됩니다.',
+
+  // ─── What's New: v1.0.21 ───
+  'whatsNew.section.added': '추가된 기능',
+  'whatsNew.v1021.tagLang.title': '태그 언어 일관성',
+  'whatsNew.v1021.tagLang.desc': '이제 노트와 동일한 언어로 태그를 생성합니다 — #뱀파이어와 #vampire 같은 교차 언어 중복이 더 이상 발생하지 않습니다.',
+  'whatsNew.v1021.whatsNewI18n.title': '업데이트 안내 다국어 지원',
+  'whatsNew.v1021.whatsNewI18n.desc': '이 모달이 설정된 언어(영어/한국어)에 맞게 표시됩니다.',
+  'whatsNew.v1021.organizeMsg.title': '정리 결과 메시지 개선',
+  'whatsNew.v1021.organizeMsg.desc': '노트가 이미 잘 정리되어 있을 때 "관련 노트 없음" 대신 "이미 충분한 태그/링크가 있습니다"로 표시됩니다.',
+  'whatsNew.v1021.gpt5.title': 'GPT-5.x / o-시리즈 모델 지원',
+  'whatsNew.v1021.gpt5.desc': 'reasoning 모델(GPT-5.x, o1, o3, o4)로 노트 정리 시 발생하던 400 에러를 수정했습니다.',
 };
 
 export default ko;

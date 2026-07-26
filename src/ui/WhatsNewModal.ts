@@ -19,6 +19,41 @@ export interface ChangelogEntry {
 
 const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '1.0.21',
+    sections: [
+      {
+        labelKey: 'whatsNew.section.added',
+        items: [
+          {
+            icon: 'languages',
+            titleKey: 'whatsNew.v1021.tagLang.title',
+            descKey: 'whatsNew.v1021.tagLang.desc',
+          },
+          {
+            icon: 'globe',
+            titleKey: 'whatsNew.v1021.whatsNewI18n.title',
+            descKey: 'whatsNew.v1021.whatsNewI18n.desc',
+          },
+          {
+            icon: 'message-circle',
+            titleKey: 'whatsNew.v1021.organizeMsg.title',
+            descKey: 'whatsNew.v1021.organizeMsg.desc',
+          },
+        ],
+      },
+      {
+        labelKey: 'whatsNew.section.bugFixes',
+        items: [
+          {
+            icon: 'cpu',
+            titleKey: 'whatsNew.v1021.gpt5.title',
+            descKey: 'whatsNew.v1021.gpt5.desc',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.20',
     sections: [
       {
