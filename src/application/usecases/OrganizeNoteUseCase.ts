@@ -252,11 +252,24 @@ export class OrganizeNoteUseCase {
 
     let historyEntryId: string | undefined;
 
+    const SUFFICIENT_COUNT = 3;
+    const addedTags = uniqueSanitized.map(t => createTagName(t));
+
+    const noTagsReason: OrganizeResult['noTagsReason'] =
+      addedTags.length === 0 && currentTags.length >= SUFFICIENT_COUNT
+        ? 'sufficient' : undefined;
+
+    const noLinksReason: OrganizeResult['noLinksReason'] =
+      context?.skipLinkSuggestion ? undefined
+        : suggestedLinks.length === 0
+          ? (note.metadata.links.length >= SUFFICIENT_COUNT ? 'sufficient' : 'no-similar')
+          : undefined;
+
     const result: OrganizeResult = {
       noteId: note.id,
       notePath,
       classifiedCategory: classification.category ?? '',
-      addedTags: uniqueSanitized.map(t => createTagName(t)),
+      addedTags,
       suggestedLinks,
       summary: classification.summary,
       onelineSummary: classification.onelineSummary,
@@ -267,6 +280,8 @@ export class OrganizeNoteUseCase {
         estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + linkTokenUsage.estimatedCostUsd,
       },
       tagReasons,
+      ...(noTagsReason ? { noTagsReason } : {}),
+      ...(noLinksReason ? { noLinksReason } : {}),
     };
 
     if (autoApply) {

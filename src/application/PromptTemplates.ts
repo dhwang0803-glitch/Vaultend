@@ -22,6 +22,11 @@ Core rules:
 - Single-word or single-concept tags are fine: #productivity, #react, #investing.
 - Each tag = ONE concept. Do not merge two distinct concepts into one tag.
 
+## Tag language rules (MUST follow)
+- Tags MUST be in the SAME language as the note content. Korean note → Korean tags, English note → English tags.
+- If existing tags already include a semantically equivalent tag in ANY language, you MUST use that existing tag instead of creating a new one. e.g. existing #뱀파이어 → do NOT create #vampire (they are the same concept).
+- NEVER create a tag that is simply a translation of an existing tag. This counts as semantic overlap.
+
 ## Analysis procedure (you MUST follow this)
 1. Read the note content and identify **2-3 unique key topics/concepts** the note covers.
 2. For each topic, check existing tags first. Only use an existing tag if it clearly and directly matches (score ≥ 70). If no existing tag is a strong match, create a new tag following the format rules above.
@@ -51,6 +56,11 @@ Core rules:
 - 단일 단어/단일 개념 태그는 허용: #productivity, #react, #investing.
 - 태그 하나 = 개념 하나. 서로 다른 두 개념을 하나의 태그로 합치지 마세요.
 
+## 태그 언어 규칙 (반드시 따르세요)
+- 태그는 반드시 노트 내용과 **같은 언어**로 생성하세요. 한국어 노트 → 한국어 태그, 영어 노트 → 영어 태그.
+- 기존 태그에 의미적으로 동일한 태그가 **어떤 언어로든** 이미 있으면, 반드시 그 기존 태그를 사용하세요. 예: 기존에 #뱀파이어가 있으면 → #vampire를 새로 만들지 마세요 (같은 개념).
+- 기존 태그의 번역에 불과한 태그를 절대 만들지 마세요. 이것은 의미 중복입니다.
+
 ## 분석 절차 (반드시 따르세요)
 1. 노트 내용을 읽고, 이 노트가 다루는 **고유한 핵심 주제/개념 2~3개**를 파악하세요.
 2. 각 주제에 대해 기존 태그를 먼저 확인하세요. 명확하고 직접적으로 일치하는 경우(score ≥ 70)에만 기존 태그를 사용하세요. 강한 매칭이 없으면 위 형식 규칙에 따라 새 태그를 만드세요.
@@ -69,14 +79,14 @@ Core rules:
 
     if (lang === 'en') {
       const tagsInfo = existingTags && existingTags.length > 0
-        ? `Available existing tags (by frequency): ${existingTags.join(', ')}\n\nTag selection rules:\n- Prefer existing tags that are STRONGLY relevant to the note content. Score existing tags 5-10 points higher when equally relevant.\n- If an existing tag is only weakly or vaguely related, do NOT force it — create a new tag instead.\n- New tags are allowed freely, but MUST NOT overlap semantically with any existing tag.\n- For each tag, provide: score (0-100), isNew (true if not in existing tags), and a brief reason (why this tag fits).`
+        ? `Available existing tags (by frequency): ${existingTags.join(', ')}\n\nTag selection rules:\n- Prefer existing tags that are STRONGLY relevant to the note content. Score existing tags 5-10 points higher when equally relevant.\n- If an existing tag is only weakly or vaguely related, do NOT force it — create a new tag instead.\n- New tags are allowed freely, but MUST NOT overlap semantically with any existing tag — including cross-language translations (e.g. do NOT create #vampire if #뱀파이어 already exists).\n- For each tag, provide: score (0-100), isNew (true if not in existing tags), and a brief reason (why this tag fits).`
         : `This vault has no tags yet. Extract exactly 3 tags from the note's key concepts. Tags should be general, concise (1-2 words), and reusable. Avoid overly specific tags that only apply to this note. For each tag, provide: score (0-100), isNew (always true for new vaults), and a brief reason.`;
 
       return `${tagsInfo}\n\n---\nNote content:\n${noteContent}`;
     }
 
     const tagsInfo = existingTags && existingTags.length > 0
-      ? `사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n태그 선택 규칙:\n- 노트 내용과 **강하게** 관련된 기존 태그만 선택하세요. 동등한 관련성이면 기존 태그를 5-10점 높게 점수를 부여하세요.\n- 약하거나 모호하게만 관련된 기존 태그는 억지로 선택하지 마세요 — 대신 새 태그를 만드세요.\n- 새 태그는 자유롭게 생성 가능하지만, 기존 태그와 의미가 겹치면 안 됩니다.\n- 각 태그마다: score(0-100), isNew(기존 태그에 없으면 true), reason(이 태그가 적합한 이유)을 부여하세요.`
+      ? `사용 가능한 기존 태그 (빈도순): ${existingTags.join(', ')}\n\n태그 선택 규칙:\n- 노트 내용과 **강하게** 관련된 기존 태그만 선택하세요. 동등한 관련성이면 기존 태그를 5-10점 높게 점수를 부여하세요.\n- 약하거나 모호하게만 관련된 기존 태그는 억지로 선택하지 마세요 — 대신 새 태그를 만드세요.\n- 새 태그는 자유롭게 생성 가능하지만, 기존 태그와 의미가 겹치면 안 됩니다 — 다른 언어 번역도 의미 중복입니다 (예: #뱀파이어가 있으면 #vampire 생성 금지).\n- 각 태그마다: score(0-100), isNew(기존 태그에 없으면 true), reason(이 태그가 적합한 이유)을 부여하세요.`
       : `이 vault에는 아직 태그가 없습니다. 노트 내용에서 핵심 개념을 추출하여 태그를 정확히 3개 생성하세요. 태그는 재사용 가능하도록 일반적이고 간결한 단어(1~2단어)로 만드세요. 지나치게 구체적이거나 이 노트에만 적용되는 태그는 피하세요. 각 태그마다: score(0-100), isNew(새 vault이므로 항상 true), reason(간단한 이유)을 부여하세요.`;
 
     return `${tagsInfo}\n\n---\n노트 내용:\n${noteContent}`;

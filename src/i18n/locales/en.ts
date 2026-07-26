@@ -205,7 +205,9 @@ const en = {
   'organize.suggestedTags': 'Suggested Tags',
   'organize.suggestedLinks': 'Suggested Links',
   'organize.noTags': 'No tags suggested.',
+  'organize.noTagsSufficient': 'This note already has sufficient tags.',
   'organize.noLinks': 'No related notes found for link suggestions.',
+  'organize.noLinksSufficient': 'This note already has sufficient links.',
   'organize.removeTag': 'Remove tag',
   'organize.restoreTag': 'Restore tag',
   'organize.removeLink': 'Remove link',
@@ -395,6 +397,16 @@ const en = {
   // ─── What's New ───
   'whatsNew.title': "What's New in Vaultend",
   'whatsNew.dismiss': 'Got it',
+
+  // ─── What's New: v1.0.20 ───
+  'whatsNew.section.bugFixes': 'Bug Fixes',
+  'whatsNew.section.internal': 'Internal',
+  'whatsNew.v1020.crossSync.title': 'Maintenance: cross-category sync',
+  'whatsNew.v1020.crossSync.desc': 'Deleting or archiving a note now disables it across all maintenance categories. Undo restores it everywhere.',
+  'whatsNew.v1020.reprocess.title': 'Organize Folder: content-aware re-processing',
+  'whatsNew.v1020.reprocess.desc': 'Edited notes are now re-processed on the next Organize Folder run. Previously they were permanently skipped.',
+  'whatsNew.v1020.processed.title': 'Removed "processed" frontmatter',
+  'whatsNew.v1020.processed.desc': 'No longer written or checked. Existing values in your notes are harmless — remove at your convenience.',
 } as const;
 
 export default en;

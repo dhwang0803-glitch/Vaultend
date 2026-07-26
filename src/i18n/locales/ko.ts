@@ -207,7 +207,9 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.suggestedTags': '제안 태그',
   'organize.suggestedLinks': '제안 링크',
   'organize.noTags': '제안된 태그가 없습니다.',
+  'organize.noTagsSufficient': '이미 충분한 태그가 있습니다.',
   'organize.noLinks': '관련 노트를 찾지 못해 링크를 제안하지 못했습니다.',
+  'organize.noLinksSufficient': '이미 충분한 링크가 있습니다.',
   'organize.removeTag': '태그 제거',
   'organize.restoreTag': '태그 복원',
   'organize.removeLink': '링크 제거',
@@ -395,6 +397,16 @@ const ko: { [K in keyof typeof en]: string } = {
   // ─── What's New ───
   'whatsNew.title': 'Vaultend 업데이트 안내',
   'whatsNew.dismiss': '확인',
+
+  // ─── What's New: v1.0.20 ───
+  'whatsNew.section.bugFixes': '버그 수정',
+  'whatsNew.section.internal': '내부 변경',
+  'whatsNew.v1020.crossSync.title': '유지보수: 카테고리 간 동기화',
+  'whatsNew.v1020.crossSync.desc': '노트를 삭제하거나 보관하면 모든 유지보수 카테고리에서 함께 비활성화됩니다. 실행 취소 시 모두 복원됩니다.',
+  'whatsNew.v1020.reprocess.title': '폴더 정리: 내용 변경 감지 재처리',
+  'whatsNew.v1020.reprocess.desc': '수정된 노트는 다음 폴더 정리 실행 시 다시 처리됩니다. 이전에는 한번 처리된 노트가 영구적으로 건너뛰어졌습니다.',
+  'whatsNew.v1020.processed.title': '"processed" 프론트매터 제거',
+  'whatsNew.v1020.processed.desc': '더 이상 작성하거나 확인하지 않습니다. 기존 노트에 남아 있는 값은 무해하며, 편할 때 삭제하시면 됩니다.',
 };
 
 export default ko;

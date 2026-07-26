@@ -1,14 +1,14 @@
 import { Modal, App, setIcon } from 'obsidian';
-import { t } from '../i18n';
+import { t, type LocaleKey } from '../i18n';
 
 interface ChangeItem {
   readonly icon: string;
-  readonly title: string;
-  readonly desc: string;
+  readonly titleKey: LocaleKey;
+  readonly descKey: LocaleKey;
 }
 
 interface ChangelogSection {
-  readonly label: string;
+  readonly labelKey: LocaleKey;
   readonly items: readonly ChangeItem[];
 }
 
@@ -22,27 +22,27 @@ const CHANGELOG: readonly ChangelogEntry[] = [
     version: '1.0.20',
     sections: [
       {
-        label: 'Bug Fixes',
+        labelKey: 'whatsNew.section.bugFixes',
         items: [
           {
             icon: 'shield-check',
-            title: 'Maintenance: cross-category sync',
-            desc: 'Deleting or archiving a note now disables it across all maintenance categories. Undo restores it everywhere.',
+            titleKey: 'whatsNew.v1020.crossSync.title',
+            descKey: 'whatsNew.v1020.crossSync.desc',
           },
           {
             icon: 'refresh-cw',
-            title: 'Organize Folder: content-aware re-processing',
-            desc: 'Edited notes are now re-processed on the next Organize Folder run. Previously they were permanently skipped.',
+            titleKey: 'whatsNew.v1020.reprocess.title',
+            descKey: 'whatsNew.v1020.reprocess.desc',
           },
         ],
       },
       {
-        label: 'Internal',
+        labelKey: 'whatsNew.section.internal',
         items: [
           {
             icon: 'trash-2',
-            title: 'Removed "processed" frontmatter',
-            desc: 'No longer written or checked. Existing values in your notes are harmless — remove at your convenience.',
+            titleKey: 'whatsNew.v1020.processed.title',
+            descKey: 'whatsNew.v1020.processed.desc',
           },
         ],
       },
@@ -78,15 +78,15 @@ export class WhatsNewModal extends Modal {
 
       for (const section of entry.sections) {
         const sectionEl = contentEl.createDiv({ cls: 'vaultend-wn-section' });
-        sectionEl.createEl('h4', { text: section.label, cls: 'vaultend-wn-section-label' });
+        sectionEl.createEl('h4', { text: t(section.labelKey), cls: 'vaultend-wn-section-label' });
 
         for (const item of section.items) {
           const card = sectionEl.createDiv({ cls: 'vaultend-wn-card' });
           const cardIcon = card.createSpan({ cls: 'vaultend-wn-card-icon' });
           setIcon(cardIcon, item.icon);
           const cardBody = card.createDiv({ cls: 'vaultend-wn-card-body' });
-          cardBody.createEl('strong', { text: item.title });
-          cardBody.createEl('p', { text: item.desc });
+          cardBody.createEl('strong', { text: t(item.titleKey) });
+          cardBody.createEl('p', { text: t(item.descKey) });
         }
       }
     }
