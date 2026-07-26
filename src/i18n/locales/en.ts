@@ -407,6 +407,17 @@ const en = {
   'whatsNew.v1020.reprocess.desc': 'Edited notes are now re-processed on the next Organize Folder run. Previously they were permanently skipped.',
   'whatsNew.v1020.processed.title': 'Removed "processed" frontmatter',
   'whatsNew.v1020.processed.desc': 'No longer written or checked. Existing values in your notes are harmless — remove at your convenience.',
+
+  // ─── What's New: v1.0.21 ───
+  'whatsNew.section.added': 'Added',
+  'whatsNew.v1021.tagLang.title': 'Tag language consistency',
+  'whatsNew.v1021.tagLang.desc': 'AI now creates tags in the same language as your note — no more cross-language duplicates like #뱀파이어 vs #vampire.',
+  'whatsNew.v1021.whatsNewI18n.title': "What's New localization",
+  'whatsNew.v1021.whatsNewI18n.desc': 'This modal now displays in your configured language (English / Korean).',
+  'whatsNew.v1021.organizeMsg.title': 'Smarter organize messages',
+  'whatsNew.v1021.organizeMsg.desc': 'Shows "Already has sufficient tags/links" instead of a generic "No related notes found" when your note is already well-organized.',
+  'whatsNew.v1021.gpt5.title': 'GPT-5.x / o-series model support',
+  'whatsNew.v1021.gpt5.desc': 'Fixed 400 errors when using reasoning models (GPT-5.x, o1, o3, o4) for Organize Note.',
 } as const;
 
 export default en;
