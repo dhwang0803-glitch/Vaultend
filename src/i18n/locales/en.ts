@@ -408,6 +408,10 @@ const en = {
   'whatsNew.v1020.processed.title': 'Removed "processed" frontmatter',
   'whatsNew.v1020.processed.desc': 'No longer written or checked. Existing values in your notes are harmless — remove at your convenience.',
 
+  // ─── What's New: v1.0.22 ───
+  'whatsNew.v1022.perfLag.title': 'Fixed editor lag during editing',
+  'whatsNew.v1022.perfLag.desc': 'Removed dead real-time sync (search index, vector store, AI embeddings) that fired on every autosave — editing is now instant.',
+
   // ─── What's New: v1.0.21 ───
   'whatsNew.section.added': 'Added',
   'whatsNew.v1021.tagLang.title': 'Tag language consistency',

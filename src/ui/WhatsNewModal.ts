@@ -19,6 +19,21 @@ export interface ChangelogEntry {
 
 const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '1.0.22',
+    sections: [
+      {
+        labelKey: 'whatsNew.section.bugFixes',
+        items: [
+          {
+            icon: 'zap',
+            titleKey: 'whatsNew.v1022.perfLag.title',
+            descKey: 'whatsNew.v1022.perfLag.desc',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.21',
     sections: [
       {

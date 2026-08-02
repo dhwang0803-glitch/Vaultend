@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.22] - 2026-08-02
+
+### Fixed
+- **Editor lag during note editing**: Removed dead real-time search index serialization, vector store flush, and AI embedding sync that fired on every autosave without debounce — these systems had zero consumers after the Quick Ask feature was removed.
+
+---
+
 ## [1.0.21] - 2026-07-26
 
 ### Added
