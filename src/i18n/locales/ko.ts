@@ -408,6 +408,10 @@ const ko: { [K in keyof typeof en]: string } = {
   'whatsNew.v1020.processed.title': '"processed" 프론트매터 제거',
   'whatsNew.v1020.processed.desc': '더 이상 작성하거나 확인하지 않습니다. 기존 노트에 남아 있는 값은 무해하며, 편할 때 삭제하시면 됩니다.',
 
+  // ─── What's New: v1.0.22 ───
+  'whatsNew.v1022.perfLag.title': '노트 편집 시 버벅거림 해결',
+  'whatsNew.v1022.perfLag.desc': '자동 저장마다 실행되던 불필요한 실시간 동기화(검색 인덱스, 벡터 저장소, AI 임베딩)를 제거하여 편집이 즉각 반응합니다.',
+
   // ─── What's New: v1.0.21 ───
   'whatsNew.section.added': '추가된 기능',
   'whatsNew.v1021.tagLang.title': '태그 언어 일관성',

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RunMaintenanceUseCase } from '../RunMaintenanceUseCase';
-import { createMockVault, createMockSearch, createMockConfig, createMockClock } from '../../../test-utils/mock-ports';
+import { createMockVault, createMockConfig, createMockClock } from '../../../test-utils/mock-ports';
 import { createTestNote, createTestMetadata } from '../../../test-utils/fixtures';
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { TagName } from '../../../domain/values/TagName';
@@ -39,7 +39,7 @@ describe('RunMaintenanceUseCase', () => {
         }),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.orphanNotes).toHaveLength(1);
@@ -57,7 +57,7 @@ describe('RunMaintenanceUseCase', () => {
         ),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.orphanNotes).toHaveLength(0);
@@ -74,7 +74,7 @@ describe('RunMaintenanceUseCase', () => {
         ),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates.length).toBeGreaterThanOrEqual(1);
@@ -91,7 +91,7 @@ describe('RunMaintenanceUseCase', () => {
         ),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates.length).toBeGreaterThanOrEqual(1);
@@ -110,7 +110,7 @@ describe('RunMaintenanceUseCase', () => {
         }),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates).toHaveLength(0);
@@ -125,7 +125,7 @@ describe('RunMaintenanceUseCase', () => {
         ),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates).toHaveLength(0);
@@ -140,7 +140,7 @@ describe('RunMaintenanceUseCase', () => {
         ),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.duplicateCandidates).toHaveLength(0);
@@ -162,7 +162,7 @@ describe('RunMaintenanceUseCase', () => {
         exists: vi.fn().mockResolvedValue(false),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.brokenLinks).toHaveLength(1);
@@ -186,7 +186,7 @@ describe('RunMaintenanceUseCase', () => {
         }),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.brokenLinks).toHaveLength(0);
@@ -212,7 +212,7 @@ describe('RunMaintenanceUseCase', () => {
         }),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.brokenLinks).toHaveLength(0);
@@ -231,7 +231,7 @@ describe('RunMaintenanceUseCase', () => {
         exists: vi.fn().mockResolvedValue(false),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan.brokenLinks).toHaveLength(1);
@@ -256,7 +256,7 @@ describe('RunMaintenanceUseCase', () => {
         knownTags: [tn('#typescript')] as unknown as ReadonlyArray<TagName>,
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), config, createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, config, createMockClock());
       const plan = await uc.execute();
 
       expect(plan.missingTags).toHaveLength(1);
@@ -282,7 +282,7 @@ describe('RunMaintenanceUseCase', () => {
         knownTags: [tn('#typescript')] as unknown as ReadonlyArray<TagName>,
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), config, createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, config, createMockClock());
       const plan = await uc.execute();
 
       expect(plan.missingTags).toHaveLength(0);
@@ -304,7 +304,7 @@ describe('RunMaintenanceUseCase', () => {
         knownTags: [tn('#css')] as unknown as ReadonlyArray<TagName>,
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), config, createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, config, createMockClock());
       const plan = await uc.execute();
 
       expect(plan.missingTags).toHaveLength(0);
@@ -317,7 +317,7 @@ describe('RunMaintenanceUseCase', () => {
       });
 
       const config = createMockConfig({ knownTags: [] as unknown as ReadonlyArray<TagName> });
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), config, createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, config, createMockClock());
       const plan = await uc.execute();
 
       expect(plan.missingTags).toHaveLength(0);
@@ -342,7 +342,7 @@ describe('RunMaintenanceUseCase', () => {
         knownTags: [tn('#typescript')] as unknown as ReadonlyArray<TagName>,
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), config, createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, config, createMockClock());
       const plan = await uc.execute();
 
       expect(plan.missingTags).toHaveLength(0);
@@ -355,7 +355,7 @@ describe('RunMaintenanceUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([]),
       });
 
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
       expect(plan).toHaveProperty('orphanNotes');
@@ -370,7 +370,7 @@ describe('RunMaintenanceUseCase', () => {
         listNotes: vi.fn().mockResolvedValue([]),
       });
       const clock = createMockClock(1234567890000);
-      const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), clock);
+      const uc = new RunMaintenanceUseCase(vault, createMockConfig(), clock);
       const plan = await uc.execute();
 
       expect(plan.timestamp as number).toBe(1234567890000);

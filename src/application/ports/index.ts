@@ -15,11 +15,6 @@ export type {
 } from './VaultAccessPort';
 
 export type {
-  SearchIndexPort,
-  SearchResult,
-} from './SearchIndexPort';
-
-export type {
   HistoryPort,
   HistoryFilter,
 } from './HistoryPort';

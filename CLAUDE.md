@@ -248,6 +248,7 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
 | `/pr-3axis-review` | PR 3축 리뷰 (Clean Architecture / SSOT / 크로스 모듈 안전성) |
 | `/cross-verify` | 교차 모델 검증 — Claude 산출물을 Codex가 독립 검증 (opt-in, MCP 필요) |
 | `/session-retro` | 세션 회고 — 계획 vs 실제 비교, 패턴 분석, 하네스 개선 제안 |
+| `/release` | 릴리즈 체크리스트 → 로컬 Obsidian 테스트 → 머지 → 태그 → 배포 |
 | `/release-sync` | `development` → `release` 충돌 없는 동기화 |
 | `/adr` | 새 ADR 생성 + `decisions.md` 인덱스 갱신 (`docs` 브랜치 전용) |
 
@@ -261,10 +262,11 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
 
 | 트리거 (사용자 의도) | 자동 실행 스킬 | 체인 |
 |---------------------|--------------|------|
-| "PR 만들어줘", "PR 생성", "PR 올려줘" 등 PR 생성 요청 | `/pr-report` | → `/session-retro` → `/cross-verify pr` 제안 |
+| "PR 만들어줘", "PR 생성", "PR 올려줘" 등 PR 생성 요청 | `/pr-report` | → `/session-retro` → `/cross-verify pr` 제안 → `/release` 제안 |
 | "리뷰해줘", "PR 리뷰", PR 번호 언급 + 리뷰 | `/pr-3axis-review {PR번호}` | 단독 |
 | "설계해줘", PRD 제시 + 구조 설계 | `/spec-design` | 단독 |
-| "릴리즈", "release 동기화" | `/release-sync` | 단독 |
+| "릴리즈해줘", "릴리즈 진행", "release" | `/release` | 단독 |
+| "릴리즈 동기화", "release sync" | `/release-sync` | 단독 |
 | "ADR 작성", 아키텍처 결정 기록 | `/adr {제목}` | 단독 |
 | "교차 검증", "cross-verify" | `/cross-verify` | 단독 |
 | "회고", "세션 회고", "retro" | `/session-retro` | 단독 |
@@ -280,6 +282,7 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
    - 문서만 변경 → "건너뛰기 기본"
    - P1/P2 지적 시 즉시 수정 후 커밋에 포함
 4. 커밋 → push → **PR 생성** (Step 5~7) — 회고·검증 결과를 PR 본문에 포함
+5. **`/release` 실행 여부를 사용자에게 제안** (Step 8) — PR 생성 후 릴리즈 체크리스트 → 로컬 확인 → 머지 → 태그
 
 ### 매칭 규칙
 

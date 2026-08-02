@@ -1,7 +1,6 @@
 import { vi } from 'vitest';
 import type { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import type { AIProviderPort, ClassificationResponse, CompletionResponse } from '../application/ports/AIProviderPort';
-import type { SearchIndexPort, SearchResult } from '../application/ports/SearchIndexPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import type { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import type { ClockPort } from '../application/ports/ClockPort';
@@ -58,15 +57,6 @@ export function createMockAI(overrides?: Partial<AIProviderPort>): AIProviderPor
       tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
     }),
     ...overrides,
-  };
-}
-
-export function createMockSearch(results?: ReadonlyArray<SearchResult>): SearchIndexPort {
-  return {
-    index: vi.fn().mockResolvedValue(undefined),
-    search: vi.fn().mockResolvedValue(results ?? []),
-    remove: vi.fn().mockResolvedValue(undefined),
-    rebuild: vi.fn().mockResolvedValue(undefined),
   };
 }
 

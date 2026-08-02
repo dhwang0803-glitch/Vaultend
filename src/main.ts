@@ -4,7 +4,6 @@ import { PluginSettings } from './application/ports/ConfigPort';
 // Adapters
 import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
 import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
-import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
@@ -12,7 +11,6 @@ import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackin
 import { FileOrganizeHashAdapter } from './adapters/tracking/FileOrganizeHashAdapter';
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
-import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
 
 // Use Cases
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
@@ -22,7 +20,6 @@ import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
-import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
 import { BuildSummaryIndexUseCase } from './application/usecases/BuildSummaryIndexUseCase';
 import { OrganizeTagsUseCase } from './application/usecases/OrganizeTagsUseCase';
 import { replaceRelatedNotesSection } from './application/utils/relatedNotesSection';
@@ -114,14 +111,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   // Adapters
   private vaultAdapter!: ObsidianVaultAdapter;
   private aiAdapter!: AIProviderPort;
-  private searchIndex!: JsonSearchIndexAdapter;
   private historyAdapter!: FileHistoryAdapter;
 
   private clockAdapter!: SystemClockAdapter;
   private changeTracker!: FileChangeTrackingAdapter;
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
   private embeddingAdapter!: AIEmbeddingAdapter;
-  private vectorStoreAdapter!: JsonVectorStoreAdapter;
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
   private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
   private tagGroupCacheAdapter!: FileTagGroupCacheAdapter;
@@ -139,7 +134,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
-  private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
   private organizeTagsUseCase!: OrganizeTagsUseCase;
 
   // Event unsubscribe functions
@@ -184,10 +178,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         const gen = ++this.embeddingInitGeneration;
         try {
           await this.reinitializeEmbeddings(gen);
-          if (gen !== this.embeddingInitGeneration) return;
-          if (this.embeddingAdapter.isReady()) {
-            void this.syncEmbeddingsBackground();
-          }
         } catch (err) {
           console.error('Vaultend: AI config change re-initialization failed', err);
           new Notice(t('notice.embeddingInitFailed', { error: localizeError(err) }));
@@ -204,21 +194,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 9. Schedule auto-maintenance
     void this.scheduleMaintenanceIfEnabled();
 
-    // 10. Initialize search index + embeddings on layout ready
+    // 10. Initialize embedding caches on layout ready
     this.app.workspace.onLayoutReady(async () => {
-      await this.buildSearchIndex();
-
-      await this.vectorStoreAdapter.load();
       await this.tagEmbeddingCacheAdapter.load();
       await this.noteEmbeddingCacheAdapter.load();
       await this.tagGroupCacheAdapter.load();
 
       if (this.hasAIProviderConfig()) {
         await this.reinitializeEmbeddings();
-
-        if (this.embeddingAdapter.isReady()) {
-          void this.syncEmbeddingsBackground();
-        }
       }
     });
   }
@@ -274,11 +257,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     const model = this.getEmbeddingModelId();
     this.embeddingAdapter.setModel(model);
 
-    const vsMeta = this.vectorStoreAdapter.getMeta();
     const tcMeta = this.tagEmbeddingCacheAdapter.getMeta();
-    const cachedMeta = (vsMeta && vsMeta.provider === provider && vsMeta.model === model) ? vsMeta
-      : (tcMeta && tcMeta.provider === provider && tcMeta.model === model) ? tcMeta
-      : null;
+    const cachedMeta = (tcMeta && tcMeta.provider === provider && tcMeta.model === model) ? tcMeta : null;
     if (cachedMeta && cachedMeta.dimension > 0) {
       this.embeddingAdapter.initializeWithKnownDimension(cachedMeta.dimension);
     } else {
@@ -297,11 +277,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     if (generation !== undefined && generation !== this.embeddingInitGeneration) return;
 
     const dim = this.embeddingAdapter.getDimension();
-
-    if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim, model)) {
-      await this.vectorStoreAdapter.clear();
-    }
-    this.vectorStoreAdapter.setMeta({ provider, dimension: dim, model });
 
     if (this.tagEmbeddingCacheAdapter.size() > 0
       && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim, model)) {
@@ -352,13 +327,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private wireAdapters(): void {
     this.vaultAdapter = new ObsidianVaultAdapter(this.app);
     this.clockAdapter = new SystemClockAdapter();
-    this.searchIndex = new JsonSearchIndexAdapter(this.vaultAdapter);
     this.historyAdapter = new FileHistoryAdapter(this.vaultAdapter, this.clockAdapter);
 
     this.changeTracker = new FileChangeTrackingAdapter(this.vaultAdapter);
     this.organizeHashAdapter = new FileOrganizeHashAdapter(this.vaultAdapter);
     this.corpusStatsAdapter = new FileCorpusStatsAdapter(this.vaultAdapter);
-    this.vectorStoreAdapter = new JsonVectorStoreAdapter(this.vaultAdapter);
 
     // ConfigPort — shared single instance across all layers
     this.configPort = {
@@ -412,7 +385,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
-      this.vaultAdapter, this.searchIndex,
+      this.vaultAdapter,
       this.configPort, this.clockAdapter,
       this.changeTracker, this.corpusStatsAdapter,
       this.aiAdapter,
@@ -433,11 +406,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.hasAIProviderConfig() ? this.aiAdapter : undefined,
       this.tagGroupCacheAdapter,
       this.configPort,
-    );
-
-    this.syncEmbeddingsUseCase = new SyncEmbeddingsUseCase(
-      this.embeddingAdapter, this.vectorStoreAdapter,
-      this.vaultAdapter, this.changeTracker, this.configPort,
     );
 
   }
@@ -699,25 +667,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.unsubscribeVaultEvents = this.vaultAdapter.watchEvents((event: VaultEvent) => {
       const pathStr = event.path as string;
 
-      // Track all .md file changes for smart scheduling
       if (pathStr.endsWith('.md')) {
         void this.changeTracker.markDirty(event.path);
-
-        // Incremental search index update (BM25 + embeddings)
-        if (event.type === 'delete') {
-          this.searchIndex.remove(event.path).catch(() => {});
-          this.vectorStoreAdapter.remove(event.path).catch(() => {});
-        } else if (event.type === 'rename') {
-          if (event.oldPath) {
-            this.searchIndex.remove(event.oldPath).catch(() => {});
-            this.vectorStoreAdapter.remove(event.oldPath).catch(() => {});
-          }
-          void this.indexSingleNote(event.path);
-          this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
-        } else if (event.type === 'create' || event.type === 'modify') {
-          void this.indexSingleNote(event.path);
-          this.syncEmbeddingsUseCase.syncSingle(event.path).catch(() => {});
-        }
       }
     });
   }
@@ -819,49 +770,4 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     return results;
   }
 
-  private async syncEmbeddingsBackground(): Promise<void> {
-    try {
-      if (this.vectorStoreAdapter.isEmpty()) {
-        await this.syncEmbeddingsUseCase.rebuildAll();
-      } else {
-        await this.syncEmbeddingsUseCase.execute();
-      }
-    } catch {
-      // Embedding sync is best-effort
-    }
-  }
-
-  private async buildSearchIndex(): Promise<void> {
-    try {
-      await this.searchIndex.rebuild();
-      const notes = await this.vaultAdapter.listNotes();
-      const saveFolder = this.settings.defaultSaveFolder;
-      for (const notePath of notes) {
-        const pathStr = notePath as string;
-        if (saveFolder.length > 0 && (pathStr === saveFolder || pathStr.startsWith(saveFolder + '/'))) continue;
-        const note = await this.vaultAdapter.readNote(notePath);
-        if (note && note.chunks.length > 0) {
-          await this.searchIndex.index(notePath, note.chunks);
-        }
-      }
-    } catch (err) {
-      console.error('Vaultend: search index build failed', err);
-    }
-  }
-
-  private async indexSingleNote(notePath: NotePath): Promise<void> {
-    try {
-      const pathStr = notePath as string;
-      const sf = this.settings.defaultSaveFolder;
-      if (sf.length > 0 && (pathStr === sf || pathStr.startsWith(sf + '/'))) return;
-      const note = await this.vaultAdapter.readNote(notePath);
-      if (note && note.chunks.length > 0) {
-        await this.searchIndex.index(notePath, note.chunks);
-      } else {
-        await this.searchIndex.remove(notePath);
-      }
-    } catch {
-      // Non-critical — index will be rebuilt next startup
-    }
-  }
 }
