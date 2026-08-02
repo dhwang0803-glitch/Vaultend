@@ -1,7 +1,6 @@
 import { MaintenancePlan, DuplicatePair, BrokenLink, MissingTagSuggestion, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
-import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort, PluginSettings } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
@@ -28,7 +27,6 @@ export interface MaintenanceScanOptions {
 export class RunMaintenanceUseCase {
   constructor(
     private readonly vault: VaultAccessPort,
-    private readonly searchIndex: SearchIndexPort,
     private readonly config: ConfigPort,
     private readonly clock: ClockPort,
     private readonly changeTracking?: ChangeTrackingPort,
