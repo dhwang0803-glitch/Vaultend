@@ -13,6 +13,67 @@ describe('OpenAIAdapter', () => {
     adapter = new OpenAIAdapter('test-api-key', 'gpt-4o');
   });
 
+  describe('callCompletion — reasoning 모델 판별', () => {
+    const okResponse = {
+      status: 200,
+      json: {
+        choices: [{ message: { content: '{}' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      },
+      headers: {}, text: '', arrayBuffer: new ArrayBuffer(0),
+    };
+    const bodyOf = () => JSON.parse(mockRequestUrl.mock.calls[0][0].body as string) as Record<string, unknown>;
+
+    it.each(['gpt-6-luna', 'gpt-6.1-terra', 'gpt-6.1-sol', 'gpt-6-astra'])(
+      '%s: max_completion_tokens + reasoning_effort low (max_tokens·temperature 미전송)', async (model) => {
+        mockRequestUrl.mockResolvedValue(okResponse);
+        await new OpenAIAdapter('k', model).callCompletion({ prompt: 'x', maxTokens: 300, temperature: 0.1, jsonMode: true });
+
+        const body = bodyOf();
+        expect(body.max_completion_tokens).toBe(1200);
+        expect(body.reasoning_effort).toBe('low');
+        expect(body).not.toHaveProperty('max_tokens');
+        expect(body).not.toHaveProperty('temperature');
+      });
+
+    it.each(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini'])(
+      '%s: 기존 non-reasoning 요청 그대로 (회귀 방지)', async (model) => {
+        mockRequestUrl.mockResolvedValue(okResponse);
+        await new OpenAIAdapter('k', model).callCompletion({ prompt: 'x', maxTokens: 300, temperature: 0.1, jsonMode: true });
+
+        const body = bodyOf();
+        expect(body.max_tokens).toBe(300);
+        expect(body.temperature).toBe(0.1);
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body).not.toHaveProperty('max_completion_tokens');
+        expect(body).not.toHaveProperty('reasoning_effort');
+      });
+
+    it.each([
+      ['gpt-6-astra', 10.00, 50.00],
+      ['gpt-6.1-sol', 2.00, 10.00],
+      ['gpt-6.1-terra', 1.00, 5.00],
+      ['gpt-6-luna', 0.10, 0.50],
+    ])('%s: 가격표로 비용을 추정한다 (입력 $%s / 출력 $%s per 1M)', async (model, inPer1M, outPer1M) => {
+      mockRequestUrl.mockResolvedValue({
+        ...okResponse,
+        json: { ...okResponse.json, usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 } },
+      });
+      const r = await new OpenAIAdapter('k', model).callCompletion({ prompt: 'x', maxTokens: 300, temperature: 0.1 });
+
+      expect(r.tokenUsage.estimatedCostUsd).toBeCloseTo((1000 * inPer1M + 500 * outPer1M) / 1_000_000, 12);
+    });
+
+    it.each(['gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4-mini'])('%s: 기존 reasoning 요청 그대로 (회귀 방지)', async (model) => {
+      mockRequestUrl.mockResolvedValue(okResponse);
+      await new OpenAIAdapter('k', model).callCompletion({ prompt: 'x', maxTokens: 300, temperature: 0.1 });
+
+      const body = bodyOf();
+      expect(body.max_completion_tokens).toBe(1200);
+      expect(body.reasoning_effort).toBe('low');
+    });
+  });
+
   describe('callCompletion', () => {
     it('정상 응답을 CompletionResponse로 매핑한다', async () => {
       mockRequestUrl.mockResolvedValue({

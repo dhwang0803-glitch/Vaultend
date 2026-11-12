@@ -7,15 +7,22 @@ import { AIProviderError, AIParseError, RateLimitError } from '../../domain/erro
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
 import { getModelPricing, estimateCostFromPricing } from '../../domain/models/PricingTable';
+import { GeminiGenerationPolicy } from './GeminiGenerationPolicy';
+
+interface GeminiPart {
+  text?: string;
+  thought?: boolean;
+}
 
 interface GeminiGenerateResponse {
   candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
+    content?: { parts?: GeminiPart[] };
     finishReason?: string;
   }>;
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
     totalTokenCount?: number;
   };
 }
@@ -29,6 +36,7 @@ export class GeminiAdapter implements AIProviderPort {
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_BASE_MS = 2000;
   private rateLimitedUntil = 0;
+  private thinkingConfigRejected = false;
 
   constructor(
     private readonly apiKey: string,
@@ -54,43 +62,70 @@ export class GeminiAdapter implements AIProviderPort {
         ? { parts: [{ text: request.systemPrompt }] }
         : undefined;
 
-    const body = {
+    const profile = GeminiGenerationPolicy.resolve(this.model);
+    const sendThinkingConfig = profile.thinkingConfig !== undefined && !this.thinkingConfigRejected;
+
+    const buildBody = (withThinkingConfig: boolean): Record<string, unknown> => ({
       contents,
       generationConfig: {
-        maxOutputTokens: request.maxTokens,
+        maxOutputTokens: GeminiGenerationPolicy.maxOutputTokens(profile, request.maxTokens),
         temperature: request.temperature,
         ...(request.jsonMode ? { responseMimeType: 'application/json' } : {}),
+        ...(withThinkingConfig && profile.thinkingConfig ? { thinkingConfig: profile.thinkingConfig } : {}),
       },
       ...(systemInstruction ? { systemInstruction } : {}),
-    };
+    });
 
-    const url = `${GeminiAdapter.BASE_URL}/models/${this.model}:generateContent?key=${this.apiKey}`;
+    let response;
+    try {
+      response = await this.requestWithRetry(this.buildGenerateParams(buildBody(sendThinkingConfig)));
+    } catch (err) {
+      if (!sendThinkingConfig || !(err instanceof AIProviderError)
+        || !GeminiGenerationPolicy.isBadRequest(err.statusCode, err.detail)) {
+        throw err;
+      }
+      // 모델이 thinkingConfig를 거부 → 이 어댑터 인스턴스에서는 더 이상 보내지 않고 1회 재시도
+      this.thinkingConfigRejected = true;
+      response = await this.requestWithRetry(this.buildGenerateParams(buildBody(false)));
+    }
 
-    const params: RequestUrlParam = {
-      url,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    };
-
-    const response = await this.requestWithRetry(params);
     const result = response.json as GeminiGenerateResponse;
-    const content = result.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const content = this.extractText(result.candidates?.[0]?.content?.parts);
     const usage = result.usageMetadata ?? {};
+    // thinking 토큰은 출력 요금으로 과금되므로 completion에 합산
+    const completionTokens = (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0);
 
     return {
       content,
       tokenUsage: {
         promptTokens: usage.promptTokenCount ?? 0,
-        completionTokens: usage.candidatesTokenCount ?? 0,
+        completionTokens,
         totalTokens: usage.totalTokenCount ?? 0,
         estimatedCostUsd: this.estimateCost(
           usage.promptTokenCount ?? 0,
-          usage.candidatesTokenCount ?? 0,
+          completionTokens,
         ),
       },
       finishReason: this.mapFinishReason(result.candidates?.[0]?.finishReason),
     };
+  }
+
+  private buildGenerateParams(body: Record<string, unknown>): RequestUrlParam {
+    return {
+      url: `${GeminiAdapter.BASE_URL}/models/${this.model}:generateContent?key=${this.apiKey}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  /** thought 파트를 제외한 모든 텍스트 파트를 이어 붙인다 (Gemini 3는 응답을 여러 파트로 나눌 수 있음) */
+  private extractText(parts?: ReadonlyArray<GeminiPart>): string {
+    if (!parts) return '';
+    return parts
+      .filter(p => !p.thought && typeof p.text === 'string')
+      .map(p => p.text as string)
+      .join('');
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {

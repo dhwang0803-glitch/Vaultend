@@ -19,6 +19,33 @@ export interface ChangelogEntry {
 
 const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '1.0.23',
+    sections: [
+      {
+        labelKey: 'whatsNew.section.bugFixes',
+        items: [
+          { icon: 'tag', titleKey: 'whatsNew.v1023.gemini.title', descKey: 'whatsNew.v1023.gemini.desc' },
+          { icon: 'cpu', titleKey: 'whatsNew.v1023.maxTokens.title', descKey: 'whatsNew.v1023.maxTokens.desc' },
+          { icon: 'link', titleKey: 'whatsNew.v1023.linkCut.title', descKey: 'whatsNew.v1023.linkCut.desc' },
+          { icon: 'refresh-cw', titleKey: 'whatsNew.v1023.retired.title', descKey: 'whatsNew.v1023.retired.desc' },
+        ],
+      },
+      {
+        labelKey: 'whatsNew.section.added',
+        items: [
+          { icon: 'sparkles', titleKey: 'whatsNew.v1023.gpt6.title', descKey: 'whatsNew.v1023.gpt6.desc' },
+        ],
+      },
+      {
+        labelKey: 'whatsNew.section.notice',
+        items: [
+          { icon: 'message-circle', titleKey: 'whatsNew.v1023.gpt4o.title', descKey: 'whatsNew.v1023.gpt4o.desc' },
+          { icon: 'message-circle', titleKey: 'whatsNew.v1023.gemini25pro.title', descKey: 'whatsNew.v1023.gemini25pro.desc' },
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.22',
     sections: [
       {

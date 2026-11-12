@@ -4,6 +4,8 @@ import { PluginSettings } from './application/ports/ConfigPort';
 // Adapters
 import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
 import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
+import { MaxResponseTokensAIAdapter } from './adapters/ai/MaxResponseTokensAIAdapter';
+import { RetiredModelMigration } from './application/utils/RetiredModelMigration';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
@@ -308,9 +310,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       data.organizeConfidenceThreshold = data.inboxConfidenceThreshold;
       delete data.inboxConfidenceThreshold;
     }
+    // 제공사가 종료한 모델 ID → 권장 대체 모델 (동작하지 않는 값만 교체)
+    const retiredModelsMigrated = RetiredModelMigration.apply(data);
 
     this.settings = { ...DEFAULT_SETTINGS, ...data };
     this.lastSeenVersion = (data._lastSeenVersion as string) ?? null;
+
+    // 교체가 일어난 경우에만 즉시 저장 — What's New 표시 여부(버전 변경)와 무관하게 영속화
+    if (retiredModelsMigrated) {
+      await this.saveData(this.settings);
+    }
   }
 
   private async checkWhatsNew(): Promise<void> {
@@ -344,7 +353,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     };
 
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
-    this.aiAdapter = new DynamicAIAdapter(this.configPort);
+    this.aiAdapter = new MaxResponseTokensAIAdapter(new DynamicAIAdapter(this.configPort), this.configPort);
     this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter);
 
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);

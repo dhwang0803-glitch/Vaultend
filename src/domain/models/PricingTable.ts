@@ -5,6 +5,10 @@ export interface ModelPricing {
 }
 
 const OPENAI_MODELS: Record<string, ModelPricing> = {
+  'gpt-6-astra':   { inputPer1M: 10.00, outputPer1M: 50.00 },
+  'gpt-6.1-sol':   { inputPer1M: 2.00, outputPer1M: 10.00 },
+  'gpt-6.1-terra': { inputPer1M: 1.00, outputPer1M: 5.00 },
+  'gpt-6-luna':    { inputPer1M: 0.10, outputPer1M: 0.50 },
   'gpt-5.6-sol':   { inputPer1M: 5.00, outputPer1M: 30.00 },
   'gpt-5.6-terra': { inputPer1M: 2.50, outputPer1M: 15.00 },
   'gpt-5.6-luna':  { inputPer1M: 1.00, outputPer1M: 6.00 },

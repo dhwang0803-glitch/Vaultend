@@ -156,6 +156,121 @@ describe('GeminiAdapter', () => {
     });
   });
 
+  describe('callCompletion — thinking 모델 대응', () => {
+    const ok = (parts: Array<{ text?: string; thought?: boolean }>, usage: Record<string, number> = {}) => ({
+      status: 200,
+      json: { candidates: [{ content: { parts }, finishReason: 'STOP' }], usageMetadata: usage },
+      headers: {},
+      text: '',
+      arrayBuffer: new ArrayBuffer(0),
+    });
+    const bodyOf = (call: number) =>
+      JSON.parse(mockRequestUrl.mock.calls[call][0].body as string) as { generationConfig: Record<string, unknown> };
+
+    it('Gemini 3.x Flash: thinkingLevel low + 호출자 temperature 유지 + 출력 예산 확보', async () => {
+      const a = new GeminiAdapter('k', 'gemini-3.5-flash');
+      mockRequestUrl.mockResolvedValue(ok([{ text: '{}' }]));
+
+      await a.callCompletion({ prompt: 'x', maxTokens: 400, temperature: 0.1, jsonMode: true });
+
+      const gc = bodyOf(0).generationConfig;
+      expect(gc.thinkingConfig).toEqual({ thinkingLevel: 'low' });
+      expect(gc.temperature).toBe(0.1);
+      expect(gc.maxOutputTokens).toBe(400 + 2048);
+      expect(gc.responseMimeType).toBe('application/json');
+    });
+
+    it('Gemini 2.5 Flash: thinkingBudget 0 + temperature 유지', async () => {
+      const a = new GeminiAdapter('k', 'gemini-2.5-flash');
+      mockRequestUrl.mockResolvedValue(ok([{ text: '{}' }]));
+
+      await a.callCompletion({ prompt: 'x', maxTokens: 200, temperature: 0.1 });
+
+      const gc = bodyOf(0).generationConfig;
+      expect(gc.thinkingConfig).toEqual({ thinkingBudget: 0 });
+      expect(gc.temperature).toBe(0.1);
+      expect(gc.maxOutputTokens).toBe(200 + 2048);
+    });
+
+    it('레거시 모델은 요청 본문이 이전과 동일하다', async () => {
+      mockRequestUrl.mockResolvedValue(ok([{ text: '{}' }]));
+
+      await adapter.callCompletion({ prompt: 'x', maxTokens: 400, temperature: 0.1, jsonMode: true });
+
+      expect(bodyOf(0).generationConfig).toEqual({
+        maxOutputTokens: 400, temperature: 0.1, responseMimeType: 'application/json',
+      });
+    });
+
+    it('여러 텍스트 파트를 이어 붙이고 thought 파트는 제외한다', async () => {
+      mockRequestUrl.mockResolvedValue(ok([
+        { text: 'internal reasoning', thought: true },
+        { text: '{"category":' },
+        { text: '"x"}' },
+      ]));
+
+      const r = await adapter.callCompletion({ prompt: 'x', maxTokens: 10, temperature: 0 });
+      expect(r.content).toBe('{"category":"x"}');
+    });
+
+    it('thoughtsTokenCount를 completionTokens에 합산한다 (출력 요금으로 과금)', async () => {
+      const a = new GeminiAdapter('k', 'gemini-3.1-flash-lite');
+      mockRequestUrl.mockResolvedValue(ok([{ text: '{}' }], {
+        promptTokenCount: 100, candidatesTokenCount: 50, thoughtsTokenCount: 150, totalTokenCount: 300,
+      }));
+
+      const r = await a.callCompletion({ prompt: 'x', maxTokens: 10, temperature: 0 });
+      expect(r.tokenUsage.completionTokens).toBe(200);
+      expect(r.tokenUsage.totalTokens).toBe(300);
+      // gemini-3.1-flash-lite: $0.25 in / $1.50 out per 1M
+      expect(r.tokenUsage.estimatedCostUsd).toBeCloseTo((100 * 0.25 + 200 * 1.5) / 1_000_000, 12);
+    });
+
+    it('thinkingConfig가 400으로 거부되면 제외하고 1회 재시도하며, 이후 호출에서도 보내지 않는다', async () => {
+      const a = new GeminiAdapter('k', 'gemini-4-flash');
+      mockRequestUrl
+        .mockRejectedValueOnce(new Error('Request failed, status 400'))
+        .mockResolvedValue(ok([{ text: 'ok' }]));
+
+      const r = await a.callCompletion({ prompt: 'x', maxTokens: 100, temperature: 0 });
+      expect(r.content).toBe('ok');
+      expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+      expect(bodyOf(0).generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'low' });
+      expect(bodyOf(1).generationConfig).not.toHaveProperty('thinkingConfig');
+      expect(bodyOf(1).generationConfig.maxOutputTokens).toBe(100 + 2048);
+
+      await a.callCompletion({ prompt: 'y', maxTokens: 100, temperature: 0 });
+      expect(mockRequestUrl).toHaveBeenCalledTimes(3);
+      expect(bodyOf(2).generationConfig).not.toHaveProperty('thinkingConfig');
+    });
+
+    it('thinkingConfig를 보내지 않은 모델의 400은 재시도 없이 그대로 던진다', async () => {
+      mockRequestUrl.mockRejectedValue(new Error('Request failed, status 400'));
+
+      await expect(adapter.callCompletion({ prompt: 'x', maxTokens: 10, temperature: 0 }))
+        .rejects.toThrow(AIProviderError);
+      expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('400이 아닌 오류(401)는 폴백하지 않는다', async () => {
+      const a = new GeminiAdapter('k', 'gemini-3.5-flash');
+      mockRequestUrl.mockRejectedValue(new Error('Request failed, status 401'));
+
+      await expect(a.callCompletion({ prompt: 'x', maxTokens: 10, temperature: 0 }))
+        .rejects.toThrow(AIProviderError);
+      expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('폴백 재시도도 실패하면 그 오류를 던진다', async () => {
+      const a = new GeminiAdapter('k', 'gemini-3.5-flash');
+      mockRequestUrl.mockRejectedValue(new Error('Request failed, status 400'));
+
+      await expect(a.callCompletion({ prompt: 'x', maxTokens: 10, temperature: 0 }))
+        .rejects.toThrow(AIProviderError);
+      expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('callClassification', () => {
     it('JSON 응답을 ClassificationResponse로 파싱한다', async () => {
       const aiJson = {
