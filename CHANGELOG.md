@@ -6,6 +6,23 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.23] - 2026-11-13
+
+### Fixed
+- **Gemini classification failures**: With Gemini 3.x Flash and 2.5 Flash, thinking tokens consumed the output budget, so responses were cut off and tagging, link suggestions, and summaries failed. Added per-model-family thinking settings (`GeminiGenerationPolicy`), output headroom for thinking models, multi-part response handling, and thinking-token cost accounting. Requests for models that already worked are unchanged.
+- **Max Response Tokens had no effect**: Since Quick Ask was split out in 0.8.0, the setting wasn't applied to any feature. It now acts as an upper limit on each task's AI output (`min(task limit, setting)`). The default (8192) changes nothing.
+- **Organize Note link suggestions cut off**: The single-note link selection limit (200) was not updated when the response format changed to `{note, score, reason}`. Raised to 300, matching the per-target budget used in batch link selection.
+- **Retired models removed**: o4-mini, o3-mini, GPT-4.1 Nano (OpenAI) and text-embedding-004 (Google) removed from the model lists. Saved selections migrate to OpenAI's recommended replacements (o4-mini → gpt-5.6-terra, o3-mini/o1 → gpt-5.6-sol, gpt-4.1-nano → gpt-5.6-luna) and the Gemini embedding default (gemini-embedding-001). Custom-endpoint model IDs are not touched.
+
+### Added
+- **GPT-6 models**: GPT-6 Astra ($10/$50), GPT-6.1 Sol ($2/$10), GPT-6.1 Terra ($1/$5), GPT-6 Luna ($0.10/$0.50) per 1M input/output tokens, with cost display. `gpt-6*` models are now sent as reasoning models (`max_completion_tokens`), fixing 400 errors for custom-entered GPT-6 IDs.
+
+### Notice
+- **GPT-4o / GPT-4.1 retirement**: OpenAI shuts down `gpt-4o` (current default model), `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini` on 2027-01-14 and `gpt-5.4-nano` on 2027-04-01. Users are advised to switch to the GPT-6 models (OpenAI's recommended replacement: `gpt-6-luna`). They will be removed from the list in an update after shutdown.
+- **Gemini 2.5 Pro retirement**: Google shuts down Gemini 2.5 Pro on 2026-12-01 (already unavailable to new users). It stays in the list until then and will be removed in an update after that date.
+
+---
+
 ## [1.0.22] - 2026-08-02
 
 ### Fixed

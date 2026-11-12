@@ -6,6 +6,10 @@ import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDE
 
 const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = {
   openai: [
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra' },
+    { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
+    { id: 'gpt-6.1-terra', label: 'GPT-6.1 Terra' },
+    { id: 'gpt-6-luna', label: 'GPT-6 Luna' },
     { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
     { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
     { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
@@ -15,11 +19,8 @@ const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = 
     { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
     { id: 'gpt-4.1', label: 'GPT-4.1' },
     { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
     { id: 'gpt-4o', label: 'GPT-4o' },
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'o4-mini', label: 'o4-mini' },
-    { id: 'o3-mini', label: 'o3-mini' },
   ],
   gemini: [
     { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
@@ -46,7 +47,6 @@ const EMBEDDING_MODELS: Record<string, ReadonlyArray<{ id: string; label: string
   ],
   gemini: [
     { id: 'gemini-embedding-001', label: 'gemini-embedding-001 (Recommended)' },
-    { id: 'text-embedding-004', label: 'text-embedding-004' },
   ],
   ollama: [
     { id: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },

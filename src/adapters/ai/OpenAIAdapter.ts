@@ -14,7 +14,7 @@ export class OpenAIAdapter implements AIProviderPort {
   private static readonly RETRY_BASE_MS = 2000;
 
   private static readonly REASONING_MODEL_PREFIXES = [
-    'gpt-5', 'o1', 'o3', 'o4',
+    'gpt-5', 'gpt-6', 'o1', 'o3', 'o4',
   ];
 
   private rateLimitedUntil = 0;
