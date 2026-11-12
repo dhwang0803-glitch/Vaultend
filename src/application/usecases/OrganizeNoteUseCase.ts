@@ -492,7 +492,8 @@ export class OrganizeNoteUseCase {
       const response = await this.aiProvider.callCompletion({
         prompt,
         systemPrompt,
-        maxTokens: 200,
+        // {note, score, reason} 형식(3f7d586) 기준 — 배치 링크 선택의 대상당 300과 동일
+        maxTokens: 300,
         temperature: 0.1,
         jsonMode: true,
       });

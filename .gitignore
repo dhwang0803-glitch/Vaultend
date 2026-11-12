@@ -16,6 +16,11 @@ data.json
 !.env.example
 .envrc
 
+# Credentials
+*.pem
+*.key
+credentials.json
+
 # OS
 .DS_Store
 Thumbs.db

@@ -313,7 +313,7 @@ const en = {
   'settings.autoApplyDesc': 'When enabled, AI classification results (move, tag, link) are applied immediately without manual review after organizing the selected folder.',
 
   'settings.maxTokens': 'Max Response Tokens',
-  'settings.maxTokensDesc': 'Maximum tokens for AI response (1024–16384). Higher values allow longer answers but cost more.',
+  'settings.maxTokensDesc': 'Upper limit on AI output tokens for each task (1024–16384). Each task only uses what it needs, so the default rarely applies. Lowering this may cut short large batch tasks such as Organize Tags or Organize Folder.',
   'settings.truncationNotice': 'Notes exceeding 15,000 characters are automatically truncated before AI analysis. Results may be less accurate for very long notes.',
   'settings.dailyNoteLimit': 'Daily Note Size Limit (KB)',
   'settings.dailyNoteLimitDesc': 'Create a new file when Daily Note exceeds this size.',
@@ -408,6 +408,22 @@ const en = {
   'whatsNew.v1020.processed.title': 'Removed "processed" frontmatter',
   'whatsNew.v1020.processed.desc': 'No longer written or checked. Existing values in your notes are harmless — remove at your convenience.',
 
+  // ─── What's New: v1.0.23 ───
+  'whatsNew.section.notice': 'Notice',
+  'whatsNew.v1023.gemini.title': 'Fixed Gemini classification failures',
+  'whatsNew.v1023.gemini.desc': 'With Gemini 3.x Flash and 2.5 Flash, AI responses were cut off mid-way, so tagging, link suggestions, and summaries failed. They now work reliably. Tokens Gemini spends on internal reasoning (thinking) are now included in the token and cost display, so it is closer to what you are actually billed.',
+  'whatsNew.v1023.maxTokens.title': 'Max Response Tokens now takes effect',
+  'whatsNew.v1023.maxTokens.desc': "Since Quick Ask was split out in 0.8.0, this setting wasn't applied to any feature. It now acts as an upper limit on AI output for each task. If you use the default (8192), nothing changes. If you lowered it below 4000, large batch tasks (Organize Tags, Organize Folder) may be cut short — raise the value if that happens.",
+  'whatsNew.v1023.linkCut.title': 'Organize Note: link suggestions no longer cut off',
+  'whatsNew.v1023.linkCut.desc': 'On some models, the related-note link response was cut short and no links were suggested. The response limit now matches the link format.',
+  'whatsNew.v1023.retired.title': 'Removed retired models',
+  'whatsNew.v1023.retired.desc': 'Removed o4-mini, o3-mini, and GPT-4.1 Nano (shut down by OpenAI) and text-embedding-004 (shut down by Google). If you had one selected (including o1 entered as a custom model ID), it switches automatically to the recommended replacement: o4-mini → GPT-5.6 Terra, o3-mini and o1 → GPT-5.6 Sol, GPT-4.1 Nano → GPT-5.6 Luna, text-embedding-004 → gemini-embedding-001.',
+  'whatsNew.v1023.gpt6.title': 'GPT-6 models',
+  'whatsNew.v1023.gpt6.desc': "Added OpenAI's latest models GPT-6 Astra, GPT-6.1 Sol, GPT-6.1 Terra, and GPT-6 Luna to the model list (highest to lowest price: Astra > Sol > Terra > Luna). Token cost is shown for each. GPT-6 models entered as a custom model ID also work now.",
+  'whatsNew.v1023.gemini25pro.title': 'Gemini 2.5 Pro is being retired',
+  'whatsNew.v1023.gpt4o.title': 'GPT-4o and GPT-4.1 are being retired',
+  'whatsNew.v1023.gpt4o.desc': 'OpenAI will shut down GPT-4o (the default model), GPT-4o Mini, GPT-4.1, and GPT-4.1 Mini on January 14, 2027. GPT-5.4 Nano follows on April 1, 2027. If you use one of these, please switch before then to the newly added GPT-6 models (OpenAI recommends GPT-6 Luna as the replacement). We will remove them from the list in an update after they shut down.',
+  'whatsNew.v1023.gemini25pro.desc': 'Google will shut down Gemini 2.5 Pro on December 1, 2026 (it is already unavailable to new users). We will remove it from the list in an update after that date — please switch to another Gemini model.',
   // ─── What's New: v1.0.22 ───
   'whatsNew.v1022.perfLag.title': 'Fixed editor lag during editing',
   'whatsNew.v1022.perfLag.desc': 'Removed dead real-time sync (search index, vector store, AI embeddings) that fired on every autosave — editing is now instant.',

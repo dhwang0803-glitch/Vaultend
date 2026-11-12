@@ -313,7 +313,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.autoApplyDesc': '활성화하면 선택한 폴더를 정리한 후 AI 분류 결과(이동·태깅·링크)를 검토 없이 즉시 적용합니다.',
 
   'settings.maxTokens': '최대 응답 토큰',
-  'settings.maxTokensDesc': 'AI 응답의 최대 토큰 수 (1024–16384). 높을수록 긴 답변이 가능하지만 비용이 증가합니다.',
+  'settings.maxTokensDesc': 'AI 작업별 출력 토큰의 상한 (1024–16384). 각 작업은 필요한 만큼만 사용하므로 기본값에서는 거의 적용되지 않습니다. 값을 낮추면 태그 정리·폴더 정리 같은 대량 작업의 응답이 잘릴 수 있습니다.',
   'settings.truncationNotice': '15,000자를 초과하는 노트는 AI 분석 전에 자동으로 축약됩니다. 매우 긴 노트에서는 결과 정확도가 다소 떨어질 수 있습니다.',
   'settings.dailyNoteLimit': 'Daily Note 용량 제한 (KB)',
   'settings.dailyNoteLimitDesc': 'Daily Note 모드에서 파일이 이 크기를 초과하면 새 파일을 생성합니다.',
@@ -408,6 +408,22 @@ const ko: { [K in keyof typeof en]: string } = {
   'whatsNew.v1020.processed.title': '"processed" 프론트매터 제거',
   'whatsNew.v1020.processed.desc': '더 이상 작성하거나 확인하지 않습니다. 기존 노트에 남아 있는 값은 무해하며, 편할 때 삭제하시면 됩니다.',
 
+  // ─── What's New: v1.0.23 ───
+  'whatsNew.section.notice': '안내',
+  'whatsNew.v1023.gemini.title': 'Gemini 분류 실패 수정',
+  'whatsNew.v1023.gemini.desc': 'Gemini 3.x Flash와 2.5 Flash에서 AI 응답이 중간에 잘려 태그 분류·링크 추천·요약이 실패하던 문제를 수정했습니다. 또한 Gemini가 내부 추론(thinking)에 사용한 토큰도 토큰·비용 표시에 포함해, 실제 청구액에 더 가깝게 표시됩니다.',
+  'whatsNew.v1023.maxTokens.title': '최대 응답 토큰 설정이 다시 적용됩니다',
+  'whatsNew.v1023.maxTokens.desc': '0.8.0에서 Quick Ask가 분리된 이후 이 설정이 어떤 기능에도 적용되지 않고 있었습니다. 이제 AI 작업별 출력 토큰의 상한으로 동작합니다. 기본값(8192)을 쓰고 있다면 달라지는 것은 없습니다. 값을 4000 아래로 낮췄다면 태그 정리나 폴더 정리 같은 대량 작업의 응답이 잘릴 수 있으니, 그런 경우 값을 올려 주세요.',
+  'whatsNew.v1023.linkCut.title': '노트 정리: 링크 추천이 잘리던 문제 수정',
+  'whatsNew.v1023.linkCut.desc': '일부 모델에서 관련 노트 링크 응답이 중간에 잘려 링크가 추천되지 않던 문제를 수정했습니다. 응답 한도를 링크 응답 형식에 맞췄습니다.',
+  'whatsNew.v1023.retired.title': '종료된 모델 정리',
+  'whatsNew.v1023.retired.desc': 'OpenAI가 서비스를 종료한 o4-mini, o3-mini, GPT-4.1 Nano와 Google이 종료한 text-embedding-004를 목록에서 제거했습니다. 이 모델(직접 입력한 o1 포함)을 선택해 두셨다면 권장 대체 모델로 자동 전환됩니다: o4-mini → GPT-5.6 Terra, o3-mini·o1 → GPT-5.6 Sol, GPT-4.1 Nano → GPT-5.6 Luna, text-embedding-004 → gemini-embedding-001.',
+  'whatsNew.v1023.gpt6.title': 'GPT-6 모델 지원',
+  'whatsNew.v1023.gpt6.desc': 'OpenAI의 최신 모델 GPT-6 Astra, GPT-6.1 Sol, GPT-6.1 Terra, GPT-6 Luna를 모델 목록에 추가했습니다(가격이 높은 순: Astra > Sol > Terra > Luna). 모델별 토큰 비용도 표시됩니다. 모델 ID를 직접 입력해 GPT-6 계열을 쓰는 경우도 이제 정상 동작합니다.',
+  'whatsNew.v1023.gemini25pro.title': 'Gemini 2.5 Pro 지원 종료 예정',
+  'whatsNew.v1023.gpt4o.title': 'GPT-4o·GPT-4.1 지원 종료 예정',
+  'whatsNew.v1023.gpt4o.desc': 'OpenAI가 2027년 1월 14일 기본 모델인 GPT-4o와 GPT-4o Mini, GPT-4.1, GPT-4.1 Mini를 종료할 예정입니다. GPT-5.4 Nano도 2027년 4월 1일 종료 예정입니다. 이 모델을 사용 중이라면 종료 전에 이번에 추가된 GPT-6 계열(OpenAI 권장 대체: GPT-6 Luna)로 전환해 주세요. 종료 이후 업데이트에서 목록에서 제거할 예정입니다.',
+  'whatsNew.v1023.gemini25pro.desc': 'Google이 2026년 12월 1일 Gemini 2.5 Pro 서비스를 종료할 예정입니다(신규 사용자는 이미 사용할 수 없습니다). 종료 이후 업데이트에서 목록에서 제거할 예정이니 다른 Gemini 모델로 전환해 주세요.',
   // ─── What's New: v1.0.22 ───
   'whatsNew.v1022.perfLag.title': '노트 편집 시 버벅거림 해결',
   'whatsNew.v1022.perfLag.desc': '자동 저장마다 실행되던 불필요한 실시간 동기화(검색 인덱스, 벡터 저장소, AI 임베딩)를 제거하여 편집이 즉각 반응합니다.',
