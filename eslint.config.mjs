@@ -20,7 +20,8 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // ignoreRestSiblings: Obsidian 권장 설정(eslint-plugin-obsidianmd)과 동일 — rest 구조 분해로 필드를 제외하는 패턴 허용
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", ignoreRestSiblings: true }],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/explicit-function-return-type": "off",

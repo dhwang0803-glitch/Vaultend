@@ -85,7 +85,6 @@ export class FileHistoryAdapter implements HistoryPort {
         }
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit affectedFiles
         const { affectedFiles: _af, ...preservedMeta } = target.metadata;
         entries[idx] = { ...target, metadata: preservedMeta };
 
@@ -114,7 +113,6 @@ export class FileHistoryAdapter implements HistoryPort {
         await this.vault.moveNote(archivedPath, target.notePath);
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit metadata
         const { metadata: _cleared, ...rest } = target;
         entries[idx] = rest;
 
@@ -134,7 +132,6 @@ export class FileHistoryAdapter implements HistoryPort {
         await this.vault.writeNote(target.notePath, target.previousContent);
 
         const idx = entries.indexOf(target);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-destructure to omit previousContent
         const { previousContent: _cleared, ...rest } = target;
         entries[idx] = rest;
 
