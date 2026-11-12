@@ -60,14 +60,16 @@ Claude가 Bash 도구로 `codex` CLI를 직접 실행한다. Codex가 로컬 파
 codex review --base development
 ```
 
-> `codex review --base`는 커스텀 프롬프트(`[PROMPT]`)와 동시 사용 불가. 기본 리뷰 기준으로 실행된다.
+> `codex review --base`·`--uncommitted`는 커스텀 프롬프트(`[PROMPT]`)와 동시 사용 불가(codex-cli 0.152.1 기준). 기본 리뷰 기준으로 실행된다.
+>
+> **미커밋 변경**이거나 **커스텀 기준**(예: 사이드 이펙트 우선, 실제 런타임 동작 사실 전달)이 필요하면 아래 `codex exec -s read-only` 방식을 1순위로 쓴다. 프롬프트에서 Codex가 `git status`·`git diff`·신규 파일을 직접 읽도록 지시하고, 무관한 미추적 파일은 제외하라고 명시한다. `-s read-only`로 파일 수정을 막는다.
 
 #### plan/spec 검증 (커스텀 기준 필요 시)
 
-`codex review`는 커스텀 프롬프트와 `--base`를 동시에 쓸 수 없으므로, 범용 `codex exec` 모드를 사용한다:
+`codex review`는 커스텀 프롬프트와 `--base`/`--uncommitted`를 동시에 쓸 수 없으므로, 범용 `codex exec` 모드를 사용한다 (읽기 전용):
 
 ```bash
-codex exec "당신은 독립적인 코드 리뷰어입니다. 다른 AI가 작성한 설계 명세를 검증하세요.
+codex exec -s read-only "당신은 독립적인 코드 리뷰어입니다. 다른 AI가 작성한 설계 명세를 검증하세요.
 
 검증 대상: docs/specs/<module>.md
 참조: CLAUDE.md의 아키텍처 규칙
@@ -212,7 +214,8 @@ Step 1. 변경 파일 목록 확인 (PR 범위 파악)
 Step 2. Codex 검증 실행 (우선순위 순서로 시도)
     ┌─────────────────────────────────────────────────────┐
     │ 2-a. CLI 직접 실행 (권장)                            │
-    │      codex review --base main                       │
+    │      codex review --base development                │
+    │      (미커밋·커스텀 기준: codex exec -s read-only)   │
     │      → Codex가 직접 파일 접근, 컨텍스트 손실 없음     │
     │                                                     │
     │ 2-b. MCP 도구 호출 (CLI 미설치 시 폴백)              │
