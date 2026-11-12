@@ -1,9 +1,24 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MaxResponseTokensAIAdapter } from '../MaxResponseTokensAIAdapter';
 import { createMockAI, createMockConfig } from '../../../test-utils/mock-ports';
-import type { CompletionRequest } from '../../../application/ports/AIProviderPort';
+import type { AIProviderPort, CompletionRequest, CompletionResponse } from '../../../application/ports/AIProviderPort';
 
 const req = (maxTokens: number): CompletionRequest => ({ prompt: 'p', systemPrompt: 's', maxTokens, temperature: 0.1, jsonMode: true });
+
+const RESPONSE: CompletionResponse = {
+  content: 'ok',
+  tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, estimatedCostUsd: 0 },
+  finishReason: 'stop',
+};
+
+/** 스파이를 독립 변수로 만들어 주입 — 메서드 참조 분리(unbound-method) 없이 호출 인자를 검증 */
+function spiedInner() {
+  const callCompletion = vi.fn<AIProviderPort['callCompletion']>().mockResolvedValue(RESPONSE);
+  const callClassification = vi.fn<AIProviderPort['callClassification']>();
+  const callEmbedding = vi.fn<AIProviderPort['callEmbedding']>();
+  const inner = createMockAI({ callCompletion, callClassification, callEmbedding });
+  return { inner, callCompletion, callClassification, callEmbedding };
+}
 
 describe('MaxResponseTokensAIAdapter.effectiveMaxTokens', () => {
   it.each([
@@ -38,36 +53,34 @@ describe('MaxResponseTokensAIAdapter.effectiveMaxTokens', () => {
 
 describe('MaxResponseTokensAIAdapter 위임', () => {
   it('상한이 걸리지 않으면 요청 객체를 그대로(동일 참조) 전달한다', async () => {
-    const inner = createMockAI();
+    const { inner, callCompletion } = spiedInner();
     const a = new MaxResponseTokensAIAdapter(inner, createMockConfig({ aiMaxTokens: 8192 }));
     const r = req(300);
 
     await a.callCompletion(r);
 
-    expect(inner.callCompletion).toHaveBeenCalledWith(r);
-    expect(vi.mocked(inner.callCompletion).mock.calls[0][0]).toBe(r);
+    expect(callCompletion).toHaveBeenCalledWith(r);
+    expect(callCompletion.mock.calls[0][0]).toBe(r);
   });
 
   it('상한이 걸리면 maxTokens만 바꾸고 나머지 필드는 보존한다', async () => {
-    const inner = createMockAI();
+    const { inner, callCompletion } = spiedInner();
     const a = new MaxResponseTokensAIAdapter(inner, createMockConfig({ aiMaxTokens: 1024 }));
 
     await a.callCompletion(req(4000));
 
-    expect(inner.callCompletion).toHaveBeenCalledWith({ ...req(4000), maxTokens: 1024 });
+    expect(callCompletion).toHaveBeenCalledWith({ ...req(4000), maxTokens: 1024 });
   });
 
   it('응답은 내부 어댑터 결과를 그대로 반환한다', async () => {
-    const inner = createMockAI();
+    const { inner } = spiedInner();
     const a = new MaxResponseTokensAIAdapter(inner, createMockConfig({ aiMaxTokens: 8192 }));
-    const expected = await inner.callCompletion(req(1));
-    vi.mocked(inner.callCompletion).mockClear();
 
-    await expect(a.callCompletion(req(300))).resolves.toEqual(expected);
+    await expect(a.callCompletion(req(300))).resolves.toBe(RESPONSE);
   });
 
   it('분류·임베딩은 변경 없이 위임한다', async () => {
-    const inner = createMockAI();
+    const { inner, callClassification, callEmbedding } = spiedInner();
     const a = new MaxResponseTokensAIAdapter(inner, createMockConfig({ aiMaxTokens: 1024 }));
     const cls = { text: 't', existingTags: ['a'] };
     const emb = { texts: ['x'], model: 'm' };
@@ -75,8 +88,8 @@ describe('MaxResponseTokensAIAdapter 위임', () => {
     await a.callClassification(cls);
     await a.callEmbedding(emb);
 
-    expect(vi.mocked(inner.callClassification).mock.calls[0][0]).toBe(cls);
-    expect(vi.mocked(inner.callEmbedding).mock.calls[0][0]).toBe(emb);
+    expect(callClassification.mock.calls[0][0]).toBe(cls);
+    expect(callEmbedding.mock.calls[0][0]).toBe(emb);
   });
 
   it('내부 어댑터 오류를 그대로 전파한다', async () => {
